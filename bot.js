@@ -5556,6 +5556,12 @@ async function _aplicarAnaliseNoFluxo(ctx, mem, arq, analise, aguardandoPdfProc)
   }
 
   // FLUXO 2: documento processual → dispara o AGENTE
+  // NOVO: tentar extrair número do processo do NOME DO ARQUIVO também
+  const numeroDoArquivo = _extrairCNJDoNome(arq.nome);
+  if(numeroDoArquivo && !analise.numero_processo) {
+    analise.numero_processo = numeroDoArquivo;
+  }
+  
   const ehDocProcessual =
     analise.numero_processo ||
     analise.partes ||
@@ -5603,6 +5609,30 @@ async function _aplicarAnaliseNoFluxo(ctx, mem, arq, analise, aguardandoPdfProc)
 //   4. ATUALIZAÇÃO: aplica só o que é novo, atualiza prazo/status se mudou
 //   5. RELATÓRIO: devolve ao advogado o que mudou, em linguagem direta
 // ════════════════════════════════════════════════════════════════════════════
+
+// Extrai número CNJ do nome do arquivo (ex: 0001234-55.2026.5.10.0001_peticao.pdf)
+function _extrairCNJDoNome(nomeArquivo) {
+  if (!nomeArquivo) return null;
+  const nome = String(nomeArquivo);
+  // Padrão CNJ: NNNNNNN-DD.AAAA.J.TR.OOOO (com ou sem pontos/hífen)
+  const padraoCNJ = /(\d{7}-?\d{2}\.?\d{4}\.?\d\.?\d{2}\.?\d{4})/;
+  const match = nome.match(padraoCNJ);
+  if (match) {
+    // Normaliza para formato com pontos
+    let cnj = match[1].replace(/\D/g, '');
+    if (cnj.length === 20) {
+      return cnj.slice(0,7)+'-'+cnj.slice(7,9)+'.'+cnj.slice(9,13)+'.'+cnj.slice(13,14)+'.'+cnj.slice(14,16)+'.'+cnj.slice(16,20);
+    }
+  }
+  // Também tenta encontrar só números (sem formatação)
+  const padraoNumeros = /(\d{20})/;
+  const matchNum = nome.match(padraoNumeros);
+  if (matchNum) {
+    const cnj = matchNum[1];
+    return cnj.slice(0,7)+'-'+cnj.slice(7,9)+'.'+cnj.slice(9,13)+'.'+cnj.slice(13,14)+'.'+cnj.slice(14,16)+'.'+cnj.slice(16,20);
+  }
+  return null;
+}
 
 // Normaliza número CNJ removendo tudo que não é dígito
 function _normCNJ(s) {
