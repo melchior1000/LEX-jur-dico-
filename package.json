@@ -1,0 +1,19 @@
+{
+  "name": "lex-bot",
+  "version": "1.0.0",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js",
+    "dev": "node --watch bot.js"
+  },
+  "dependencies": {
+    "express": "^latest",
+    "@supabase/supabase-js": "^latest",
+    "@anthropic-ai/sdk": "^latest",
+    "node-telegram-bot-api": "^latest",
+    "jszip": "^latest",
+    "docx": "^latest",
+    "nodemailer": "^latest",
+    "pdf-lib": "^latest"
+  }
+}
