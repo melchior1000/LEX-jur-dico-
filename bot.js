@@ -7271,7 +7271,7 @@ const server = http.createServer(async (req, res) => {
       const b = await lerBody(req);
       if(!b.messages) { res.writeHead(400,CORS); res.end(JSON.stringify({error:'messages obrigatório'})); return; }
       const txt = await ia(b.messages, b.system||null, b.maxTokens||1500);
-      res.writeHead(200,CORS); res.end(JSON.stringify({text:txt}));
+      res.writeHead(200,CORS); res.end(JSON.stringify({resposta:txt, text:txt}));
     } catch(e) { res.writeHead(500,CORS); res.end(JSON.stringify({error:e.message})); }
     return;
   }
@@ -7321,6 +7321,7 @@ const server = http.createServer(async (req, res) => {
       }
       const out = await lex_agente_vivo.tratarRota(req, res, '/api/vivo/conversar', {
         req, res, body: bodyAgv, perfil: pfAgv, processos, CORS,
+        ANTHROPIC_KEY: AK, https, lerBody, sbGet: (t,q)=>sbReq('GET',t,null,q), sbReq,
         helpers: { validarToken, getToken, lerBody, notificarTodosSSE }
       });
       if(typeof out !== 'undefined' && !res.writableEnded) {
@@ -7412,12 +7413,19 @@ const server = http.createServer(async (req, res) => {
       const dtIni = new Date(hj);
       dtIni.setDate(hj.getDate() - (dias - 1));
       const ini = dtIni.getFullYear()+'-'+String(dtIni.getMonth()+1).padStart(2,'0')+'-'+String(dtIni.getDate()).padStart(2,'0');
-      const rows = await sbReq('GET', 'tempo_uso', null, {
-        perfil: 'eq.' + perfilConsulta,
-        data: 'gte.' + ini,
-        select: 'data,hora_inicio',
-        order: 'data.asc'
-      }, null) || [];
+      let rows = [];
+      try {
+        const sbResult = await sbReq('GET', 'tempo_uso', null, {
+          perfil: 'eq.' + perfilConsulta,
+          data: 'gte.' + ini,
+          select: 'data,hora_inicio',
+          order: 'data.asc'
+        }, null);
+        rows = Array.isArray(sbResult) ? sbResult : [];
+      } catch(sbErr) {
+        console.warn('[tempo/logins] Supabase erro (tabela pode nao existir):', sbErr.message);
+        rows = [];
+      }
       const porDia = {};
       for(const r of rows) {
         const d = r.data || '';
