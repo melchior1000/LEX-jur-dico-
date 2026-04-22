@@ -280,22 +280,23 @@ const Lex = {
 };
 
 // ── CONTROLE DE PDFs GRANDES ──
-const PDF_PGS_POR_CHUNK = parseInt(process.env.PDF_PGS_POR_CHUNK || '80', 10);   // páginas por chunk (folga sob limite 100 da Anthropic)
-const PDF_MAX_PGS_DIRETO = parseInt(process.env.PDF_MAX_PGS_DIRETO || '100', 10); // sem split se ≤ isso
-const PDF_STREAM_THRESHOLD_MB = parseInt(process.env.PDF_STREAM_THRESHOLD_MB || '50', 10); // usa tmp se > isso
-// FIX-06: usa os.tmpdir() para compatibilidade Windows (%TEMP%) e Linux (/tmp)
+// CONFIGURACAO PARA PDFs DE ATE 5000 FOLHAS (processos grandes)
+const PDF_PGS_POR_CHUNK = parseInt(process.env.PDF_PGS_POR_CHUNK || '50', 10);   // 50 pg por chunk (mais seguro para 5000 pg)
+const PDF_MAX_PGS_DIRETO = parseInt(process.env.PDF_MAX_PGS_DIRETO || '100', 10); // sem split se ≤ 100
+const PDF_MAX_PGS_TOTAL = parseInt(process.env.PDF_MAX_PGS_TOTAL || '5000', 10);  // LIMITE MAXIMO: 5000 folhas
+const PDF_STREAM_THRESHOLD_MB = parseInt(process.env.PDF_STREAM_THRESHOLD_MB || '50', 10);
 const PDF_TMP_DIR = process.env.PDF_TMP_DIR || path.join(os.tmpdir(), 'lex-pdfs');
-const FILA_MAX_CONCURRENT = 1;  // Render Free: 1 PDF por vez (protege RAM)
-const CHUNK_RETRY_MAX = parseInt(process.env.CHUNK_RETRY_MAX || '4', 10); // tentativas com backoff exponencial
-const CHUNK_TIMEOUT_MS = parseInt(process.env.CHUNK_TIMEOUT_MS || '120000', 10); // 120s por chunk
+const FILA_MAX_CONCURRENT = 1;
+const CHUNK_RETRY_MAX = parseInt(process.env.CHUNK_RETRY_MAX || '4', 10);
+const CHUNK_TIMEOUT_MS = parseInt(process.env.CHUNK_TIMEOUT_MS || '180000', 10); // 180s para chunks grandes
 
-// ── RATE LIMITING ANTHROPIC ──
-// Limite padrão tier 1: 30.000 input tokens/minuto
-// Cada chunk de 80 páginas ≈ 20k tokens. Logo: ~1 chunk por 40s pra ficar em segurança.
-const RATE_LIMIT_TOKENS_POR_MIN = parseInt(process.env.RATE_LIMIT_TOKENS_POR_MIN || '25000', 10); // 25k (margem sob o 30k oficial)
-const CHUNK_TOKENS_ESTIMADOS = parseInt(process.env.CHUNK_TOKENS_ESTIMADOS || '22000', 10); // estimativa conservadora
-const PAUSA_MIN_ENTRE_CHUNKS_MS = parseInt(process.env.PAUSA_MIN_ENTRE_CHUNKS_MS || '35000', 10); // 35s mínimo
-const BACKOFF_BASE_MS = parseInt(process.env.BACKOFF_BASE_MS || '30000', 10); // base do backoff exponencial
+// ── RATE LIMITING ANTHROPIC (ajustado para 5000 folhas) ──
+// 5000 folhas = ~100 chunks de 50 pg = ~2h de processamento total
+// Pausa aumentada para nao sobrecarregar a API
+const RATE_LIMIT_TOKENS_POR_MIN = parseInt(process.env.RATE_LIMIT_TOKENS_POR_MIN || '20000', 10);
+const CHUNK_TOKENS_ESTIMADOS = parseInt(process.env.CHUNK_TOKENS_ESTIMADOS || '15000', 10);
+const PAUSA_MIN_ENTRE_CHUNKS_MS = parseInt(process.env.PAUSA_MIN_ENTRE_CHUNKS_MS || '45000', 10); // 45s minimo
+const BACKOFF_BASE_MS = parseInt(process.env.BACKOFF_BASE_MS || '30000', 10);
 
 try { if(!fs.existsSync(PDF_TMP_DIR)) fs.mkdirSync(PDF_TMP_DIR, {recursive:true}); } catch(e){ console.warn('[Lex][bot] Erro silenciado:', (e && e.message) ? e.message : e); }
 
@@ -8461,6 +8462,39 @@ if(url==='/api/memoria' && req.method==='GET') {
     return;
   }
 
+  // POST /api/analisar-documento-estrategico — Analise profunda de PDF processual (ate 5000 folhas)
+  if(url==='/api/analisar-documento-estrategico' && req.method==='POST'){
+    try{
+      const pf=validarToken(getToken(req));
+      if(!pf){res.writeHead(401,CORS);res.end(JSON.stringify({error:'Nao autenticado'}));return;}
+      const b=await lerBody(req);
+      if(!b.processo_id){res.writeHead(400,CORS);res.end(JSON.stringify({error:'processo_id obrigatorio'}));return;}
+      const proc=processos.find(p=>String(p.id)===String(b.processo_id));
+      if(!proc){res.writeHead(404,CORS);res.end(JSON.stringify({error:'Processo nao encontrado'}));return;}
+      if(!b.documento_base64){res.writeHead(400,CORS);res.end(JSON.stringify({error:'documento_base64 obrigatorio'}));return;}
+      
+      const buffer=Buffer.from(b.documento_base64,'base64');
+      const pagEst=Math.max(1,Math.round(buffer.length/(1024*1024)*7));
+      if(pagEst>PDF_MAX_PGS_TOTAL){
+        res.writeHead(400,CORS);res.end(JSON.stringify({error:`Documento muito grande: ~${pagEst} pg. Limite: ${PDF_MAX_PGS_TOTAL} folhas`}));return;
+      }
+      
+      _auditarAcao(pf,'analise_estrategica_iniciada',{processo_id:b.processo_id,tipo_doc:b.tipo_documento||'decisao',paginas:pagEst});
+      _backupProcesso(b.processo_id,'pre_analise_estrategica');
+      
+      res.writeHead(202,CORS);res.end(JSON.stringify({
+        ok:true,
+        msg:`Analise estrategica iniciada. Documento: ~${pagEst} paginas. Pode levar ate ${Math.ceil(pagEst/50)*2} minutos.`,
+        processo_id:b.processo_id,
+        status:'processando',
+        paginas_estimadas:pagEst
+      }));
+      
+      _processarAnaliseEstrategicaAsync(b.processo_id,proc,b,pf);
+    }catch(e){if(!res.writableEnded){res.writeHead(500,CORS);res.end(JSON.stringify({error:e.message}));}}
+    return;
+  }
+
   res.writeHead(404, CORS);
   res.end(JSON.stringify({error:'Not found'}));
 });
@@ -9599,6 +9633,84 @@ function _coletarEventosCalendario() {
   return eventos
     .filter(e=>e.data)
     .sort((a,b)=>String(a.data).localeCompare(String(b.data)));
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ANALISE ESTRATEGICA DE DOCUMENTOS PROCESSUAIS (ATE 5000 FOLHAS)
+// Endpoint: POST /api/analisar-documento-estrategico
+// ════════════════════════════════════════════════════════════════════════════
+
+async function _processarAnaliseEstrategicaAsync(processoId,proc,dados,perfil){
+  try{
+    const buffer=Buffer.from(dados.documento_base64,'base64');
+    const tipoDoc=dados.tipo_documento||'decisao';
+    const sysPrompt=`Voce e assessor juridico senior especializado em analise estrategica. Analise o documento e encontre VULNERABILIDADES, FALHAS, PORTAS DE ENTRADA.
+
+ESTRUTURA DA ANALISE:
+1. RESUMO EXECUTIVO (2-3 paragrafos)
+2. ANALISE ESTRATEGICA DETALHADA:
+   a) PONTOS FORTES DA POSICAO ADVERSA - Argumentos solidos, fundamentacao correta
+   b) VULNERABILIDADES E FALHAS - Erros de fundamentacao, contradicoes, omissoes, interpretacao errada
+   c) PORTAS DE ENTRADA PARA CONTRA-ATAQUE - Argumentos, precedentes, nulidades a arguir
+   d) ANALISE DO JUIZ/TRIBUNAL - Onde acerta, onde erra, tendencia, risco de reforma
+3. ESTRATEGIA RECOMENDADA - Proximos passos, pecas, prazos criticos
+4. FUNDAMENTACAO JURIDICA - Artigos, sumulas, jurisprudencia STJ/STF aplicavel
+
+REGRAS: Seja tecnico, preciso, cirurgico. Nao invente jurisprudencia. Identifique contradicoes. Aponte vulnerabilidades a reforma. Sugira sacadas estrategicas nao obvias.`;
+
+    let analiseCompleta='';
+    const isPdf=dados.nome?.toLowerCase().endsWith('.pdf')||dados.mimetype==='application/pdf';
+    const pagEst=Math.max(1,Math.round(buffer.length/(1024*1024)*7));
+    
+    if(pagEst<=PDF_MAX_PGS_DIRETO){
+      const texto=await extrairTextoPDF(buffer,isPdf);
+      analiseCompleta=await ia([{role:'user',content:`ANALISE ESTRATEGICA\n\nTipo: ${tipoDoc}\nProcesso: ${proc.numero||proc.titulo}\nPartes: ${proc.partes||proc.cliente}\n\nTEXTO DO DOCUMENTO:\n${texto.substring(0,150000)}`}],sysPrompt,4096);
+    }else{
+      const chunks=await splitPDFEmChunks(buffer,{pgsPorChunk:PDF_PGS_POR_CHUNK,maxDireto:PDF_MAX_PGS_DIRETO});
+      const analisesParciais=[];
+      for(let i=0;i<chunks.length;i++){
+        const textoChunk=await extrairTextoPDF(chunks[i],isPdf);
+        const analiseChunk=await ia([{role:'user',content:`ANALISE ESTRATEGICA - PARTE ${i+1}/${chunks.length}\n\nTipo: ${tipoDoc}\nProcesso: ${proc.numero||proc.titulo}\n\nTEXTO DESTA PARTE:\n${textoChunk.substring(0,80000)}`}],sysPrompt+'\n\nESTA E APENAS UMA PARTE DO DOCUMENTO. Foque em vulnerabilidades especificas desta secao.',3000);
+        analisesParciais.push(analiseChunk);
+        if(i<chunks.length-1)await new Promise(r=>setTimeout(r,PAUSA_MIN_ENTRE_CHUNKS_MS));
+      }
+      analiseCompleta=await ia([{role:'user',content:`SINTESE DAS ANALISES PARCIAIS:\n\n${analisesParciais.join('\n\n---\n\n')}\n\nCrie uma analise estrategica unificada, consolidando as vulnerabilidades encontradas em todas as partes.`}],sysPrompt,4096);
+    }
+    
+    if(!proc.analises_estrategicas)proc.analises_estrategicas=[];
+    proc.analises_estrategicas.push({
+      id:Date.now(),
+      data:new Date().toISOString(),
+      tipo_documento:tipoDoc,
+      analise:analiseCompleta,
+      paginas_estimadas:pagEst,
+      analisado_por:perfil
+    });
+    
+    if(!Array.isArray(proc.andamentos))proc.andamentos=[];
+    proc.andamentos.unshift({
+      id:Date.now(),
+      data:new Date().toISOString().slice(0,10),
+      descricao:`Analise estrategica concluida: ${tipoDoc} (~${pagEst} pg)`,
+      tipo:'analise_estrategica'
+    });
+    
+    _auditarAcao(perfil,'analise_estrategica_concluida',{processo_id:processoId,tipo_doc:tipoDoc,paginas:pagEst});
+    _sseNotificar('analise_estrategica_concluida',{
+      ok:true,
+      processo_id:processoId,
+      tipo_documento:tipoDoc,
+      paginas:pagEst,
+      resumo:analiseCompleta.substring(0,500)+'...'
+    });
+    
+    if(perfil==='admin'){
+      await envTelegramAgendado(`[ANALISE ESTRATEGICA] ✅ CONCLUIDA\n\nProcesso: ${processoId}\nTipo: ${tipoDoc}\nPaginas: ~${pagEst}`);
+    }
+  }catch(e){
+    console.error('[Analise Estrategica] Erro:',e);
+    _sseNotificar('analise_estrategica_concluida',{erro:true,msg:e.message});
+  }
 }
 
 process.on('SIGTERM', ()=> _gracefulShutdown('SIGTERM'));
