@@ -8354,6 +8354,8 @@ if(url==='/api/memoria' && req.method==='GET') {
       if(!pf) { res.writeHead(401,CORS); res.end(JSON.stringify({error:'Nao autenticado'})); return; }
       const b = await lerBody(req);
       if(!b.processo_id) { res.writeHead(400,CORS); res.end(JSON.stringify({error:'processo_id obrigatorio'})); return; }
+      // BACKUP antes de atualizar
+      _backupProcesso(b.processo_id, 'atualizacao_api');
       const idx = processos.findIndex(p=>String(p.id)===String(b.processo_id));
       if(idx===-1) { res.writeHead(404,CORS); res.end(JSON.stringify({error:'Processo nao encontrado'})); return; }
       const camposPermitidos = ['titulo','area','status','cliente','descricao','numero','valor_causa','juiz','vara','proxacao','prazo','prazoReal','observacoes'];
@@ -8363,6 +8365,8 @@ if(url==='/api/memoria' && req.method==='GET') {
       }
       if(b.prazos && Array.isArray(b.prazos)) { processos[idx].prazos = b.prazos; atualizados.push('prazos'); }
       if(b.andamentos && Array.isArray(b.andamentos)) { processos[idx].andamentos = b.andamentos; atualizados.push('andamentos'); }
+      // AUDITORIA
+      _auditarAcao(pf, 'processo_atualizar_api', {processo_id:b.processo_id, campos:atualizados});
       res.writeHead(200,CORS); res.end(JSON.stringify({ok:true, processo_id:b.processo_id, atualizados, msg:'Processo atualizado com sucesso'}));
     } catch(e) { res.writeHead(500,CORS); res.end(JSON.stringify({error:e.message})); }
     return;
@@ -8435,7 +8439,7 @@ if(url==='/api/memoria' && req.method==='GET') {
 // FEATURE: Processar marcadores de ação no chat do assessor
 // Formato: [ATUALIZAR:processo_id:campo:valor] [ANDAMENTO:processo_id:descricao] [PRAZO:processo_id:descricao:data:tipo]
 // ═══════════════════════════════════════════════════════════════════
-function _processarMarcadoresChat(texto) {
+function _processarMarcadoresChat(texto, perfil='assessor') {
   if(!texto) return [];
   const acoes = [];
   // [ATUALIZAR:ID:campo:valor]
@@ -8446,8 +8450,12 @@ function _processarMarcadoresChat(texto) {
     if(idx!==-1) {
       const camposValidos = ['status','titulo','juiz','vara','proxacao','observacoes','area','cliente'];
       if(camposValidos.includes(m[2])) {
+        // BACKUP antes de atualizar
+        _backupProcesso(m[1], 'atualizacao_assessor_chat');
         processos[idx][m[2]] = m[3];
         acoes.push({tipo:'atualizar', processo_id:m[1], campo:m[2], valor:m[3], ok:true});
+        // AUDITORIA
+        _auditarAcao(perfil, 'atualizar_processo', {processo_id:m[1], campo:m[2], valor:m[3]});
       }
     }
   }
@@ -8457,9 +8465,13 @@ function _processarMarcadoresChat(texto) {
     const idx = processos.findIndex(p=>String(p.id)===m[1]);
     if(idx!==-1) {
       if(!Array.isArray(processos[idx].andamentos)) processos[idx].andamentos = [];
+      // BACKUP antes de adicionar andamento
+      _backupProcesso(m[1], 'novo_andamento_assessor');
       const novoAnd = {id:Date.now(), data:new Date().toISOString().slice(0,10), descricao:m[2], tipo:'atualizacao_assessor'};
       processos[idx].andamentos.push(novoAnd);
       acoes.push({tipo:'andamento', processo_id:m[1], descricao:m[2], ok:true});
+      // AUDITORIA
+      _auditarAcao(perfil, 'adicionar_andamento', {processo_id:m[1], descricao:m[2]});
     }
   }
   // [PRAZO:ID:descricao:data:tipo]
@@ -8468,9 +8480,13 @@ function _processarMarcadoresChat(texto) {
     const idx = processos.findIndex(p=>String(p.id)===m[1]);
     if(idx!==-1) {
       if(!Array.isArray(processos[idx].prazos)) processos[idx].prazos = [];
+      // BACKUP antes de adicionar prazo
+      _backupProcesso(m[1], 'novo_prazo_assessor');
       const novoPz = {id:Date.now(), descricao:m[2], data:m[3], tipo:m[4], status:'pendente'};
       processos[idx].prazos.push(novoPz);
       acoes.push({tipo:'prazo', processo_id:m[1], descricao:m[2], data:m[3], ok:true});
+      // AUDITORIA
+      _auditarAcao(perfil, 'adicionar_prazo', {processo_id:m[1], descricao:m[2], data:m[3]});
     }
   }
   return acoes;
@@ -8501,6 +8517,78 @@ function envTelegramAgendado(msg, opts, chatId) {
     return Promise.resolve({ok:true, enfileirado:true});
   }
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// SISTEMA DE AUDITORIA, BACKUP E PERSISTÊNCIA (CRÍTICO)
+// ════════════════════════════════════════════════════════════════════════════
+
+// Sistema 1: Auditoria de ações críticas
+if(!global._auditoria) global._auditoria = [];
+async function _auditarAcao(perfil, acao, dados) {
+  const registro = {
+    ts: Date.now(),
+    data: new Date().toISOString(),
+    perfil: perfil || 'desconhecido',
+    acao: acao,
+    dados: JSON.stringify(dados || {}),
+    ip: null // IP seria preenchido se disponível no req
+  };
+  global._auditoria.push(registro);
+  // Limitar a 1000 registros em memória
+  if(global._auditoria.length > 1000) global._auditoria.shift();
+  // Tentar salvar no Supabase (não bloqueia se falhar)
+  try {
+    await sbReq('POST', 'auditoria', registro);
+  } catch(e) { /* Fallback: mantém só em memória */ }
+}
+
+// Sistema 2: Backup automático antes de atualizações
+if(!global._backupsProcessos) global._backupsProcessos = [];
+function _backupProcesso(processo_id, motivo) {
+  const proc = processos.find(p => String(p.id) === String(processo_id));
+  if(!proc) return null;
+  const backup = {
+    ts: Date.now(),
+    data: new Date().toISOString(),
+    processo_id: processo_id,
+    motivo: motivo || 'atualizacao',
+    dados: JSON.parse(JSON.stringify(proc)) // Deep copy
+  };
+  global._backupsProcessos.push(backup);
+  // Manter só os últimos 100 backups
+  if(global._backupsProcessos.length > 100) global._backupsProcessos.shift();
+  return backup;
+}
+
+// Sistema 3: Persistência de mensagens Telegram/WhatsApp
+if(!global._mensagensChat) global._mensagensChat = [];
+async function _salvarMensagemChat(plataforma, direcao, chatId, mensagem, processo_id, metadados) {
+  const registro = {
+    ts: Date.now(),
+    data: new Date().toISOString(),
+    plataforma: plataforma, // 'telegram' ou 'whatsapp'
+    direcao: direcao, // 'enviada' ou 'recebida'
+    chat_id: chatId,
+    mensagem: String(mensagem || '').substring(0, 4000),
+    processo_id: processo_id || null,
+    metadados: JSON.stringify(metadados || {})
+  };
+  global._mensagensChat.push(registro);
+  // Limitar a 2000 mensagens em memória
+  if(global._mensagensChat.length > 2000) global._mensagensChat.shift();
+  // Tentar salvar no Supabase
+  try {
+    await sbReq('POST', 'mensagens_chat', registro);
+  } catch(e) { /* Fallback: mantém só em memória */ }
+}
+
+// Wrapper para envTelegram com persistência
+const _envTelegramOriginal = envTelegram;
+envTelegram = async function(texto, tId, chatId) {
+  // Salvar antes de enviar
+  await _salvarMensagemChat('telegram', 'enviada', chatId || CHAT_ID, texto, null, {thread_id: tId});
+  return _envTelegramOriginal(texto, tId, chatId);
+};
 
 // Flush da fila de notificações a cada 5 minutos
 setInterval(async () => {
