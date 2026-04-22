@@ -84,6 +84,7 @@
 
 const https = require('https');
 const http = require('http');
+const JSZip = require('jszip');
 const CRYPTO = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -1136,7 +1137,24 @@ INSTRUÇÕES PERMANENTES DE KLEUBER:
 TÉCNICO:
 - Prazos < 3 dias: alerta em MAIÚSCULAS
 - Petição inicial: coleta qualificação completa
-- Andamento: "já qualificado nos autos do processo em epígrafe nº [número]"`;
+- Andamento: "já qualificado nos autos do processo em epígrafe nº [número]"
+
+ATUALIZAÇÃO DE PROCESSOS VIA CHAT:
+Quando o usuário pedir para atualizar dados de um processo, EXECUTE e inclua marcadores no final da resposta:
+- Atualizar campo: [ATUALIZAR:processo_id:campo:valor] (campos: status, titulo, juiz, vara, proxacao, observacoes, area, cliente)
+- Novo andamento: [ANDAMENTO:processo_id:descricao do andamento]
+- Novo prazo: [PRAZO:processo_id:descricao:YYYY-MM-DD:tipo]
+Exemplo: Se pedirem "atualiza o status do processo 123 para em andamento", responda confirmando e inclua [ATUALIZAR:123:status:em_andamento].
+
+EXPERTISE BANCÁRIA/CDC:
+- Lei 9.514/97 (alienação fiduciária), CDC em bancos (Súmula 297 STJ)
+- Tarifas: TAC/TEC (Tema 618 STJ), seguro prestamista (Tema 972 STJ)
+- Capitalização juros/anatocismo (Tema 953 STJ), SAC vs Price (Tema 572 STJ)
+- Repetição indébito em dobro (EAREsp 676.608/RS), consignação judicial
+- Crédito rural: não misturar com cheque especial, tarifas PRONANP distintas
+- Danos morais bancários (Súmulas 385/479 STJ), Súmula 382 STJ (juros abusivos)
+- Contratos imóveis com amortização, renegociados com juros compostos
+- Nulidade cláusulas abusivas, cabimento de repetição de indébito e danos`;
 }
 
 function sysSecretaria(mem, usuario) {
@@ -7272,7 +7290,9 @@ const server = http.createServer(async (req, res) => {
       if(!b.messages) { res.writeHead(400,CORS); res.end(JSON.stringify({error:'messages obrigatório'})); return; }
     const sysPrompt = b.system || sysAssessor(null, null);
     const txt = await ia(b.messages, sysPrompt, b.maxTokens||4096);
-      res.writeHead(200,CORS); res.end(JSON.stringify({resposta:txt, text:txt}));
+      // Pós-processamento: marcadores de atualização de processo
+      const acoes = _processarMarcadoresChat(txt);
+      res.writeHead(200,CORS); res.end(JSON.stringify({resposta:txt, text:txt, acoes_executadas:acoes}));
     } catch(e) { res.writeHead(500,CORS); res.end(JSON.stringify({error:e.message})); }
     return;
   }
@@ -8348,9 +8368,151 @@ if(url==='/api/memoria' && req.method==='GET') {
     return;
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // FEATURE: POST /api/exportar-dados-cliente — Export LGPD (ZIP)
+  // ═══════════════════════════════════════════════════════════════════
+  if(url==='/api/exportar-dados-cliente' && req.method==='POST') {
+    try {
+      const pf = validarToken(getToken(req));
+      if(!pf || pf!=='admin') { res.writeHead(403,CORS); res.end(JSON.stringify({error:'Somente admin pode exportar dados'})); return; }
+      const b = await lerBody(req);
+      const clienteNome = (b.cliente_nome||b.cliente||'').trim().toLowerCase();
+      const clienteId = b.cliente_id ? String(b.cliente_id) : '';
+      if(!clienteNome && !clienteId) { res.writeHead(400,CORS); res.end(JSON.stringify({error:'cliente_nome ou cliente_id obrigatorio'})); return; }
+
+      // Filtrar processos do cliente
+      const procsCliente = processos.filter(p => {
+        if(clienteId && String(p.id)===clienteId) return true;
+        if(clienteId && String(p.cliente_id)===clienteId) return true;
+        const nome = (p.cliente||p.nome||'').toLowerCase();
+        return clienteNome && nome.includes(clienteNome);
+      });
+
+      if(procsCliente.length===0) { res.writeHead(404,CORS); res.end(JSON.stringify({error:'Nenhum processo encontrado para este cliente'})); return; }
+
+      // Montar ZIP
+      const zip = new JSZip();
+      zip.file('processos.json', JSON.stringify(procsCliente, null, 2));
+
+      const todosAndamentos = [];
+      const todosPrazos = [];
+      for(const p of procsCliente) {
+        if(Array.isArray(p.andamentos)) todosAndamentos.push(...p.andamentos.map(a=>({...a, processo_id:p.id, processo_titulo:p.titulo})));
+        if(Array.isArray(p.prazos)) todosPrazos.push(...p.prazos.map(z=>({...z, processo_id:p.id, processo_titulo:p.titulo})));
+      }
+      zip.file('andamentos.json', JSON.stringify(todosAndamentos, null, 2));
+      zip.file('prazos.json', JSON.stringify(todosPrazos, null, 2));
+      zip.file('README.txt', [
+        'EXPORTACAO DE DADOS - LEX JURIDICO',
+        '===================================',
+        'Cliente: ' + (clienteNome || clienteId),
+        'Data da exportacao: ' + new Date().toISOString(),
+        'Total de processos: ' + procsCliente.length,
+        'Total de andamentos: ' + todosAndamentos.length,
+        'Total de prazos: ' + todosPrazos.length,
+        '',
+        'Arquivos:',
+        '- processos.json: Todos os processos do cliente com dados completos',
+        '- andamentos.json: Historico de andamentos de todos os processos',
+        '- prazos.json: Todos os prazos e audiencias',
+        '',
+        'Conforme LGPD (Lei 13.709/2018), Art. 18, V - Direito a portabilidade dos dados.',
+        'Estes dados pertencem ao cliente e podem ser transferidos para outro escritorio.'
+      ].join('\n'));
+
+      const zipBuf = await zip.generateAsync({type:'nodebuffer'});
+      res.writeHead(200, {...CORS, 'Content-Type':'application/zip', 'Content-Disposition':'attachment; filename="dados_cliente.zip"', 'Content-Length':zipBuf.length});
+      res.end(zipBuf);
+    } catch(e) { if(!res.writableEnded) { res.writeHead(500,CORS); res.end(JSON.stringify({error:e.message})); } }
+    return;
+  }
+
   res.writeHead(404, CORS);
   res.end(JSON.stringify({error:'Not found'}));
 });
+
+// ═══════════════════════════════════════════════════════════════════
+// FEATURE: Processar marcadores de ação no chat do assessor
+// Formato: [ATUALIZAR:processo_id:campo:valor] [ANDAMENTO:processo_id:descricao] [PRAZO:processo_id:descricao:data:tipo]
+// ═══════════════════════════════════════════════════════════════════
+function _processarMarcadoresChat(texto) {
+  if(!texto) return [];
+  const acoes = [];
+  // [ATUALIZAR:ID:campo:valor]
+  const regAtu = /\[ATUALIZAR:(\d+):(\w+):([^\]]+)\]/g;
+  let m;
+  while((m = regAtu.exec(texto)) !== null) {
+    const idx = processos.findIndex(p=>String(p.id)===m[1]);
+    if(idx!==-1) {
+      const camposValidos = ['status','titulo','juiz','vara','proxacao','observacoes','area','cliente'];
+      if(camposValidos.includes(m[2])) {
+        processos[idx][m[2]] = m[3];
+        acoes.push({tipo:'atualizar', processo_id:m[1], campo:m[2], valor:m[3], ok:true});
+      }
+    }
+  }
+  // [ANDAMENTO:ID:descricao]
+  const regAnd = /\[ANDAMENTO:(\d+):([^\]]+)\]/g;
+  while((m = regAnd.exec(texto)) !== null) {
+    const idx = processos.findIndex(p=>String(p.id)===m[1]);
+    if(idx!==-1) {
+      if(!Array.isArray(processos[idx].andamentos)) processos[idx].andamentos = [];
+      const novoAnd = {id:Date.now(), data:new Date().toISOString().slice(0,10), descricao:m[2], tipo:'atualizacao_assessor'};
+      processos[idx].andamentos.push(novoAnd);
+      acoes.push({tipo:'andamento', processo_id:m[1], descricao:m[2], ok:true});
+    }
+  }
+  // [PRAZO:ID:descricao:data:tipo]
+  const regPz = /\[PRAZO:(\d+):([^:]+):([^:]+):([^\]]+)\]/g;
+  while((m = regPz.exec(texto)) !== null) {
+    const idx = processos.findIndex(p=>String(p.id)===m[1]);
+    if(idx!==-1) {
+      if(!Array.isArray(processos[idx].prazos)) processos[idx].prazos = [];
+      const novoPz = {id:Date.now(), descricao:m[2], data:m[3], tipo:m[4], status:'pendente'};
+      processos[idx].prazos.push(novoPz);
+      acoes.push({tipo:'prazo', processo_id:m[1], descricao:m[2], data:m[3], ok:true});
+    }
+  }
+  return acoes;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// FEATURE: Horários de notificação Telegram (08:00, 12:00, 17:00)
+// ═══════════════════════════════════════════════════════════════════
+if(!global._filaNotificacoes) global._filaNotificacoes = [];
+
+function _dentroHorarioNotificacao() {
+  const agora = new Date();
+  const h = agora.getHours();
+  const m = agora.getMinutes();
+  const totalMin = h * 60 + m;
+  // Janelas: 07:50-08:10, 11:50-12:10, 16:50-17:10
+  if(totalMin >= 470 && totalMin <= 490) return true;  // 07:50-08:10
+  if(totalMin >= 710 && totalMin <= 730) return true;  // 11:50-12:10
+  if(totalMin >= 1010 && totalMin <= 1030) return true; // 16:50-17:10
+  return false;
+}
+
+function envTelegramAgendado(msg, opts, chatId) {
+  if(_dentroHorarioNotificacao()) {
+    return envTelegram(msg, opts, chatId);
+  } else {
+    global._filaNotificacoes.push({msg, opts, chatId: chatId||CHAT_ID, ts:Date.now()});
+    return Promise.resolve({ok:true, enfileirado:true});
+  }
+}
+
+// Flush da fila de notificações a cada 5 minutos
+setInterval(async () => {
+  if(_dentroHorarioNotificacao() && global._filaNotificacoes.length > 0) {
+    const fila = [...global._filaNotificacoes];
+    global._filaNotificacoes = [];
+    for(const item of fila) {
+      try { await envTelegram(item.msg, item.opts, item.chatId); } catch(e) { console.warn('[Fila Telegram] Erro:', e.message); }
+    }
+    console.log(`[Fila Telegram] ${fila.length} notificacoes enviadas no horario`);
+  }
+}, 5 * 60 * 1000);
 
 server.listen(process.env.PORT||3000, () => {
   console.log('HTTP+API porta', process.env.PORT||3000);
