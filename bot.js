@@ -1052,7 +1052,7 @@ async function envArq(buf, nome, ctx, mimetype) {
 // FIX-03: verificação de API key + retry automático em sobrecarga + erro claro
 async function ia(messages, system, maxTok) {
   if(!AK) throw new Error('ANTHROPIC_KEY não configurada. Defina a variável de ambiente.');
-  const pay={model:'claude-sonnet-4-20250514', max_tokens:maxTok||2000, messages};
+const pay={model:'claude-opus-4-7-20250415', max_tokens:maxTok||2000, messages};
   if(system) pay.system=system;
   try {
     const r=await httpsPost('api.anthropic.com','/v1/messages',pay,
@@ -7270,7 +7270,8 @@ const server = http.createServer(async (req, res) => {
       if(!validarToken(tk)) { res.writeHead(401,CORS); res.end(JSON.stringify({error:'Não autenticado'})); return; }
       const b = await lerBody(req);
       if(!b.messages) { res.writeHead(400,CORS); res.end(JSON.stringify({error:'messages obrigatório'})); return; }
-      const txt = await ia(b.messages, b.system||null, b.maxTokens||1500);
+    const sysPrompt = b.system || sysAssessor(null, null);
+    const txt = await ia(b.messages, sysPrompt, b.maxTokens||4096);
       res.writeHead(200,CORS); res.end(JSON.stringify({resposta:txt, text:txt}));
     } catch(e) { res.writeHead(500,CORS); res.end(JSON.stringify({error:e.message})); }
     return;
