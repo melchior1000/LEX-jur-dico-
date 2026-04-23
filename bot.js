@@ -130,7 +130,26 @@ const WHATSAPP_CONFIG = {
 const SECRETARIO_WHATSAPP_CONFIG = {
   ativo: false,
   numero_escritorio: null,
-  numero_advogado: '5561999991717',
+  numero_advogado: '5561999917171',
+  // ── SISTEMA MULTI-OPERADOR ──
+  // Kleuber: Telegram (CHAT_ID 696337324) + WhatsApp pessoal (5561999917171)
+  // Secretária: Telegram (SECRETARIA_CHAT_ID) + celular físico com chip do Lex
+  operadores: {
+    kleuber: {
+      whatsapp: '5561999917171',
+      telegram_chat_id: '696337324',
+      perfil: 'admin',
+      pode_autorizar: true,
+      pode_responder: true
+    },
+    secretaria: {
+      whatsapp: null, // Secretária usa o próprio celular do Lex — não tem número separado
+      telegram_chat_id: null, // Configurar via /configsecretaria no Telegram
+      perfil: 'secretaria',
+      pode_autorizar: false, // Só Kleuber autoriza orientações jurídicas
+      pode_responder: true   // Pode responder clientes e dar instruções ao Lex
+    }
+  },
   max_perguntas_cliente: 6,
   modelo_ia: 'claude-sonnet-4-20250514',
   permitido: [
@@ -567,6 +586,38 @@ const _estadoSecretarioWhatsApp = {
   escalonamentos_memoria: [],
   ultima_resposta_advogado: null
 };
+
+// ── HELPERS MULTI-OPERADOR ──
+function _isOperadorWhatsApp(numeroPlano) {
+  const cfg = _configRuntime.secretario_whatsapp || SECRETARIO_WHATSAPP_CONFIG;
+  const ops = cfg.operadores || SECRETARIO_WHATSAPP_CONFIG.operadores || {};
+  for(const [nome, op] of Object.entries(ops)) {
+    if(op.whatsapp && _numeroPlanoWhats(op.whatsapp) === numeroPlano) return { nome, ...op };
+  }
+  // Fallback: numero_advogado legado
+  if(numeroPlano === String(cfg.numero_advogado||'')) return { nome: 'kleuber', perfil: 'admin', pode_autorizar: true, pode_responder: true };
+  return null;
+}
+
+function _getSecretariaChatId() {
+  const cfg = _configRuntime.secretario_whatsapp || SECRETARIO_WHATSAPP_CONFIG;
+  return cfg.operadores?.secretaria?.telegram_chat_id || null;
+}
+
+function _isTelegramSecretaria(chatId) {
+  const secId = _getSecretariaChatId();
+  return secId && String(chatId) === String(secId);
+}
+
+async function _notificarEquipe(texto, parseMode) {
+  // Notifica Kleuber (sempre)
+  await envTelegram(texto, null, CHAT_ID).catch(()=>{});
+  // Notifica Secretária (se configurada)
+  const secId = _getSecretariaChatId();
+  if(secId) {
+    await envTelegram(texto, null, secId).catch(()=>{});
+  }
+}
 const _whatsSaudados = new Set();
 const _whatsReconhecidos = new Map();
 const _pjeMovCache = {};
@@ -3302,7 +3353,7 @@ async function _escalarParaAdvogado(processo, cliente, motivo, conversa) {
       proxacao: processo?.proxacao || null
     })
   ].join('\n');
-  await envTelegram(resumo, null, CHAT_ID).catch(()=>{});
+  await _notificarEquipe(resumo).catch(()=>{});
   logAtividade('juridico', cliente?.chat_id || 'whatsapp', 'escalonamento_advogado', motivo || 'n/a').catch(()=>{});
 
   // ── FOLLOW-UP AUTOMÁTICO: se Kleuber não responder em 5min, avisa o cliente e cobra o Kleuber ──
@@ -3322,16 +3373,16 @@ async function _escalarParaAdvogado(processo, cliente, motivo, conversa) {
         _registrarMsgCentral('whatsapp', 'saida', clienteNum, 'Lex (auto)', msgCliente);
       } catch(e) { console.warn('[Lex] Erro follow-up cliente:', e.message); }
       
-      // Cobra o Kleuber no Telegram
+      // Cobra a equipe no Telegram (Kleuber + Secretária)
       const cobranca = '⚠️ *RETORNO PENDENTE*\n\n'
         + '👤 Cliente: ' + clienteNome + '\n'
         + '📱 WhatsApp: ' + clienteNum + '\n'
         + (processo ? '📁 Processo: ' + (processo.nome||processo.numero||'—') + '\n' : '')
         + '⏰ Escalonado há 5 minutos\n'
         + '💬 Motivo: ' + String(motivo||'escalonamento') + '\n\n'
-        + '❗ O cliente está esperando retorno. Já avisei que você está ocupado.\n'
-        + 'Responda pelo painel (Central de Mensagens) ou diretamente no WhatsApp.';
-      try { await envTelegram(cobranca, null, CHAT_ID); } catch(e) { console.warn('[Lex] Erro cobrança CEO:', e.message); }
+        + '❗ O cliente está esperando retorno. Já avisei que estamos tentando falar com vocês.\n'
+        + 'Respondam pelo painel (Central de Mensagens) ou diretamente no WhatsApp.';
+      try { await _notificarEquipe(cobranca); } catch(e) { console.warn('[Lex] Erro cobrança equipe:', e.message); }
     }, 5 * 60 * 1000); // 5 minutos
 
     // Timer 15 minutos: segunda cobrança se ainda não resolveu
@@ -3342,8 +3393,8 @@ async function _escalarParaAdvogado(processo, cliente, motivo, conversa) {
       const cobranca2 = '🚨 *RETORNO URGENTE — 15 MINUTOS SEM RESPOSTA*\n\n'
         + '👤 ' + clienteNome + ' (' + clienteNum + ')\n'
         + '⏰ Esperando há 15 minutos\n\n'
-        + '❗ O cliente pode estar ficando impaciente. Dê um retorno o mais rápido possível.';
-      try { await envTelegram(cobranca2, null, CHAT_ID); } catch(e) {}
+        + '❗ O cliente pode estar ficando impaciente. Deem um retorno o mais rápido possível.';
+      try { await _notificarEquipe(cobranca2); } catch(e) {}
     }, 15 * 60 * 1000); // 15 minutos
 
     // Timer 30 minutos: avisa o cliente que terá retorno em breve e última cobrança
@@ -3357,8 +3408,8 @@ async function _escalarParaAdvogado(processo, cliente, motivo, conversa) {
         _registrarMsgCentral('whatsapp', 'saida', clienteNum, 'Lex (auto)', msgCliente2);
       } catch(e) {}
       
-      const cobranca3 = '🔴 *CLIENTE ESPERANDO HÁ 30 MINUTOS*\n\n👤 ' + clienteNome + ' (' + clienteNum + ')\n\nJá enviei segunda mensagem pro cliente dizendo que não foi esquecido. Por favor, dê retorno.';
-      try { await envTelegram(cobranca3, null, CHAT_ID); } catch(e) {}
+      const cobranca3 = '🔴 *CLIENTE ESPERANDO HÁ 30 MINUTOS*\n\n👤 ' + clienteNome + ' (' + clienteNum + ')\n\nJá enviei segunda mensagem pro cliente dizendo que não foi esquecido. Por favor, deem retorno.';
+      try { await _notificarEquipe(cobranca3); } catch(e) {}
     }, 30 * 60 * 1000); // 30 minutos
   }
 
@@ -3377,7 +3428,8 @@ function _extrairHorarioAdvogado(texto) {
   };
 }
 
-async function _registrarRespostaAdvogadoWhats(mensagem) {
+async function _registrarRespostaAdvogadoWhats(mensagem, operadorNome) {
+  const quemRespondeu = operadorNome || 'kleuber';
   const info = _extrairHorarioAdvogado(mensagem) || { horario: null, data: null, texto_original: String(mensagem||'') };
   _estadoSecretarioWhatsApp.ultima_resposta_advogado = {
     em: _agoraIso(),
@@ -3568,7 +3620,7 @@ async function _conversarWhatsAppCliente(numero, mensagem, sessao) {
     const nomeCliente = sessao.cliente?.nome || dados_informados?.nome_completo || 'cliente';
     const cpfCliente = sessao.cliente?.cpf || dados_informados?.cpf || 'não informado';
     const telCliente = _normalizarNumeroWhats(numero);
-    // Avisa Kleuber no Telegram para cadastrar
+    // Avisa equipe (Kleuber + Secretária) no Telegram para cadastrar
     const alertaCadastro = '📋 *CADASTRO PENDENTE*\n\n'
       + '👤 Cliente: ' + nomeCliente + '\n'
       + '📄 CPF: ' + cpfCliente + '\n'
@@ -3576,7 +3628,7 @@ async function _conversarWhatsAppCliente(numero, mensagem, sessao) {
       + '⏰ Entrou em contato agora\n\n'
       + '⚠️ Esse cliente NÃO tem processo cadastrado no sistema.\n'
       + 'Levante os dados e cadastre via /novocaso ou pelo painel.';
-    envTelegram(alertaCadastro, null, CHAT_ID).catch(()=>{});
+    _notificarEquipe(alertaCadastro).catch(()=>{});
     await _salvarSessaoSecretarioWhatsApp(sessao);
     // Continua atendendo normalmente — o prompt da IA sabe que não tem processo
   }
@@ -7188,7 +7240,29 @@ async function adapterTelegram(msg) {
   }
 
   // Texto
-  return processarMensagem(ctx, {texto: msg.text||''});
+  const textoTg = msg.text || '';
+  
+  // ── /resp <texto> — Operador responde cliente via Telegram (mediação Lex) ──
+  if(/^\/resp\s+/i.test(textoTg.trim()) && (isAdmin(chatId) || _isTelegramSecretaria(chatId))) {
+    const respTexto = textoTg.trim().replace(/^\/resp\s+/i, '').trim();
+    if(!respTexto) return env('Use: /resp <mensagem para o cliente>', ctx);
+    const quem = isAdmin(chatId) ? 'kleuber' : 'secretaria';
+    const result = await _registrarRespostaAdvogadoWhats(respTexto, quem).catch(()=>({notificados:0}));
+    if(result.notificados > 0) {
+      return env('✅ Resposta enviada ao cliente (aperfeiçoada pelo Lex).\n' + (quem === 'secretaria' ? 'Kleuber foi notificado.' : ''), ctx);
+    } else {
+      return env('⚠️ Nenhum cliente aguardando retorno no momento.', ctx);
+    }
+  }
+  
+  // ── /autorizo — Operador autoriza orientações sugeridas pelo Lex ──
+  if(/^\/(autorizo|pode|manda)/i.test(textoTg.trim()) && isAdmin(chatId)) {
+    const foi = await _processarAutorizacaoLex(textoTg).catch(()=>false);
+    if(foi) return env('✅ Orientações enviadas ao cliente!', ctx);
+    return env('Nenhuma orientação pendente de autorização.', ctx);
+  }
+  
+  return processarMensagem(ctx, {texto: textoTg});
 }
 
 // ── EVOLUTION (WhatsApp) adapter ──
@@ -7208,16 +7282,38 @@ async function adapterEvolution(body) {
 
   if(_configRuntime.secretario_whatsapp?.ativo) {
     const numeroPlano = _numeroPlanoWhats(chatIdWpp);
-    if(numeroPlano === String(SECRETARIO_WHATSAPP_CONFIG.numero_advogado||'')) {
-      const txtAdv = msgData.conversation || msgData.extendedTextMessage?.text || '';
-      // Kleuber pode usar /novocaso pelo WhatsApp — redireciona pro processarMensagem
-      if(txtAdv.trim() && /^\/novocaso/i.test(txtAdv.trim())) {
-        return processarMensagem(ctx, {texto: txtAdv.trim()});
+    const operador = _isOperadorWhatsApp(numeroPlano);
+    
+    if(operador) {
+      // ── MENSAGEM DE OPERADOR (Kleuber ou Secretária) ──
+      const txtOp = msgData.conversation || msgData.extendedTextMessage?.text || '';
+      
+      // /novocaso — qualquer operador pode cadastrar
+      if(txtOp.trim() && /^\/novocaso/i.test(txtOp.trim())) {
+        return processarMensagem(ctx, {texto: txtOp.trim()});
       }
-      // Se Kleuber está em modo intake, redireciona TUDO pro processarMensagem
+      
+      // /configsecretaria <chat_id> — Kleuber configura o Telegram da secretária
+      if(operador.perfil === 'admin' && /^\/configsecretaria\s+(\d+)/i.test(txtOp.trim())) {
+        const match = txtOp.trim().match(/^\/configsecretaria\s+(\d+)/i);
+        if(match) {
+          const secChatId = match[1];
+          if(!_configRuntime.secretario_whatsapp.operadores) _configRuntime.secretario_whatsapp.operadores = {...SECRETARIO_WHATSAPP_CONFIG.operadores};
+          _configRuntime.secretario_whatsapp.operadores.secretaria.telegram_chat_id = secChatId;
+          // Salva no Supabase pra persistir
+          try { await sbReq('POST', 'config', { chave: 'secretaria_telegram_chat_id', valor: secChatId }, {}, { onConflict: 'chave', merge: 'valor' }); } catch(e) {}
+          await envWhatsApp('✅ Secretária configurada! Telegram Chat ID: ' + secChatId + '\nEla vai receber notificações de escalonamento junto com você.', chatIdWpp).catch(()=>{});
+          await envTelegram('✅ Secretária configurada no Telegram (Chat ID: ' + secChatId + '). Ela vai receber as notificações de escalonamento.', null, CHAT_ID).catch(()=>{});
+          if(secChatId) {
+            await envTelegram('👋 Olá! Sou o Lex, assistente do escritório Camargos Advocacia.\n\nVocê foi configurada como secretária. A partir de agora vai receber as notificações de escalonamento dos clientes do WhatsApp.\n\nPode responder com instruções que eu repasso pro cliente!', null, secChatId).catch(()=>{});
+          }
+          return;
+        }
+      }
+      
+      // Modo intake ativo — redireciona tudo pro processarMensagem
       if(global._intakeSessoes && global._intakeSessoes[chatIdWpp]) {
-        if(txtAdv.trim()) return processarMensagem(ctx, {texto: txtAdv.trim()});
-        // Imagem/doc do Kleuber em modo intake
+        if(txtOp.trim()) return processarMensagem(ctx, {texto: txtOp.trim()});
         const docMsg2 = msgData.documentMessage || msgData.documentWithCaptionMessage?.message?.documentMessage;
         const imgMsg2 = msgData.imageMessage;
         if(docMsg2 || imgMsg2) {
@@ -7230,12 +7326,25 @@ async function adapterEvolution(body) {
         }
         return;
       }
-      if(txtAdv.trim()) {
-        // Verifica se Kleuber está autorizando orientações sugeridas pelo Lex
-        const foiAutorizacao = await _processarAutorizacaoLex(txtAdv).catch(()=>false);
-        if(foiAutorizacao) return;
+      
+      if(txtOp.trim()) {
+        // Autorização de orientações — só admin pode
+        if(operador.pode_autorizar) {
+          const foiAutorizacao = await _processarAutorizacaoLex(txtOp).catch(()=>false);
+          if(foiAutorizacao) return;
+        }
         
-        await _registrarRespostaAdvogadoWhats(txtAdv).catch(()=>{});
+        // Resposta para cliente escalado — qualquer operador pode
+        if(operador.pode_responder) {
+          // Se secretária está respondendo, avisa Kleuber no Telegram
+          if(operador.perfil === 'secretaria') {
+            const pendentes = _estadoSecretarioWhatsApp.escalonamentos_memoria.filter(x => !x.resolvido);
+            if(pendentes.length > 0) {
+              await envTelegram('📨 *Secretária respondeu cliente escalado:*\n"' + txtOp.substring(0, 200) + '"', null, CHAT_ID).catch(()=>{});
+            }
+          }
+          await _registrarRespostaAdvogadoWhats(txtOp, operador.nome).catch(()=>{});
+        }
       }
       return;
     }
@@ -9579,6 +9688,11 @@ server.listen(process.env.PORT||3000, async () => {
         if(cfg.chave === 'SENHA_SECRETARIA' && cfg.valor) {
           SENHAS_WEB.secretaria = cfg.valor;
           console.log('[SEGURANCA] Senha secretaria carregada do Supabase');
+        }
+        if(cfg.chave === 'secretaria_telegram_chat_id' && cfg.valor) {
+          if(!_configRuntime.secretario_whatsapp.operadores) _configRuntime.secretario_whatsapp.operadores = {...SECRETARIO_WHATSAPP_CONFIG.operadores};
+          _configRuntime.secretario_whatsapp.operadores.secretaria.telegram_chat_id = String(cfg.valor);
+          console.log('[MULTI-OP] Secretária Telegram Chat ID carregado:', cfg.valor);
         }
       }
     }
