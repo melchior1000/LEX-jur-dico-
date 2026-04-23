@@ -3070,7 +3070,7 @@ function _agoraIso() { return new Date().toISOString(); }
 
 function _normCasoTxt(t) { return _normTexto(String(t||'')).replace(/\s+/g, ' ').trim(); }
 
-const _MSG_ESCALONAR_DIRETO_DR = 'Essa questao precisa ser tratada diretamente com Kleuber, nosso analista jurídico. Vou solicitar que ele entre em contato. Pode me informar o melhor horario?';
+const _MSG_ESCALONAR_DIRETO_DR = 'Essa questão precisa do Kleuber diretamente, tá? Vou pedir pra ele te retornar o mais rápido possível. Qual o melhor horário pra te ligar?';
 const _MSG_LIMITE_PERGUNTAS = 'Agradeco seu contato. Nesta sessao atingimos o limite de 6 perguntas. O escritorio atende em horario comercial e retornaremos no proximo periodo util.';
 const _REGEX_SENSIVEIS_SECRETARIO = [
   /r\$\s*\d+/i,
@@ -3316,7 +3316,7 @@ async function _escalarParaAdvogado(processo, cliente, motivo, conversa) {
       if(esc && esc.resolvido) return; // Kleuber já respondeu, ignora
       
       // Avisa o cliente com tom humano
-      const msgCliente = 'Oi' + (clienteNome !== 'cliente' ? ', ' + clienteNome.split(' ')[0] : '') + '! Estou tentando falar com o Kleuber sobre o seu caso. Ele deve estar em atendimento agora, mas assim que eu conseguir falar com ele te dou um retorno, tá? Não vou te deixar sem resposta!';
+      const msgCliente = 'Oi' + (clienteNome !== 'cliente' ? ', ' + clienteNome.split(' ')[0] : '') + '! Estou tentando falar com o Kleuber sobre o seu caso, mas ele deve estar em atendimento agora. Assim que eu conseguir falar com ele ou com a secretária, te dou um retorno, tá? Não vou te deixar sem resposta!';
       try {
         await envWhatsApp(msgCliente, clienteNum);
         _registrarMsgCentral('whatsapp', 'saida', clienteNum, 'Lex (auto)', msgCliente);
@@ -3421,11 +3421,30 @@ async function _conversarWhatsAppCliente(numero, mensagem, sessao) {
   sessao.processo = idv.processo || null;
   sessao.cliente = idv.cliente || null;
 
+  // ── SE NÃO TEM PROCESSO CADASTRADO: levanta dados e cobra Kleuber ──
+  if(!sessao.processo && !sessao._cobrou_cadastro) {
+    sessao._cobrou_cadastro = true;
+    const nomeCliente = sessao.cliente?.nome || dados_informados?.nome_completo || 'cliente';
+    const cpfCliente = sessao.cliente?.cpf || dados_informados?.cpf || 'não informado';
+    const telCliente = _normalizarNumeroWhats(numero);
+    // Avisa Kleuber no Telegram para cadastrar
+    const alertaCadastro = '📋 *CADASTRO PENDENTE*\n\n'
+      + '👤 Cliente: ' + nomeCliente + '\n'
+      + '📄 CPF: ' + cpfCliente + '\n'
+      + '📱 WhatsApp: ' + telCliente + '\n'
+      + '⏰ Entrou em contato agora\n\n'
+      + '⚠️ Esse cliente NÃO tem processo cadastrado no sistema.\n'
+      + 'Levante os dados e cadastre via /novocaso ou pelo painel.';
+    envTelegram(alertaCadastro, null, CHAT_ID).catch(()=>{});
+    await _salvarSessaoSecretarioWhatsApp(sessao);
+    // Continua atendendo normalmente — o prompt da IA sabe que não tem processo
+  }
+
   if(sessao.escalonado && !_estadoSecretarioWhatsApp.ultima_resposta_advogado) {
     return {
       ok: true,
       escalonado: true,
-      resposta: 'Seu caso ja foi encaminhado ao Dr. Kleuber. O prazo estimado de retorno e em ate 1 dia util.'
+      resposta: 'Já passei seu caso pro Kleuber, tá? Assim que eu conseguir falar com ele, te dou um retorno!'
     };
   }
 
@@ -3467,7 +3486,11 @@ async function _conversarWhatsAppCliente(numero, mensagem, sessao) {
     'Pode fazer perguntas de volta pro cliente, mostrar interesse genuíno no caso.',
     'Se o cliente mandar "oi", responda algo como "Oi! Tudo bem? Sou do escritório Camargos Advocacia, em que posso te ajudar?".',
     'Chame o cliente pelo nome quando souber.',
-    'Se precisar transferir pro Kleuber, diga algo tipo "Vou falar com o Kleuber sobre isso pra te dar uma resposta certeira, tá? Ele retorna em breve."',
+    'Se precisar transferir pro Kleuber, diga algo tipo "Vou pedir pro Kleuber te retornar, tá? Assim que eu falar com ele ou com a secretária, a gente te dá um retorno!"',
+    'QUANDO NÃO CONSEGUIR RESOLVER: NUNCA diga "não posso ajudar". Diga que vai falar com o Kleuber e pedir pra ele retornar. Exemplo: "Vou passar pro Kleuber e pedir pra ele te retornar, tá bom?"',
+    'PROCESSO CADASTRADO: Se CONTEXTO_PROCESSO tiver dados, use para informar o cliente sobre andamento, status, prazo.',
+    'SEM PROCESSO (CONTEXTO_PROCESSO vazio/{}): Analise o que o cliente precisa, levante o máximo de informações do caso (tipo do problema, valores, datas, partes envolvidas) pra facilitar o cadastro. Avise o cliente que vai encaminhar pro Kleuber.',
+    'SEMPRE ANALISE O CLIENTE: entenda a situação, o tom, a urgência. Passe essas informações pro escalonamento.',
     'Seu tom é: acolhedor, profissional mas descontraído, confiável, humano.',
     'Pode informar somente: '+(cfg.permitido||[]).join(', ')+'.',
     'Assuntos proibidos (NUNCA responda, escalone): '+(cfg.proibido||[]).join(', ')+'.',
