@@ -7136,8 +7136,24 @@ const server = http.createServer(async (req, res) => {
       if(!SENHAS_WEB[b.perfilAlvo]) { res.writeHead(400,CORS); res.end(JSON.stringify({error:'Perfil inválido'})); return; }
       if(perfilAtual !== 'admin' && b.senhaAtual !== SENHAS_WEB[b.perfilAlvo]) { res.writeHead(401,CORS); res.end(JSON.stringify({error:'Senha atual incorreta'})); return; }
       if(!b.novaSenha || b.novaSenha.length<6) { res.writeHead(400,CORS); res.end(JSON.stringify({error:'Senha curta (mín 6)'})); return; }
+      
+      // Atualizar em memória
       SENHAS_WEB[b.perfilAlvo] = b.novaSenha;
-      res.writeHead(200,CORS); res.end(JSON.stringify({ok:true, msg:'Senha alterada.'}));
+      
+      // Tentar persistir no Supabase (tabela config)
+      try {
+        await sbReq('POST', 'config', {
+          chave: 'SENHA_' + b.perfilAlvo.toUpperCase(),
+          valor: b.novaSenha,
+          atualizado_em: new Date().toISOString()
+        });
+      } catch(e) {
+        console.warn('[Trocar Senha] Nao foi possivel persistir no Supabase:', e.message);
+        // Continua mesmo sem persistir - funciona em memória
+      }
+      
+      _auditarAcao(perfilAtual, 'trocar_senha', {perfil: b.perfilAlvo});
+      res.writeHead(200,CORS); res.end(JSON.stringify({ok:true, msg:'Senha alterada. NOTA: Se o servidor reiniciar, a senha pode voltar ao valor original das variaveis de ambiente.'}));
     } catch(e) { res.writeHead(500,CORS); res.end(JSON.stringify({error:e.message})); }
     return;
   }
@@ -8667,31 +8683,49 @@ setInterval(async () => {
   }
 }, 5 * 60 * 1000);
 
-server.listen(process.env.PORT||3000, () => {
+server.listen(process.env.PORT||3000, async () => {
   // VALIDACAO DE SEGURANCA NO STARTUP
   const errosSeguranca = [];
   
-  // 1. Verificar senhas configuradas
-  if(!process.env.SENHA_ADMIN) errosSeguranca.push('SENHA_ADMIN nao configurada');
-  if(!process.env.SENHA_SECRETARIA) errosSeguranca.push('SENHA_SECRETARIA nao configurada');
-  if(process.env.SENHA_ADMIN?.length < 8) errosSeguranca.push('SENHA_ADMIN muito curta (min 8 caracteres)');
+  // 1. Tentar carregar senhas do Supabase (sobrescreve env vars se existir)
+  try {
+    const configs = await sbReq('GET', 'config', null, {select: 'chave,valor'});
+    if(Array.isArray(configs)) {
+      for(const cfg of configs) {
+        if(cfg.chave === 'SENHA_ADMIN' && cfg.valor) {
+          SENHAS_WEB.admin = cfg.valor;
+          console.log('[SEGURANCA] Senha admin carregada do Supabase');
+        }
+        if(cfg.chave === 'SENHA_SECRETARIA' && cfg.valor) {
+          SENHAS_WEB.secretaria = cfg.valor;
+          console.log('[SEGURANCA] Senha secretaria carregada do Supabase');
+        }
+      }
+    }
+  } catch(e) {
+    console.warn('[SEGURANCA] Nao foi possivel carregar senhas do Supabase:', e.message);
+  }
   
-  // 2. Verificar ANTHROPIC_KEY
+  // 2. Verificar senhas configuradas
+  if(!SENHAS_WEB.admin) errosSeguranca.push('SENHA_ADMIN nao configurada');
+  if(!SENHAS_WEB.secretaria) errosSeguranca.push('SENHA_SECRETARIA nao configurada');
+  if(SENHAS_WEB.admin?.length < 8) errosSeguranca.push('SENHA_ADMIN muito curta (min 8 caracteres)');
+  
+  // 3. Verificar ANTHROPIC_KEY
   if(!process.env.ANTHROPIC_KEY) errosSeguranca.push('ANTHROPIC_KEY nao configurada');
   else if(!process.env.ANTHROPIC_KEY.startsWith('sk-ant-')) errosSeguranca.push('ANTHROPIC_KEY formato invalido');
   
-  // 3. Verificar Supabase
+  // 4. Verificar Supabase
   if(!process.env.SUPABASE_URL) errosSeguranca.push('SUPABASE_URL nao configurada');
   if(!process.env.SUPABASE_KEY) errosSeguranca.push('SUPABASE_KEY nao configurada');
   
-  // 4. Verificar Telegram (opcional mas alerta)
+  // 5. Verificar Telegram (opcional mas alerta)
   if(!process.env.TELEGRAM_TOKEN) console.warn('[SEGURANCA] TELEGRAM_TOKEN nao configurado - notificacoes desativadas');
   
   if(errosSeguranca.length > 0) {
     console.error('[SEGURANCA] ERROS CRITICOS ENCONTRADOS:');
     errosSeguranca.forEach(e => console.error('  - ' + e));
     console.error('[SEGURANCA] O sistema funcionara com funcionalidades limitadas.');
-    // Nao desliga mas alerta
   } else {
     console.log('[SEGURANCA] Todas as credenciais validadas com sucesso');
   }
