@@ -898,8 +898,65 @@ const SERVIDOR = 'https://lex-juridico.onrender.com';
 function fetchComTimeout(url, options={}, ms=8000){
   const ctrl = new AbortController();
   const timer = setTimeout(()=>ctrl.abort(), ms);
+  // Injeta token automaticamente se disponível
+  const token = getAuthToken ? getAuthToken() : null;
+  if(token && !options._noAuth) {
+    options.headers = options.headers || {};
+    if(!options.headers['Authorization']) options.headers['Authorization'] = 'Bearer ' + token;
+  }
   return fetch(url, {...options, signal:ctrl.signal})
+    .then(async (resp) => {
+      if(resp.status === 401 && !options._retried) {
+        // Token expirou — tenta re-login silencioso com credenciais salvas
+        console.warn('[Lex] 401 detectado — tentando re-autenticação automática...');
+        const relogged = await _tentarReloginSilencioso();
+        if(relogged) {
+          // Repete a requisição com token novo
+          const novoToken = getAuthToken();
+          if(novoToken) {
+            options.headers = options.headers || {};
+            options.headers['Authorization'] = 'Bearer ' + novoToken;
+            options._retried = true;
+            clearTimeout(timer);
+            return fetchComTimeout(url, options, ms);
+          }
+        }
+      }
+      return resp;
+    })
     .finally(()=>clearTimeout(timer));
+}
+
+// Re-login silencioso usando credenciais do localStorage
+async function _tentarReloginSilencioso() {
+  try {
+    const sess = JSON.parse(localStorage.getItem('lex_sessao_v2') || 'null');
+    const senhaHash = localStorage.getItem('lex_pwd_cache');
+    if(!sess || !sess.perfil || !senhaHash) {
+      console.warn('[Lex] Sem credenciais para re-login — redirecionando para login');
+      if(typeof sair === 'function') sair();
+      return false;
+    }
+    const r = await fetch(SERVIDOR + '/api/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ perfil: sess.perfil, senha: senhaHash })
+    });
+    if(r.ok) {
+      const data = await r.json();
+      if(data.token) {
+        _saveSess(data.token, data.perfil, sess);
+        console.log('[Lex] Re-autenticação automática OK ✓');
+        return true;
+      }
+    }
+    console.warn('[Lex] Re-login falhou — senha pode ter mudado');
+    if(typeof sair === 'function') sair();
+    return false;
+  } catch(e) {
+    console.warn('[Lex] Erro no re-login:', e.message || e);
+    return false;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1889,6 +1946,8 @@ async function fazerLogin(){
     }
     erroEl.style.display='none';
     _saveSess(d.token,d.perfil,d);
+    // Salva senha para re-login automático (quando servidor reinicia)
+    try { localStorage.setItem('lex_pwd_cache', senha); } catch(e) {}
     usuarioAtivo=d.perfil;
     _perms=d;
     _registrarLogin(d.perfil);
@@ -3152,7 +3211,7 @@ function cardProc(p){
 
 function sair(){pararRastreamentoTempo("logout");
   pararPollingComandos();
-  desconectarSSE();_clearSess();usuarioAtivo=null;_perms={};document.getElementById('login-screen').style.display='flex';document.getElementById('login-senha').value='';document.getElementById('login-erro').style.display='none';}
+  desconectarSSE();_clearSess();try{localStorage.removeItem('lex_pwd_cache');}catch(e){}usuarioAtivo=null;_perms={};document.getElementById('login-screen').style.display='flex';document.getElementById('login-senha').value='';document.getElementById('login-erro').style.display='none';}
 
 // ═══════════════ PROCESSOS POR GRUPO ═══════════════
 let filtroAtivo='todos';

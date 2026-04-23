@@ -6651,17 +6651,27 @@ function gerarToken(perfil) {
 function validarToken(token) {
   try {
     if(!token) return null;
-    if(global._tokensRevogados.has(token)) return null;
+    if(global._tokensRevogados && global._tokensRevogados.has(token)) return null;
     const { p, ts, sig } = JSON.parse(Buffer.from(token,'base64url').toString());
     const esperado = CRYPTO.createHmac('sha256', AUTH_SECRET).update(p+'|'+ts).digest('hex').slice(0,16);
     if(sig !== esperado) return null;
     if(!PERMS[p]) return null;
-    const ultimo = global._sessaoAtividade.get(token);
-    if(ultimo && (Date.now() - ultimo > AUTH_IDLE_MS)) {
-      global._sessaoAtividade.delete(token);
-      return null;
+    const agora = Date.now();
+    // Se token está registrado na sessão, checa inatividade
+    const ultimo = global._sessaoAtividade ? global._sessaoAtividade.get(token) : null;
+    if(ultimo) {
+      if(agora - ultimo > AUTH_IDLE_MS) {
+        global._sessaoAtividade.delete(token);
+        return null;
+      }
+    } else {
+      // Token NÃO está na sessão (servidor reiniciou ou primeiro acesso)
+      // Aceita se a assinatura é válida E o token não é mais velho que AUTH_IDLE_MS
+      if(agora - ts > AUTH_IDLE_MS) return null;
     }
-    global._sessaoAtividade.set(token, Date.now());
+    // Registra/atualiza atividade
+    if(!global._sessaoAtividade) global._sessaoAtividade = new Map();
+    global._sessaoAtividade.set(token, agora);
     return p;
   } catch(e) { return null; }
 }
