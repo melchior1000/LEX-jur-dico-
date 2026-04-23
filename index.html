@@ -7233,20 +7233,12 @@ async function enviarGestorWeb() {
   msgs.scrollTop = msgs.scrollHeight;
 
   try {
-    const api = (window.LEX_API_URL || 'https://lex-juridico.onrender.com') + '/api/vivo/conversar';
-    const tk = getAuthToken() || '';
-    const res = await fetch(api, {
-      method:'POST',
-      headers: {'Content-Type':'application/json', 'Authorization':'Bearer '+tk},
-      body: JSON.stringify({
-        processo_id: _gestorProcAtual.id,
-        mensagem: txt,
-        historico: _gestorHist.slice(-8)
-      })
+    const d = await chamarServidor('/api/vivo/conversar', {
+      processo_id: _gestorProcAtual.id,
+      mensagem: txt,
+      historico: _gestorHist.slice(-8)
     });
     document.getElementById('gestor-pensando')?.remove();
-    if(!res.ok) throw new Error('status '+res.status);
-    const d = await res.json();
     if(d.error) throw new Error(d.error);
 
     // Backend novo retorna "texto" em vez de "resposta"
@@ -7299,9 +7291,6 @@ async function aplicarPropostaGestor() {
   if(!_gestorPropostaAtiva || !_gestorProcAtual) return;
   const p = _gestorPropostaAtiva;
   try {
-    const api = (window.LEX_API_URL || 'https://lex-juridico.onrender.com') + '/api/vivo/aplicar';
-    const tk = getAuthToken() || '';
-
     // Normaliza campos (backend novo aceita nomes novos + antigos)
     const propostaNormalizada = {
       andamento:    p.andamento || p.andamento_novo,
@@ -7312,16 +7301,10 @@ async function aplicarPropostaGestor() {
       justificativa: p.justificativa
     };
 
-    const res = await fetch(api, {
-      method:'POST',
-      headers: {'Content-Type':'application/json', 'Authorization':'Bearer '+tk},
-      body: JSON.stringify({
-        processo_id: _gestorProcAtual.id,
-        proposta: propostaNormalizada
-      })
+    const d = await chamarServidor('/api/vivo/aplicar', {
+      processo_id: _gestorProcAtual.id,
+      proposta: propostaNormalizada
     });
-    if(!res.ok) throw new Error('status '+res.status);
-    const d = await res.json();
     if(d.error) throw new Error(d.error);
 
     // Sincroniza o processo atualizado no localStorage
