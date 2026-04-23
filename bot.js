@@ -8695,8 +8695,9 @@ const server = http.createServer(async (req, res) => {
     try {
       if(!lex_agente_vivo) { res.writeHead(500,corsHeaders(req)); res.end(JSON.stringify({erro:'lex_agente_vivo NAO CARREGADO'})); return; }
       const fakeBody = { mensagem: 'Diga apenas OK FUNCIONANDO', historico: [] };
+      const fakeReq = Object.assign(Object.create(req), { method: 'POST' });
       const fakeDeps = {
-        req, res, body: fakeBody, perfil: {p:'admin'}, processos, CORS: corsHeaders(req),
+        req: fakeReq, res, body: fakeBody, perfil: {p:'admin'}, processos, CORS: corsHeaders(req),
         ANTHROPIC_KEY: AK, https, lerBody,
         sbGet: (t,q)=>sbReq('GET',t,null,q), sbReq,
         sbUpsert: async (tabela, dados, conflito) => { return sbReq('POST', tabela, dados, {}, { onConflict: conflito || 'id', merge: Object.keys(dados).join(',') }); },

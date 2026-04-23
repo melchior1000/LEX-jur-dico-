@@ -1571,9 +1571,11 @@ async function chamarServidor(endpoint, payload) {
   console.log('[LEX] chamarServidor:', endpoint, payload);
   const tk = getAuthToken ? getAuthToken() : null;
   if(!tk) console.warn('[LEX] SEM TOKEN ao chamar', endpoint);
+  const headers = { 'Content-Type': 'application/json' };
+  if(tk) headers['Authorization'] = 'Bearer ' + tk;
   const res = await fetchComTimeout(SERVIDOR + endpoint, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(payload)
   }, 60000);
   console.log('[LEX] resposta', endpoint, 'status:', res.status);
