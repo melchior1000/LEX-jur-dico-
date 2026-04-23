@@ -574,9 +574,9 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
 <div id="mobile-nav">
   <div class="mob-nav-items">
     <button class="mob-nav-btn active" id="mob-painel" onclick="ir('painel',null);mobActive('mob-painel')"><span>◈</span>Painel</button>
-    <button class="mob-nav-btn" id="mob-processos" onclick="ir('processos',null);mobActive('mob-processos')"><span>⊞</span>Processos</button>
-    <button class="mob-nav-btn" id="mob-prazos" onclick="ir('prazos',null);mobActive('mob-prazos')"><span>◷</span>Prazos</button>
-    <button class="mob-nav-btn" id="mob-juris" onclick="ir('juris',null);mobActive('mob-juris')"><span>⚖</span>Juris</button>
+    <button class="mob-nav-btn" id="mob-processos" onclick="ir('processos',null);mobActive('mob-processos')"><span>⊞</span>Procs</button>
+    <button class="mob-nav-btn" id="mob-calendario" onclick="ir('calendario',null);mobActive('mob-calendario')"><span>📅</span>Agenda</button>
+    <button class="mob-nav-btn" id="mob-mensagens" onclick="ir('mensagens',null);mobActive('mob-mensagens')"><span>💬</span>Msgs</button>
     <button class="mob-nav-btn" id="mob-menu" onclick="toggleSidebar()"><span>☰</span>Menu</button>
   </div>
 </div>
@@ -4567,26 +4567,186 @@ function trocarRankingStats(modo){
 // ═══════════════ JURISPRUDÊNCIA ═══════════════
 function renderJuris(){
   if(!podePeticao()){
-    document.getElementById('content').innerHTML='<div style="padding:40px;text-align:center"><div style="font-size:48px;margin-bottom:16px">🔒</div><div style="font-size:18px;color:var(--text);font-weight:600;margin-bottom:8px">Acesso Restrito</div><div style="font-size:13px;color:var(--text3)">Jurisprudência é exclusiva para Advogados.<br>Solicite ao Administrador a liberação.</div></div>';
+    document.getElementById('content').innerHTML='<div style="padding:40px;text-align:center"><div style="font-size:48px;margin-bottom:16px">🔒</div><div style="font-size:18px;color:var(--text);font-weight:600;margin-bottom:8px">Acesso Restrito</div><div style="font-size:13px;color:var(--text3)">Jurisprudência é exclusiva para o CEO.<br>Solicite ao Administrador a liberação.</div></div>';
     return;
   }
   const ps=getProcs();
+  const historico=JSON.parse(localStorage.getItem('lex_juris_hist')||'[]').slice(-10).reverse();
+
   document.getElementById('content').innerHTML=`
-    <div style="margin-bottom:20px">
-      <div style="font-size:13px;color:var(--text2);font-weight:300;margin-bottom:14px">Descreva o tema ou selecione um processo para buscar precedentes com análise de aplicabilidade.</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <input id="jq" class="fi" style="flex:1;min-width:200px" placeholder="Ex: crime ambiental DOF, ISS fixo advogado...">
-        <select id="jp" class="fs" style="min-width:180px"><option value="">— Processo (opcional) —</option>${ps.map(p=>`<option value="${p.id}">${p.nome}</option>`).join('')}</select>
-        <button class="btn-primary" onclick="buscarJuris()">Buscar</button>
+    <!-- HEADER -->
+    <div style="background:linear-gradient(135deg,#10b98115,var(--surface));border:1px solid #10b98133;border-radius:16px;padding:20px 24px;margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+        <div>
+          <div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:var(--text)">📚 Pesquisa de Jurisprudência</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:4px">Busca inteligente com IA · Análise de aplicabilidade · Estratégia baseada em precedentes reais</div>
+        </div>
       </div>
     </div>
-    <div id="jres"><div style="font-size:13px;color:var(--text3);font-weight:300">Faça uma busca para ver precedentes.</div></div>`;
+
+    <!-- BUSCA PRINCIPAL -->
+    <div style="background:var(--surface);border:1px solid var(--accent)33;border-radius:14px;padding:18px 20px;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px">🔍 Pesquisar Precedentes</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+        <input id="jq" class="fi" style="flex:1;min-width:180px" placeholder="Descreva o tema, tese ou situação jurídica..." onkeydown="if(event.key==='Enter'){event.preventDefault();buscarJuris();}">
+        <select id="jp" class="fs" style="min-width:160px"><option value="">— Processo (opcional) —</option>${ps.map(p=>'<option value="'+p.id+'">'+p.nome+'</option>').join('')}</select>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <select id="jtrib" class="fs" style="width:120px">
+          <option value="">Qualquer tribunal</option>
+          <option value="STF">STF</option>
+          <option value="STJ">STJ</option>
+          <option value="TST">TST</option>
+          <option value="TRF">TRFs</option>
+          <option value="TJMG">TJMG</option>
+          <option value="TJSP">TJSP</option>
+          <option value="TJRJ">TJRJ</option>
+          <option value="TJRS">TJRS</option>
+          <option value="TJPR">TJPR</option>
+          <option value="TRT">TRTs</option>
+        </select>
+        <select id="jperiodo" class="fs" style="width:120px">
+          <option value="">Qualquer período</option>
+          <option value="1">Último ano</option>
+          <option value="2">Últimos 2 anos</option>
+          <option value="5">Últimos 5 anos</option>
+          <option value="10">Últimos 10 anos</option>
+        </select>
+        <button class="btn-primary" style="padding:10px 20px;font-size:13px;font-weight:700" onclick="buscarJuris()">🔍 Pesquisar</button>
+        <button class="btn-outline" style="padding:10px 14px;font-size:11px" onclick="_jurisBuscarSimilar()">🤖 Busca por Similaridade</button>
+      </div>
+    </div>
+
+    <!-- BUSCAS RÁPIDAS TEMÁTICAS -->
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
+      <span style="font-size:10px;color:var(--text3);font-weight:600;padding-top:4px">Temas rápidos:</span>
+      ${['BPC/LOAS deficiente','Revisão aposentadoria','Dano moral consumidor','Rescisão indireta','ISS fixo advogado','Execução fiscal prescrição','Alimentos majoração','Usucapião urbano','Busca e apreensão alienação','Tutela de urgência saúde','Honorários sucumbência','Prescrição intercorrente'].map(t=>'<button class="btn-outline" style="font-size:10px;padding:4px 10px;border-radius:20px" onclick="document.getElementById(\'jq\').value=\''+t+'\';buscarJuris()">'+t+'</button>').join('')}
+    </div>
+
+    <!-- RESULTADOS -->
+    <div id="jres">
+      ${historico.length?`
+      <div style="margin-bottom:16px">
+        <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px">📋 Buscas Recentes</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${historico.map(h=>'<button class="btn-outline" style="font-size:10px;padding:4px 10px;border-radius:20px;border-color:var(--accent)22;color:var(--accent)" onclick="document.getElementById(\'jq\').value=\''+_escHtml(h)+'\';buscarJuris()">'+_escHtml(h.substring(0,40))+(h.length>40?'...':'')+'</button>').join('')}
+        </div>
+      </div>`:''}
+      <div style="text-align:center;padding:40px 20px;color:var(--text3)">
+        <div style="font-size:48px;margin-bottom:16px;opacity:0.3">📚</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:8px">Pronto para pesquisar</div>
+        <div style="font-size:12px;max-width:450px;margin:0 auto;line-height:1.6">
+          Descreva o tema ou selecione um processo.<br>
+          O Lex busca jurisprudência real em tribunais e analisa a aplicabilidade ao seu caso.
+        </div>
+      </div>
+    </div>
+
+    <!-- CHAT DEBATE JURISPRUDÊNCIA -->
+    <div style="background:var(--surface);border:1px solid var(--accent)33;border-radius:16px;margin-top:16px;overflow:hidden">
+      <div style="background:linear-gradient(135deg,var(--accent)12,transparent);padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font-size:18px">🧠</span>
+        <div style="flex:1;min-width:150px">
+          <div style="font-size:12px;font-weight:700;color:var(--text)">Debater Jurisprudência com o Lex</div>
+          <div style="font-size:10px;color:var(--text3)">Discuta teses, precedentes, estratégias. O Lex questiona e traz contra-argumentos.</div>
+        </div>
+        <label style="cursor:pointer;font-size:10px;font-weight:600;display:inline-flex;align-items:center;gap:4px;border:1px solid var(--border);border-radius:8px;padding:5px 10px;color:var(--text2);background:var(--surface)" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+          📎 Anexar Decisão<input type="file" accept=".pdf,image/*,.txt,.docx" style="display:none" onchange="_jurisAnexarDoc(this.files[0])">
+        </label>
+      </div>
+      <div id="_jurisChatMsgs" style="min-height:100px;max-height:350px;overflow-y:auto;padding:12px 18px;display:flex;flex-direction:column;gap:8px">
+        <div style="text-align:center;font-size:11px;color:var(--text3);padding:16px 0">
+          💬 Questione teses, peça contra-argumentos, debata a força dos precedentes encontrados.
+        </div>
+      </div>
+      <div style="padding:10px 18px;border-top:1px solid var(--border);display:flex;gap:6px">
+        <input id="_jurisChatInput" class="fi" style="flex:1;min-width:150px;font-size:12px" placeholder="Ex: Essa tese do STJ se aplica ao meu caso? Tem precedente contrário?" onkeydown="if(event.key==='Enter'){event.preventDefault();_jurisChatEnviar();}">
+        <button class="btn-primary" style="padding:8px 14px;font-size:11px;white-space:nowrap" onclick="_jurisChatEnviar()">💬 Debater</button>
+      </div>
+      <div id="_jurisAnexoInfo" style="display:none;padding:6px 18px;font-size:10px;color:var(--accent);background:var(--accent)08;border-top:1px solid var(--accent)22"></div>
+    </div>`;
+}
+
+// ── Busca por Similaridade ──
+async function _jurisBuscarSimilar(){
+  const pid=document.getElementById('jp')?.value;
+  if(!pid){toast('Selecione um processo para busca por similaridade','erro');return;}
+  const proc=getProcs().find(p=>p.id==pid);
+  if(!proc){toast('Processo não encontrado','erro');return;}
+  document.getElementById('jq').value='Buscar jurisprudência similar a: '+(proc.nome||'')+' — '+(proc.descricao||proc.resumo||proc.tipo||'');
+  buscarJuris();
+}
+
+// ── Chat debate jurisprudência ──
+let _jurisChatHistory=[];
+let _jurisAnexoAtual=null;
+
+function _jurisAnexarDoc(file){
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    _jurisAnexoAtual={nome:file.name,tipo:file.type,base64:(e.target.result||'').split(',')[1]||''};
+    const el=document.getElementById('_jurisAnexoInfo');
+    if(el){el.style.display='block';el.innerHTML='📎 <strong>'+file.name+'</strong> — será enviado com a próxima mensagem. <button onclick="_jurisAnexoAtual=null;this.parentElement.style.display=\'none\'" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:10px;font-weight:700">✕</button>';}
+  };
+  reader.readAsDataURL(file);
+}
+
+async function _jurisChatEnviar(){
+  const input=document.getElementById('_jurisChatInput');if(!input)return;
+  const texto=input.value.trim();if(!texto&&!_jurisAnexoAtual)return;
+  input.value='';input.disabled=true;
+  const chatBox=document.getElementById('_jurisChatMsgs');
+  let userMsg=texto;if(_jurisAnexoAtual)userMsg+=' 📎 '+_jurisAnexoAtual.nome;
+  chatBox.innerHTML+='<div style="display:flex;justify-content:flex-end"><div style="max-width:75%;padding:10px 14px;border-radius:12px;background:var(--accent);color:white"><div style="font-size:10px;opacity:0.7;margin-bottom:3px;font-weight:600">Kleuber</div><div style="font-size:12px;white-space:pre-wrap">'+_escHtml(userMsg)+'</div></div></div>';
+  chatBox.innerHTML+='<div id="_jurisLoading" style="display:flex;justify-content:flex-start"><div style="padding:10px 14px;border-radius:12px;background:var(--surface2);border:1px solid var(--border)"><div style="font-size:11px;color:var(--text3)">🧠 Analisando...</div></div></div>';
+  chatBox.scrollTop=chatBox.scrollHeight;
+
+  // Contexto: resultados da última busca
+  const resEl=document.getElementById('jres');
+  const resultadosCtx=resEl?resEl.innerText.substring(0,2000):'';
+
+  let userContent=texto;
+  if(_jurisAnexoAtual&&_jurisAnexoAtual.tipo.startsWith('image/')){
+    _jurisChatHistory.push({role:'user',content:[{type:'text',text:texto||'Analise esta decisão:'},{type:'image',source:{type:'base64',media_type:_jurisAnexoAtual.tipo,data:_jurisAnexoAtual.base64}}]});
+  } else {
+    if(_jurisAnexoAtual)userContent+='\\n[Documento anexado: '+_jurisAnexoAtual.nome+']';
+    _jurisChatHistory.push({role:'user',content:userContent});
+  }
+  _jurisAnexoAtual=null;
+  const infoEl=document.getElementById('_jurisAnexoInfo');if(infoEl)infoEl.style.display='none';
+
+  const sysMsg={role:'user',content:'[SISTEMA] Você é o Lex — analista jurídico sênior debatendo jurisprudência.\\n\\nResultados da última pesquisa:\\n'+resultadosCtx+'\\n\\nREGRAS:\\n1. NUNCA concorde automaticamente. Questione a aplicabilidade.\\n2. Aponte precedentes CONTRÁRIOS se existirem.\\n3. Analise a força vinculante (súmula, repetitivo, isolado).\\n4. Se o Kleuber apresentar uma decisão, compare com o entendimento majoritário.\\n5. Sugira teses alternativas que podem ser mais fortes.\\n6. Se discordar, argumente com fundamento.\\n7. Indique se o entendimento está consolidado ou em mutação.\\n8. Alerte sobre riscos de usar precedentes superados ou minoritários.'};
+
+  const messages=[sysMsg,..._jurisChatHistory.slice(-10)];
+
+  try{
+    const resp=await chamarIA(messages,null,1200);
+    document.getElementById('_jurisLoading')?.remove();
+    if(resp){
+      _jurisChatHistory.push({role:'assistant',content:resp});
+      chatBox.innerHTML+='<div style="display:flex;justify-content:flex-start"><div style="max-width:80%;padding:10px 14px;border-radius:12px;background:var(--surface2);border:1px solid var(--border)"><div style="font-size:10px;color:var(--accent);margin-bottom:3px;font-weight:700">📚 Lex</div><div style="font-size:12px;color:var(--text);white-space:pre-wrap;line-height:1.5">'+_escHtml(resp)+'</div></div></div>';
+    }
+  }catch(e){
+    document.getElementById('_jurisLoading')?.remove();
+    chatBox.innerHTML+='<div style="font-size:11px;color:var(--red);padding:6px">Erro: '+e.message+'</div>';
+  }
+  chatBox.scrollTop=chatBox.scrollHeight;input.disabled=false;input.focus();
 }
 async function buscarJuris(){
   const q=document.getElementById('jq').value.trim(), pid=document.getElementById('jp').value;
   if(!q&&!pid){alert('Informe um tema ou selecione um processo.');return;}
+  const trib=document.getElementById('jtrib')?.value||'';
+  const periodo=document.getElementById('jperiodo')?.value||'';
   const el=document.getElementById('jres');
-  el.innerHTML='<div style="font-size:13px;color:var(--text2);font-style:italic">⏳ Pesquisando precedentes REAIS na internet com Opus 4.7...<br><span style="font-size:11px;color:var(--text3)">Pode levar 20-40s — consultando sites de tribunais</span></div>';
+  el.innerHTML='<div style="text-align:center;padding:30px"><div style="font-size:32px;margin-bottom:12px;animation:spin 1.5s linear infinite">🔍</div><div style="font-size:14px;font-weight:600;color:var(--text)">Pesquisando jurisprudência com Opus 4.7...</div><div style="font-size:11px;color:var(--text3);margin-top:6px">Consultando tribunais · Pode levar 20-40s</div></div>';
+
+  // Salvar no histórico
+  if(q){
+    const hist=JSON.parse(localStorage.getItem('lex_juris_hist')||'[]');
+    if(!hist.includes(q)){hist.push(q);if(hist.length>20)hist.shift();}
+    localStorage.setItem('lex_juris_hist',JSON.stringify(hist));
+  }
 
   const proc=pid?getProcs().find(p=>p.id==pid):null;
   try {
@@ -4598,7 +4758,9 @@ async function buscarJuris(){
       headers: {'Content-Type':'application/json', 'Authorization':'Bearer '+tk},
       body: JSON.stringify({
         tema: q || (proc ? (proc.nome+' '+(proc.descricao||'')) : ''),
-        processo_id: pid || null
+        processo_id: pid || null,
+        tribunal: trib || null,
+        periodo_anos: periodo ? parseInt(periodo) : null
       })
     });
     if(!res.ok) throw new Error('Servidor retornou '+res.status);
@@ -4612,28 +4774,42 @@ async function buscarJuris(){
 
     const cardsHtml = (d.precedentes||[]).map(p => {
       const apCor = p.aplicabilidade_ao_caso === 'alta' ? 'var(--green)'
-                  : p.aplicabilidade_ao_caso === 'media' ? 'var(--gold)' : 'var(--text3)';
-      return `<div class="juris-card" style="border-left:3px solid ${apCor}">
-        <div class="jc-tribunal">${p.tribunal||'?'} · ${p.classe||''} ${p.numero?('— '+p.numero):''}</div>
-        <div class="jc-tese"><b>${(p.ementa_resumida||'').replace(/"/g,'&quot;')}</b></div>
-        ${p.relator?'<div style="font-size:11px;color:var(--text3);margin:3px 0">Relator: '+p.relator+(p.data?' · '+p.data:'')+'</div>':''}
-        <div class="jc-aplic" style="color:${apCor}">
-          ${p.aplicabilidade_ao_caso==='alta'?'🎯':p.aplicabilidade_ao_caso==='media'?'⚡':'◦'}
-          Aplicabilidade ${p.aplicabilidade_ao_caso||'?'} — ${p.por_que||''}
+                  : p.aplicabilidade_ao_caso === 'media' ? 'var(--orange)' : 'var(--text3)';
+      const apIcon = p.aplicabilidade_ao_caso==='alta'?'🎯':p.aplicabilidade_ao_caso==='media'?'⚡':'◦';
+      return `<div style="background:var(--surface);border:1px solid var(--border);border-left:4px solid ${apCor};border-radius:12px;padding:14px 16px;margin-bottom:10px;transition:all .2s" onmouseover="this.style.boxShadow='0 3px 10px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow='none'">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
+          <div style="flex:1;min-width:180px">
+            <div style="font-size:13px;font-weight:700;color:var(--text)">${p.tribunal||'?'} · ${p.classe||''} ${p.numero?('— '+p.numero):''}</div>
+            ${p.relator?'<div style="font-size:11px;color:var(--text3);margin-top:2px">Rel.: '+p.relator+(p.data?' · '+p.data:'')+(p.turma_camara?' · '+p.turma_camara:'')+'</div>':''}
+          </div>
+          <span style="font-size:9px;font-weight:700;padding:3px 8px;border-radius:8px;background:${apCor}15;color:${apCor};flex-shrink:0">${apIcon} Aplicabilidade ${p.aplicabilidade_ao_caso||'?'}</span>
         </div>
-        ${p.fonte_url?'<div style="font-size:10px;margin-top:4px"><a href="'+p.fonte_url+'" target="_blank" style="color:var(--accent);text-decoration:underline">Ver fonte →</a></div>':''}
+        <div style="font-size:12px;color:var(--text);margin-top:8px;line-height:1.5;font-weight:600">${(p.ementa_resumida||'').replace(/"/g,'&quot;')}</div>
+        <div style="font-size:11px;margin-top:8px;padding:8px 10px;background:var(--accent)06;border:1px solid var(--accent)22;border-radius:8px;color:var(--text2);line-height:1.4">${p.por_que||''}</div>
+        ${p.fonte_url?'<div style="margin-top:6px"><a href="'+p.fonte_url+'" target="_blank" style="font-size:10px;color:var(--accent);text-decoration:none;font-weight:600">🔗 Ver inteiro teor ↗</a></div>':''}
       </div>`;
     }).join('');
 
     el.innerHTML = `
-      <div style="background:var(--surface2);border:1px solid ${sentidoColor};border-radius:10px;padding:14px;margin-bottom:12px">
-        <div style="font-size:13px;font-weight:700;color:${sentidoColor};margin-bottom:6px">${sentidoIcone} Sentido predominante: ${d.sentido_predominante||'?'}</div>
-        <div style="font-size:12px;color:var(--text2);line-height:1.6;white-space:pre-wrap">${(d.analise_consolidada||'').replace(/</g,'&lt;')}</div>
-        ${d.sugestao_peca?'<div style="font-size:11px;color:var(--accent);margin-top:8px;padding-top:8px;border-top:1px dashed var(--border2)">💡 Sugestão de peça: '+d.sugestao_peca+'</div>':''}
+      <!-- ANÁLISE CONSOLIDADA -->
+      <div style="background:linear-gradient(135deg,${sentidoColor}08,var(--surface));border:1px solid ${sentidoColor}44;border-radius:14px;padding:16px 18px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span style="font-size:20px">${sentidoIcone}</span>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:${sentidoColor}">Sentido predominante: ${d.sentido_predominante||'?'}</div>
+            <div style="font-size:10px;color:var(--text3)">${(d.precedentes||[]).length} precedente(s) encontrado(s)${trib?' · Filtro: '+trib:''}${periodo?' · Período: '+periodo+' ano(s)':''}</div>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--text);line-height:1.6;white-space:pre-wrap">${(d.analise_consolidada||'').replace(/</g,'&lt;')}</div>
+        ${d.sugestao_peca?`<div style="margin-top:10px;background:var(--accent)08;border:1px solid var(--accent)22;border-radius:8px;padding:8px 12px;font-size:11px;display:flex;align-items:center;gap:6px"><span style="font-size:14px">💡</span><span><strong style="color:var(--accent)">Sugestão de peça:</strong> <span style="color:var(--text)">${d.sugestao_peca}</span></span></div>`:''}
       </div>
-      <div style="font-size:12px;color:var(--text3);margin-bottom:10px">Precedentes encontrados (${(d.precedentes||[]).length}):</div>
-      ${cardsHtml || '<div style="color:var(--text3);font-style:italic">Nenhum precedente direto encontrado.</div>'}
-      ${d.limitacoes?'<div style="margin-top:10px;font-size:10px;color:var(--text3);font-style:italic">ℹ️ '+d.limitacoes+'</div>':''}
+
+      <!-- PRECEDENTES -->
+      <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px">
+        📋 Precedentes (${(d.precedentes||[]).length})
+      </div>
+      ${cardsHtml || '<div style="text-align:center;padding:20px;color:var(--text3)">Nenhum precedente direto encontrado.</div>'}
+      ${d.limitacoes?'<div style="margin-top:12px;font-size:10px;color:var(--text3);font-style:italic;padding:8px 12px;background:var(--surface2);border-radius:8px">ℹ️ '+d.limitacoes+'</div>':''}
     `;
   } catch(e) {
     el.innerHTML = '<div style="padding:14px;border:1px solid var(--red);border-radius:8px;color:var(--red);font-size:13px">❌ '+e.message+'<br><br><span style="font-size:11px;color:var(--text3)">Confira se o servidor Lex está no ar: <a href="https://lex-juridico.onrender.com/health" target="_blank" style="color:var(--accent)">/health</a></span></div>';
