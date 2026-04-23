@@ -8520,6 +8520,19 @@ const server = http.createServer(async (req, res) => {
   // ════════════════════════════════════════════════════════════════════════
   // CHAT / ANÁLISE / GERAÇÃO via web (autenticado)
   // ════════════════════════════════════════════════════════════════════════
+  // ═══ TESTE CHAT PÚBLICO (temporário) ═══
+  if(url==='/api/teste-ia' && req.method==='GET') {
+    try {
+      const resp = await ia([{role:'user',content:'Diga: Lex funcionando perfeitamente'}], 'Responda em 1 frase curta.', 100);
+      res.writeHead(200, corsHeaders(req));
+      res.end(JSON.stringify({ok:true, resposta:resp}));
+    } catch(e) {
+      res.writeHead(500, corsHeaders(req));
+      res.end(JSON.stringify({ok:false, erro:e.message}));
+    }
+    return;
+  }
+
   if(url==='/api/chat' && req.method==='POST') {
     try {
       const tk = getToken(req);
