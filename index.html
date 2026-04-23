@@ -701,7 +701,7 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
       <div class="fg"><label class="fl">Status</label>
         <select class="fs" id="f-status" onchange="togglePrepFields(this.value)">
           <option>URGENTE</option><option>ATIVO</option><option>RECURSAL</option>
-          <option>AGUARDANDO</option><option>EM_PREP</option><option>GANHO</option><option>PERDIDO</option><option>ARQUIVADO</option>
+          <option>AGUARDANDO</option><option>EM_PREP</option><option>DISTRIBUIDO</option><option>ENTREGUE</option><option>GANHO</option><option>PERDIDO</option><option>ARQUIVADO</option>
         </select>
       </div>
       <div class="fg"><label class="fl">Data real do prazo (dd/mm/aaaa)</label>
@@ -2046,7 +2046,7 @@ async function chamarIA(messages, system, maxTokens) {
 }
 // Chave API deve ser configurada pelo usuário no sistema — nunca embutida no código
 const COR={'Cível':'#1ab8d8','Criminal':'#e84545','Ambiental':'#2ec97e','Trabalhista':'#4f6ef7','Tributário':'#9b6ef7','Tributário Municipal':'#9b6ef7','Execução Federal':'#f0832a','Previdenciário':'#c9a84c','Família':'#e879a8'};
-const SC={URGENTE:'#e84545',ATIVO:'#1a73e8',RECURSAL:'#1ab8d8',AGUARDANDO:'#f0832a',EM_PREP:'#9b6ef7',MONITORAR:'#6b7280',VENCIDO:'#e84545',CONCLUIDO:'#2ec97e',GANHO:'#2ec97e',PERDIDO:'#e84545',ARQUIVADO:'#555878'};
+const SC={URGENTE:'#e84545',ATIVO:'#1a73e8',RECURSAL:'#1ab8d8',AGUARDANDO:'#f0832a',EM_PREP:'#9b6ef7',MONITORAR:'#6b7280',VENCIDO:'#e84545',CONCLUIDO:'#2ec97e',GANHO:'#2ec97e',PERDIDO:'#e84545',ARQUIVADO:'#555878',DISTRIBUIDO:'#7c3aed',ENTREGUE:'#059669'};
 
 // PERFIS e SENHAS_KEY definidos no bloco AUTH acima — senhas no servidor
 // usuarioAtivo declarado no bloco AUTH abaixo
@@ -6802,16 +6802,72 @@ function excluirPrep(id){if(!confirm('Excluir este caso?'))return;savePrep(getPr
 
 async function _pDistr(id){
   const c=getPrep().find(x=>x.id===id);if(!c)return;
-  const num=prompt(`✅ DISTRIBUIÇÃO — ${c.nome}
+  // Modal de distribuição inteligente
+  const ov=document.createElement('div');ov.id='_distrOv';
+  ov.style.cssText='position:fixed;inset:0;background:#00000099;z-index:700;display:flex;align-items:center;justify-content:center;padding:14px';
+  const areaInfo=c.area||'Não definida';
+  let setorSugerido='judicial';
+  if(['Tributário','Tributário Municipal','Administrativo'].includes(c.area) || c.tipo==='administrativo') setorSugerido='administrativo';
+  ov.innerHTML=`<div style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:24px;max-width:440px;width:100%">
+    <div style="font-family:Arial,Helvetica,sans-serif;font-size:18px;font-weight:700;margin-bottom:4px;color:var(--text)">📤 Distribuir Processo</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:16px">${c.nome} · ${areaInfo}</div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:6px">Setor de destino</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap" id="_distrSetorBtns">
+          <button class="_dSBtn" data-setor="administrativo" style="flex:1;min-width:100px;padding:14px;border-radius:12px;border:2px solid ${setorSugerido==='administrativo'?'var(--accent)':'var(--border)'};background:${setorSugerido==='administrativo'?'var(--accent)11':'var(--surface)'};cursor:pointer;text-align:center;transition:all .15s" onclick="_dSelSetor(this,'administrativo')">
+            <div style="font-size:20px">🏛️</div>
+            <div style="font-size:12px;font-weight:700;color:var(--text);margin-top:4px">Administrativo</div>
+            <div style="font-size:10px;color:var(--text3)">DRJ, CARF, Prefeitura</div>
+          </button>
+          <button class="_dSBtn" data-setor="judicial" style="flex:1;min-width:100px;padding:14px;border-radius:12px;border:2px solid ${setorSugerido==='judicial'?'var(--accent)':'var(--border)'};background:${setorSugerido==='judicial'?'var(--accent)11':'var(--surface)'};cursor:pointer;text-align:center;transition:all .15s" onclick="_dSelSetor(this,'judicial')">
+            <div style="font-size:20px">⚖️</div>
+            <div style="font-size:12px;font-weight:700;color:var(--text);margin-top:4px">Judicial</div>
+            <div style="font-size:10px;color:var(--text3)">TJ, TRF, STJ, STF</div>
+          </button>
+          <button class="_dSBtn" data-setor="entregue" style="flex:1;min-width:100px;padding:14px;border-radius:12px;border:2px solid var(--border);background:var(--surface);cursor:pointer;text-align:center;transition:all .15s" onclick="_dSelSetor(this,'entregue')">
+            <div style="font-size:20px">✅</div>
+            <div style="font-size:12px;font-weight:700;color:var(--text);margin-top:4px">Entregue</div>
+            <div style="font-size:10px;color:var(--text3)">Concluído ao cliente</div>
+          </button>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:6px">Número CNJ (opcional)</label>
+        <input class="fi" id="_distrNum" placeholder="0000000-00.0000.0.00.0000" style="width:100%;box-sizing:border-box">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn-cancel" style="flex:1" onclick="document.getElementById('_distrOv')?.remove()">Cancelar</button>
+        <button class="btn-save" style="flex:1;background:var(--green);border-color:var(--green)" onclick="_pDistrConfirm(${id})">📤 Distribuir</button>
+      </div>
+    </div>
+  </div>`;
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  document.body.appendChild(ov);
+  document.getElementById('_distrOv')._setor=setorSugerido;
+}
 
-Número CNJ (ou vazio para preencher depois):`);
-  if(num===null)return;
+function _dSelSetor(btn, setor){
+  document.querySelectorAll('._dSBtn').forEach(b=>{b.style.border='2px solid var(--border)';b.style.background='var(--surface)';});
+  btn.style.border='2px solid var(--accent)';btn.style.background='var(--accent)11';
+  document.getElementById('_distrOv')._setor=setor;
+}
+
+function _pDistrConfirm(id){
+  const c=getPrep().find(x=>x.id===id);if(!c)return;
+  const setor=document.getElementById('_distrOv')?._setor||'judicial';
+  const num=(document.getElementById('_distrNum')?.value||'').trim();
+  document.getElementById('_distrOv')?.remove();
   savePrep(getPrep().filter(x=>x.id!==id));
+  let status='DISTRIBUIDO';let setorFinal=setor;let tipo=setor==='administrativo'?'administrativo':'judicial';
+  if(setor==='entregue'){status='ENTREGUE';setorFinal='judicial';tipo='judicial';}
+  const setorLabel={'administrativo':'Administrativo','judicial':'Judicial','entregue':'Entregue ao Cliente'};
+  const hoje=new Date().toLocaleDateString('pt-BR');
   try{
     const ps=getProcs();
-    ps.push({id:Date.now(),nome:c.nome,grupo:'Outros',numero:num.trim()||'',partes:c.partes||'',area:c.area||'Cível',tipo:'judicial',setor:'judicial',tribunal:c.tribunal||'',status:'ATIVO',prazo:'',prazoReal:'',proxacao:'Acompanhar distribuição inicial',valor:c.valor||'',descricao:(c.obs||'')+(c.tipo?'\nTipo: '+c.tipo:''),frentes:[c.tipo||''].filter(Boolean),provas:[],andamentos:[{data:new Date().toLocaleDateString('pt-BR'),txt:'Distribuído. Nº: '+(num.trim()||'a confirmar')+(c.previsao?'\nPrevisão original: '+c.previsao:'')}],arquivos:[]});
-    saveProcs(ps);atualizarUrgentes();toast('✓ Processo criado como ATIVO!','ok');
-  }catch(e){toast('Removido da preparação.','ok');}
+    ps.push({id:Date.now(),nome:c.nome,grupo:c.area||'Outros',numero:num||'',partes:c.partes||'',area:c.area||'Cível',tipo:tipo,setor:setorFinal,tribunal:c.tribunal||'',status:status,prazo:'',prazoReal:'',proxacao:setor==='entregue'?'Acompanhar satisfação do cliente':'Acompanhar — setor '+(setorLabel[setor]||setor),valor:c.valor||'',descricao:(c.obs||'')+(c.tipo?'\nTipo original: '+c.tipo:''),frentes:c.frentes||[],provas:c.provas||[],atualizado_em:new Date().toISOString().slice(0,10),ultima_atualizacao:new Date().toISOString().slice(0,10),dias_parado:0,andamentos:[{data:hoje,txt:'📤 DISTRIBUÍDO → Setor '+(setorLabel[setor]||setor)+(num?' · Nº '+num:'')+(c.previsao?'\nPrevisão original: '+c.previsao:'')}],arquivos:[]});
+    saveProcs(ps);atualizarUrgentes();toast('✓ Distribuído → '+(setorLabel[setor]||setor)+'!','ok');
+  }catch(e){toast('Erro ao distribuir.','erro');}
   renderPreparacao();ir('processos',document.querySelector('.nav-btn[onclick*="processos"]'));
 }
 
