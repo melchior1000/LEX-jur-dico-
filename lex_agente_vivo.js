@@ -24,11 +24,11 @@
 // =====================================================================
 // CONFIGURAÇÃO DE MODELOS POR FUNCIONÁRIO
 // =====================================================================
-const MODELO_GESTOR          = 'claude-opus-4-7';     // o "cérebro" do Lex
-const MODELO_REDATOR         = 'claude-opus-4-7';     // joia da coroa — peticiona
-const MODELO_PESQUISADOR     = 'claude-sonnet-4-6';   // agentes de pesquisa
-const MODELO_DEFAULT_PESADO  = 'claude-opus-4-7';     // retrocompat
-const MODELO_DEFAULT_LEVE    = 'claude-sonnet-4-6';   // retrocompat
+const MODELO_GESTOR          = 'claude-sonnet-4-20250514';     // gestor do Lex
+const MODELO_REDATOR         = 'claude-sonnet-4-20250514';     // redator de peças
+const MODELO_PESQUISADOR     = 'claude-sonnet-4-20250514';     // agentes de pesquisa
+const MODELO_DEFAULT_PESADO  = 'claude-sonnet-4-20250514';     // retrocompat
+const MODELO_DEFAULT_LEVE    = 'claude-sonnet-4-20250514';     // retrocompat
 
 // =====================================================================
 // LIMITES E CONFIGURAÇÕES
@@ -44,13 +44,14 @@ const PRAZO_REGEX          = /^\d{4}-\d{2}-\d{2}$/;
 // PROMPTS DOS FUNCIONÁRIOS
 // =====================================================================
 
-const PROMPT_GESTOR = `Você é o Gestor de Processos do escritório Camargos Advocacia, atuando sob orientação do advogado Kleuber Melchior de Souza (OAB/MG 118.237) para o titular Wanderson Farias de Camargos.
+const PROMPT_GESTOR = `Você é o Gestor de Processos do escritório Camargos Advocacia, atuando sob orientação do CEO Kleuber Melchior de Souza (analista jurídico, NÃO advogado) para o advogado titular Dr. Wanderson Farias de Camargos (OAB/MG 118.237).
 
 Contexto do seu papel:
 - Você conversa com Kleuber como um colega de escritório experiente, em português brasileiro informal mas técnico.
 - Você está focado em UM processo específico cujo contexto completo está logo abaixo.
 - Kleuber vai te contar o que foi feito, o que descobriu, o que quer fazer. Você opina, sugere, diverge quando preciso.
 - Quando houver acordo sobre uma ação concreta (atualizar andamento, mudar status, marcar prazo, definir próxima ação), você chama a ferramenta "propor_atualizacao" com os parâmetros exatos.
+- QUANDO KLEUBER PEDIR PARA ATUALIZAR, EXECUTE IMEDIATAMENTE. Não peça confirmação desnecessária — ele é o CEO.
 - NÃO chame a ferramenta na primeira mensagem só por ter contexto. Só chame quando Kleuber disser o que aconteceu e vocês tiverem alinhado a atualização.
 - Você pode chamar a ferramenta MÚLTIPLAS VEZES ao longo da conversa conforme novas decisões surgem.
 - Seja direto. Não enrole. Não floreie. Kleuber odeia resposta genérica.
@@ -728,8 +729,13 @@ async function handlerConversar(req, res, body, deps) {
     }, deps.CORS);
 
   } catch (e) {
-    console.error('[VIVO] conversar erro:', e.message);
-    return jsonResponse(res, 500, { error: erroSeguro(e.message) }, deps.CORS);
+    console.error('[VIVO] conversar erro COMPLETO:', e);
+    const msgErro = String(e.message || e || 'erro desconhecido');
+    // Se é erro de modelo inválido, tenta com fallback
+    if(msgErro.includes('model') || msgErro.includes('not_found') || msgErro.includes('404')) {
+      console.error('[VIVO] Modelo inválido detectado, verifique MODELO_GESTOR:', MODELO_GESTOR);
+    }
+    return jsonResponse(res, 500, { error: 'Erro no Gestor IA: ' + msgErro.substring(0, 200) }, deps.CORS);
   }
 }
 
