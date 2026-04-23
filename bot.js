@@ -4028,6 +4028,16 @@ async function _executarFollowupClientesPendentes() {
       } else if(diffH >= 72 && !c.admin_notificado_sumico_72h) {
         await envTelegram('👻 Cliente sem resposta há 72h: '+(c.nome||c.chat_id)+' | chat '+c.chat_id+'.', null, CHAT_ID).catch(()=>{});
         c.admin_notificado_sumico_72h = true;
+      } else if(diffH >= 24*10 && !(c.lembrete_docs_10d_enviado)) {
+        const nomeProc = c.nome || c.chat_id;
+        const docsPend = Array.isArray(c.campos_verificar) && c.campos_verificar.length
+          ? c.campos_verificar.slice(0,6).join(', ')
+          : (String(c.docs_faltantes || c.docsPendentes || '').trim() || 'documentos pendentes do caso');
+        await env(
+          'Lembrete de documentação: seguimos aguardando os documentos para avançar no seu caso ('+nomeProc+'). Pendências: '+docsPend+'.',
+          { canal: c.canal || 'telegram', chatId: c.chat_id, numero: c.canal==='whatsapp' ? c.chat_id : null }
+        );
+        c.lembrete_docs_10d_enviado = true;
       } else if(diffH >= 48 && !c.lembrete_48h_enviado) {
         await env('Passando para reforçar: quando puder, me envie os dados/documentos pendentes para eu concluir seu atendimento jurídico 😊', {
           canal: c.canal || 'telegram', chatId: c.chat_id, numero: c.canal==='whatsapp' ? c.chat_id : null
@@ -4234,9 +4244,9 @@ async function _cadastradorRecebeu(ctx, tipoEntrada, conteudo) {
 // ════════════════════════════════════════════════════════════════════════════
 
 const COBRADOR_LIMIARES_DIAS = {
-  URGENTE: 6,   // Kleuber: processo URGENTE tem 6 dias antes de cobrar andamento
-  ATIVO: 15,
-  EM_PREP: 30
+  URGENTE: 4,   // ciclo: ATIVO -> 4 dias sem atualizar -> URGENTE
+  ATIVO: 4,     // ciclo contínuo de urgência nos setores administrativo/judicial
+  EM_PREP: 10   // autuação: cobrar documentos a cada 10 dias
 };
 
 // Quantos dias desde a última atividade registrada no processo
@@ -4264,11 +4274,22 @@ function _diasSemAtualizacao(proc) {
 function _processosParaCobrar() {
   const candidatos = [];
   for(const p of processos) {
-    if(!['URGENTE','ATIVO','EM_PREP'].includes(p.status)) continue;
-    const limiar = COBRADOR_LIMIARES_DIAS[p.status];
+    const setor = _normalizarSetorProcesso(p?.setor, p?.tipo, p?.area);
+    const st = String(p.status||'').toUpperCase();
+    const monitora = setor === 'autuacao'
+      ? (st === 'EM_PREP' || st === 'ATIVO' || st === 'URGENTE')
+      : (st === 'ATIVO' || st === 'URGENTE');
+    if(!monitora) continue;
+    const limiar = setor === 'autuacao'
+      ? COBRADOR_LIMIARES_DIAS.EM_PREP
+      : COBRADOR_LIMIARES_DIAS[st];
     if(!limiar) continue;
     const dias = _diasSemAtualizacao(p);
     if(dias === null) continue; // sem data base, pula
+    if(setor !== 'autuacao' && dias >= COBRADOR_LIMIARES_DIAS.ATIVO && st !== 'URGENTE') {
+      p.status = 'URGENTE';
+      p.atualizado_em = new Date().toISOString();
+    }
     if(dias >= limiar) {
       candidatos.push({
         proc: p,
@@ -4897,6 +4918,7 @@ REGRAS:
       const novoCaso = {
         nome: dados.nome_caso || dados.nome_cliente || 'Caso sem nome',
         tipo: _normalizarTipoProcesso(dados.tipo_processo || dados.tipo || dados.tipo_acao, dados.area),
+        setor: 'autuacao',
         area: dados.area || 'Cível',
         partes: dados.partes || '',
         status: ehAdmin ? 'EM_PREP' : 'AGUARDANDO_APROVACAO',
@@ -5611,7 +5633,7 @@ async function _conversaInteligente(ctx, mem, txt, low) {
     if(respNum === '1' || /^(novo)\b/i.test(respRaw)) {
       mem.aguardando = null;
       const tipoEscolhido = _inferirTipoProcessoCadastro(analise, respRaw);
-      const novo = _cadastrarProcessoNovo(analise, arq, { tipo: tipoEscolhido });
+      const novo = _cadastrarProcessoNovo(analise, arq, { tipo: tipoEscolhido, setor: 'autuacao' });
       _bumpProcessos(ctx.canal+':'+ctx.chatId);
       await _persistirProcessosCache();
       await _persistirProcessoNaTabela(novo, ctx, 'confirmar_andamento_123');
@@ -5698,7 +5720,7 @@ async function _conversaInteligente(ctx, mem, txt, low) {
     if(respNum === '1' || /^(sim|cadastra|novo|ok|pode)\b/i.test(respRaw)) {
       mem.aguardando = null;
       const tipoEscolhido = _inferirTipoProcessoCadastro(analise, respRaw);
-      const novo = _cadastrarProcessoNovo(analise, arq, { tipo: tipoEscolhido });
+      const novo = _cadastrarProcessoNovo(analise, arq, { tipo: tipoEscolhido, setor: 'autuacao' });
       _bumpProcessos(ctx.canal+':'+ctx.chatId);
       await _persistirProcessosCache();
       await _persistirProcessoNaTabela(novo, ctx, 'sem_match_123');
@@ -5775,7 +5797,7 @@ async function _conversaInteligente(ctx, mem, txt, low) {
     // Resposta "NOVO" → cadastra novo processo
     if(/^(NOVO|N)\b/.test(resp)) {
       const tipoEscolhido = _inferirTipoProcessoCadastro(analise, resp);
-      const novo = _cadastrarProcessoNovo(analise, arq, { tipo: tipoEscolhido });
+      const novo = _cadastrarProcessoNovo(analise, arq, { tipo: tipoEscolhido, setor: 'autuacao' });
       _bumpProcessos(ctx.canal+':'+ctx.chatId);
       await _persistirProcessosCache();
       await _persistirProcessoNaTabela(novo, ctx, 'escolher_processo_ambiguo');
@@ -5861,7 +5883,7 @@ async function _conversaInteligente(ctx, mem, txt, low) {
       const analise = mem.dadosColetados.analisePendente;
       const arq = mem.dadosColetados.arqPendente || {nome:'documento'};
       const tipoEscolhido = _inferirTipoProcessoCadastro(analise, txt);
-      const novo = _cadastrarProcessoNovo(analise, arq, { tipo: tipoEscolhido });
+      const novo = _cadastrarProcessoNovo(analise, arq, { tipo: tipoEscolhido, setor: 'autuacao' });
       _bumpProcessos(ctx.canal+':'+ctx.chatId);
       await _persistirProcessosCache();
       await _persistirProcessoNaTabela(novo, ctx, 'confirmar_cadastro_auto');
@@ -7003,6 +7025,17 @@ function _normalizarTipoProcesso(tipo, areaFallback) {
   return 'judicial';
 }
 
+function _normalizarSetorProcesso(setor, tipoFallback, areaFallback) {
+  const s = String(setor || '').toLowerCase().trim();
+  if (s === 'autuacao' || s === 'autuação') return 'autuacao';
+  if (s === 'administrativo') return 'administrativo';
+  if (s === 'judicial') return 'judicial';
+  const tipo = _normalizarTipoProcesso(tipoFallback, areaFallback);
+  if (tipo === 'administrativo') return 'administrativo';
+  if (tipo === 'judicial') return 'judicial';
+  return 'autuacao';
+}
+
 function _inferirTipoProcessoCadastro(analise, textoOpcional) {
   const txt = String(textoOpcional || '').toLowerCase();
   if (txt.includes('administrativ')) return 'administrativo';
@@ -7015,6 +7048,7 @@ async function _persistirProcessoNaTabela(proc, ctx, origem) {
     const payload = {
       nome: proc.nome || 'Processo sem nome',
       tipo: _normalizarTipoProcesso(proc.tipo, proc.area),
+      setor: _normalizarSetorProcesso(proc.setor, proc.tipo, proc.area),
       area: proc.area || '',
       partes: proc.partes || '',
       status: proc.status || 'ATIVO',
@@ -7044,17 +7078,19 @@ async function _persistirProcessoNaTabela(proc, ctx, origem) {
 
 function _cadastrarProcessoNovo(analise, arq, opcoes) {
   const tipoProcesso = _normalizarTipoProcesso(opcoes && opcoes.tipo, analise && analise.area);
+  const setorProcesso = _normalizarSetorProcesso((opcoes && opcoes.setor) || 'autuacao', tipoProcesso, analise && analise.area);
   const novo = {
     id: Date.now() + Math.floor(Math.random()*1000),
     nome: analise.nome_caso || (analise.partes||'Novo processo').substring(0,50),
     tipo: tipoProcesso,
+    setor: setorProcesso,
     numero: analise.numero_processo || '',
     partes: analise.partes || '',
     area: analise.area || '',
     tribunal: analise.tribunal || '',
     juiz_relator: analise.juiz_relator || '',   // v3.0 — NOVO
     instancia: analise.instancia || '',          // v3.0 — NOVO
-    status: analise.status || 'ATIVO',
+    status: setorProcesso === 'autuacao' ? 'EM_PREP' : (analise.status || 'ATIVO'),
     prazo: analise.prazo || '',
     prazoReal: '',
     prevDist: '',
@@ -9971,10 +10007,12 @@ async function _processarMarcadoresChat(texto, perfil='assessor') {
   while((m = regAtu.exec(texto)) !== null) {
     const idx = processos.findIndex(p=>String(p.id)===m[1]);
     if(idx!==-1) {
-      const camposValidos = ['status','titulo','juiz','vara','proxacao','observacoes','area','cliente','prazo'];
+      const camposValidos = ['status','titulo','juiz','vara','proxacao','observacoes','area','cliente','prazo','setor'];
       if(camposValidos.includes(m[2])) {
         _backupProcesso(m[1], 'atualizacao_assessor_chat');
-        processos[idx][m[2]] = m[3];
+        if(m[2] === 'setor') processos[idx][m[2]] = _normalizarSetorProcesso(m[3], processos[idx]?.tipo, processos[idx]?.area);
+        else processos[idx][m[2]] = m[3];
+        processos[idx].atualizado_em = new Date().toISOString();
         acoes.push({tipo:'atualizar', processo_id:m[1], campo:m[2], valor:m[3], ok:true});
         _auditarAcao(perfil, 'atualizar_processo', {processo_id:m[1], campo:m[2], valor:m[3]});
         // ── PERSISTIR NO SUPABASE ──
@@ -10008,6 +10046,9 @@ async function _processarMarcadoresChat(texto, perfil='assessor') {
       _backupProcesso(m[1], 'novo_andamento_assessor');
       const novoAnd = {id:Date.now(), data:hoje, descricao:m[2], tipo:'atualizacao_assessor'};
       processos[idx].andamentos.push(novoAnd);
+      const setor = _normalizarSetorProcesso(processos[idx]?.setor, processos[idx]?.tipo, processos[idx]?.area);
+      processos[idx].status = setor === 'autuacao' ? 'EM_PREP' : 'ATIVO';
+      processos[idx].atualizado_em = new Date().toISOString();
       acoes.push({tipo:'andamento', processo_id:m[1], descricao:m[2], ok:true});
       _auditarAcao(perfil, 'adicionar_andamento', {processo_id:m[1], descricao:m[2]});
       // ── PERSISTIR andamento no Supabase ──
