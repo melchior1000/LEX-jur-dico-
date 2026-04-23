@@ -3118,6 +3118,8 @@ function _areaNome(tipo) {
 }
 
 function _agoraIso() { return new Date().toISOString(); }
+function _agoraBrasilia() { return new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }); }
+function _horaBrasilia() { return new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }); }
 
 function _normCasoTxt(t) { return _normTexto(String(t||'')).replace(/\s+/g, ' ').trim(); }
 

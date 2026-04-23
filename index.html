@@ -426,7 +426,7 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
   .search-input{width:100px;}
   .search-input:focus{width:140px;}
   #chat-panel{width:100%;right:0;top:57px;height:calc(100dvh - 57px);}
-  .topbar-date{display:none;}
+  .topbar-date{font-size:10px;display:block!important;}
   #search-results{width:220px;left:-40px;}
   .btn-row{gap:4px;flex-wrap:wrap;}
   .btn-primary,.btn-outline,.btn-danger{font-size:11px;padding:7px 10px;}
@@ -3447,7 +3447,16 @@ window.onload=()=>{
   if(_sp && _sp.token) {
     fetch(SERVIDOR+'/api/ping',{method:'GET'}).catch(()=>{});
   }
-  document.getElementById('topbar-date').textContent=new Date().toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+  // Relógio de Brasília ao vivo
+  function _atualizarRelogioBrasilia(){
+    const agora = new Date(new Date().toLocaleString('en-US',{timeZone:'America/Sao_Paulo'}));
+    const dia = agora.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+    const hora = agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    const el = document.getElementById('topbar-date');
+    if(el) el.innerHTML = dia + ' · <span style="color:var(--accent);font-weight:700;">' + hora + '</span> <span style="font-size:9px;opacity:0.6;">Brasília</span>';
+  }
+  _atualizarRelogioBrasilia();
+  setInterval(_atualizarRelogioBrasilia, 30000); // Atualiza a cada 30s
   // Atualiza dados do escritório na topbar
   try{
     const esc=getEscritorio();
