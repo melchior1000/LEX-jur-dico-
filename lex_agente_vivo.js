@@ -868,6 +868,8 @@ async function handlerAplicar(req, res, body, deps) {
       // Atualização = houve trabalho = reseta dias parado
       processo.dias_parado = 0;
       processo.diasParado = 0;
+      // Regra CEO: qualquer atualização = volta ATIVO (a menos que proposta mude pra outro status)
+      if (!proposta.status) processo.status = 'ATIVO';
     }
     if (proposta.status) {
       const stUp = String(proposta.status).toUpperCase().trim();
@@ -1104,6 +1106,25 @@ Redija a peça completa agora.`;
           depois_json: { tipo_peca: briefing.tipo_peca, tamanho_chars: peca.length }
         });
       } catch (e) { console.warn('[VIVO] falha ao registrar acao vivo_acoes:', e?.message || e); }
+    }
+
+    // AUTO-GRAVAR no processo: peça elaborada = atualiza andamento + ATIVO
+    if (processo && deps.sbReq) {
+      try {
+        const hoje = new Date().toISOString().slice(0, 10);
+        processo.andamentos = processo.andamentos || [];
+        processo.andamentos.push({
+          data: hoje,
+          texto: `Peça jurídica elaborada: ${briefing.tipo_peca}. Pronta para protocolo.`,
+          origem: 'redator_ia'
+        });
+        processo.status = 'ATIVO';
+        processo.atualizado_em = hoje;
+        processo.ultima_atualizacao = hoje;
+        processo.dias_parado = 0;
+        await persistirProcesso(deps, processo);
+        console.log('[VIVO] Processo atualizado automaticamente após geração de peça:', processo_id);
+      } catch (e) { console.warn('[VIVO] falha ao auto-atualizar processo após peça:', e?.message || e); }
     }
 
     return jsonResponse(res, 200, {

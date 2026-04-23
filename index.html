@@ -4759,8 +4759,9 @@ function salvarProc(){
       ps[idx].ultima_atualizacao = hoje;
       ps[idx].dias_parado = 0;
       ps[idx].diasParado = 0;
-      // Se estava URGENTE e editou, volta pra ATIVO (trabalhou no processo)
-      if(ps[idx].status === 'URGENTE' && dados.status !== 'URGENTE') {
+      // Regra CEO: qualquer edição manual = ATIVO (exceto se definiu status especial: CONCLUIDO, EM_PREP)
+      const stAtual = (dados.status || ps[idx].status || '').toUpperCase();
+      if(stAtual !== 'CONCLUIDO' && stAtual !== 'EM_PREP') {
         ps[idx].status = 'ATIVO';
       }
     }
@@ -9001,8 +9002,9 @@ async function atualizarAndamentoProcessoExistente(){
   ps[idx].ultima_atualizacao = hoje;
   ps[idx].dias_parado = 0;
   ps[idx].diasParado = 0;
-  // Se estava URGENTE, volta pra ATIVO (trabalhou no processo)
-  if(ps[idx].status === 'URGENTE') ps[idx].status = 'ATIVO';
+  // Regra CEO: qualquer atualização manual = ATIVO (exceto CONCLUIDO/EM_PREP)
+  const stManual = (ps[idx].status || '').toUpperCase();
+  if(stManual !== 'CONCLUIDO' && stManual !== 'EM_PREP') ps[idx].status = 'ATIVO';
   saveProcs(ps);
   atualizarUrgentes();
   renderPainel(); renderProcessos();
