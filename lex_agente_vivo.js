@@ -1400,7 +1400,15 @@ async function tratarRota(req, res, url, deps) {
   }
 
   let body;
-  try { body = await deps.lerBody(req); }
+  try {
+    // Quando o servidor principal já leu o body, reutiliza para não consumir o stream duas vezes.
+    // Isso evita travamento/erro silencioso nas rotas /api/vivo/*.
+    if (deps && deps.body && typeof deps.body === 'object') {
+      body = deps.body;
+    } else {
+      body = await deps.lerBody(req);
+    }
+  }
   catch (e) { jsonResponse(res, 400, { error: 'body inválido: ' + e.message }, CORS); return true; }
 
   const depsPlus = Object.assign({}, deps, { CORS });
