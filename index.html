@@ -4749,8 +4749,26 @@ function salvarProc(){
   else if(statusVal==='URGENTE') statusVal='ATIVO';
   const setorVal=document.getElementById('f-setor')?.value||'autuacao';
   const dados={nome,grupo:document.getElementById('f-grupo').value||'Outros',tipo:document.getElementById('f-tipo')?.value||'judicial',setor:setorVal,numero:document.getElementById('f-num').value,partes:document.getElementById('f-partes').value,area,tribunal:document.getElementById('f-trib').value,status:setorVal==='autuacao'?'EM_PREP':statusVal,prazo,prazoReal,valor:document.getElementById('f-valor').value,proxacao:document.getElementById('f-proxacao')?.value||'',honor:document.getElementById('f-honor')?.value||'',honorStatus:document.getElementById('f-honor-status')?.value||'',descricao:document.getElementById('f-desc').value,provas:document.getElementById('f-provas').value.split(',').map(s=>s.trim()).filter(Boolean),frentes:document.getElementById('f-frentes').value.split(',').map(s=>s.trim()).filter(Boolean),prevDist:(setorVal==='autuacao'||statusVal==='EM_PREP')?(document.getElementById('f-prev-dist')?.value||''):'',docsFaltantes:(setorVal==='autuacao'||statusVal==='EM_PREP')?(document.getElementById('f-docs-falt')?.value||''):''};
-  if(editId){const idx=ps.findIndex(x=>x.id==editId);if(idx>-1) ps[idx]={...ps[idx],...dados};}
-  else ps.push({id:Date.now(),...dados,andamentos:[],arquivos:[]});
+  if(editId){
+    const idx=ps.findIndex(x=>x.id==editId);
+    if(idx>-1) {
+      ps[idx]={...ps[idx],...dados};
+      // Atualização manual = houve trabalho = reseta urgência
+      const hoje = new Date().toISOString().slice(0,10);
+      ps[idx].atualizado_em = hoje;
+      ps[idx].ultima_atualizacao = hoje;
+      ps[idx].dias_parado = 0;
+      ps[idx].diasParado = 0;
+      // Se estava URGENTE e editou, volta pra ATIVO (trabalhou no processo)
+      if(ps[idx].status === 'URGENTE' && dados.status !== 'URGENTE') {
+        ps[idx].status = 'ATIVO';
+      }
+    }
+  }
+  else {
+    const hoje = new Date().toISOString().slice(0,10);
+    ps.push({id:Date.now(),...dados,andamentos:[],arquivos:[],atualizado_em:hoje,ultima_atualizacao:hoje,dias_parado:0});
+  }
   const _editedId=document.getElementById('modal').getAttribute('data-edit');saveProcs(ps); atualizarUrgentes(); fecharModal(); setTimeout(sincronizarComBot,500);
   if(_editedId) registrarAcaoSalvar(parseInt(_editedId),'Processo editado');
   toast('✓ Processo salvo com sucesso!');
@@ -7848,10 +7866,16 @@ function registrarAcaoSalvar(procId,acao){
   if(d===null || d>7){
     p.status='ATIVO';
   }
+  const hoje = new Date().toISOString().slice(0,10);
+  p.atualizado_em = hoje;
+  p.ultima_atualizacao = hoje;
+  p.dias_parado = 0;
+  p.diasParado = 0;
   p._ultimaAcao=acao||'Salvo';
   p._ultimaAtualiz=new Date().toISOString();
   saveProcs(ps);
   atualizarUrgentes();
+  renderPainel(); renderProcessos();
   toast(p.status==='ATIVO'?'✓ Processo salvo — status ATIVO':'✓ Processo salvo','ok');
   if(typeof renderPainel==='function'&&document.getElementById('page-title')?.textContent==='Painel Geral')renderPainel();
 }
@@ -8970,9 +8994,18 @@ async function atualizarAndamentoProcessoExistente(){
     return;
   }
   if(!ps[idx].andamentos) ps[idx].andamentos = [];
-  ps[idx].andamentos.unshift({data:new Date().toLocaleDateString('pt-BR'), txt});
+  const hoje = new Date().toISOString().slice(0,10);
+  ps[idx].andamentos.unshift({data:hoje, txt});
+  // Atualização manual = houve trabalho = reseta urgência
+  ps[idx].atualizado_em = hoje;
+  ps[idx].ultima_atualizacao = hoje;
+  ps[idx].dias_parado = 0;
+  ps[idx].diasParado = 0;
+  // Se estava URGENTE, volta pra ATIVO (trabalhou no processo)
+  if(ps[idx].status === 'URGENTE') ps[idx].status = 'ATIVO';
   saveProcs(ps);
   atualizarUrgentes();
+  renderPainel(); renderProcessos();
   try{
     const tk = (typeof getAuthToken==='function' ? (getAuthToken()||'') : '');
     const headers = {'Content-Type':'application/json', 'X-Aparelho-Id': getAparelhoId()};
