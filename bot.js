@@ -5381,8 +5381,69 @@ async function _registrarCumprimento(ctx, mem, txt) {
   await env('✅ Registrado — prazo limpo.\n\nProcesso: '+procMenc.nome+'\nData: '+hoje+'\n\nMe manda o PDF da petição quando puder — não esqueço.', ctx);
 }
 
+// ═══════════════ INTERCEPTOR INTELIGENTE — Entende linguagem natural sobre processos ═══════════════
+async function _detectarIntencaoProcesso(txt, ctx, mem) {
+  const txtLow = txt.toLowerCase();
+  const palavrasChave = ['processo','andamento','decisão','decisao','publicação','publicacao','julgamento','audiência','audiencia','intimação','intimacao','sentença','sentenca','despacho','recurso','embargo','prazo','atualiza','cadastr','status','urgente','ganho','perdido','arquiv'];
+  const temContexto = palavrasChave.some(p => txtLow.includes(p));
+  if(!temContexto) return false;
+  
+  const listaProcs = processos.slice(0,30).map(p => 
+    'ID:'+p.id+' | '+p.nome+' | '+p.numero+' | '+(p.cliente||'')+' | Status:'+(p.status||'—')+' | Prazo:'+(p.prazo||'—')
+  ).join('\n');
+  
+  const system = [
+    'Você é o Lex, gestor inteligente do escritório Camargos Advocacia.',
+    'O CEO Kleuber mandou uma mensagem. Analise se ele quer atualizar, consultar ou agir sobre algum processo.',
+    '',
+    'PROCESSOS CADASTRADOS:',
+    listaProcs || '(nenhum)',
+    '',
+    'AÇÕES DISPONÍVEIS:',
+    '1. ATUALIZAR campo de processo: [ATUALIZAR:id:campo:valor] (campos: status, prazo, juiz, vara, proxacao, observacoes)',
+    '2. ADICIONAR andamento: [ANDAMENTO:id:descricao]',
+    '3. ADICIONAR prazo: [PRAZO:id:descricao:YYYY-MM-DD:tipo] (tipos: conferencia, julgamento, audiencia, recurso, prazo_fatal)',
+    '4. PERGUNTAR se não ficou claro o que ele quer',
+    '',
+    'REGRAS:',
+    '- Identifique o processo pelo nome, número, cliente ou contexto.',
+    '- Se encontrou o processo E entendeu a ação: EXECUTE imediatamente com os marcadores + confirme em 1-2 linhas.',
+    '- Se encontrou o processo MAS não sabe qual ação: pergunte objetivamente "O que você quer que eu faça no processo X? (atualizar status, registrar andamento, novo prazo...)"',
+    '- Se NÃO encontrou o processo: diga qual processo e liste os mais parecidos.',
+    '- Cada atualização/andamento gera prazo automático de 5 dias pra conferência.',
+    '- EXCEÇÃO: julgamento/audiência — o prazo é a data do julgamento, sem os 5 dias.',
+    '- Seja DIRETO, curto, objetivo. Não enrole.',
+    '',
+    'Responda como o Lex (profissional, direto, confiante).'
+  ].join('\n');
+  
+  try {
+    const respIA = await ia([{role:'user', content: txt}], system, 900);
+    const acoes = await _processarMarcadoresChat(respIA, 'admin');
+    let msgLimpa = respIA.replace(/\[(ATUALIZAR|ANDAMENTO|PRAZO):[^\]]+\]/g, '').trim();
+    
+    if(acoes.length > 0) {
+      const resumoAcoes = acoes.map(a => {
+        if(a.tipo==='atualizar') return '✅ '+a.campo+' → '+a.valor;
+        if(a.tipo==='andamento') return '✅ Andamento registrado';
+        if(a.tipo==='prazo') return '📅 Prazo: '+a.descricao+' — '+a.data;
+        if(a.tipo==='prazo_auto') return '⏰ Conferência em 5 dias';
+        return '';
+      }).filter(Boolean).join('\n');
+      msgLimpa = msgLimpa + (msgLimpa ? '\n\n' : '') + resumoAcoes;
+    }
+    
+    if(msgLimpa) {
+      await env(msgLimpa, ctx);
+      return true;
+    }
+  } catch(e) {
+    console.warn('[Lex] Interceptor inteligente falhou:', e.message);
+  }
+  return false;
+}
+
 async function _comandosControle(ctx, mem, txt, low) {
-  // andamento [nome]: [texto]
   const matchAnd = txt.match(/^andamento\s+(.+?):\s*(.+)$/i);
   if(matchAnd) {
     const nomeBusca=matchAnd[1].trim(), textoAnd=matchAnd[2].trim();
@@ -5433,6 +5494,12 @@ async function _comandosControle(ctx, mem, txt, low) {
 }
 
 async function _conversaInteligente(ctx, mem, txt, low) {
+  // ── INTERCEPTOR INTELIGENTE: detecta intenção de atualizar processo em linguagem natural ──
+  if(!mem.aguardando && isAdmin(ctx.chatId)) {
+    const intentResult = await _detectarIntencaoProcesso(txt, ctx, mem);
+    if(intentResult) return;
+  }
+
   // ── HANDLER ASSESSOR — tipo de conteúdo (decisão / adversa / livre) ──
   if(mem.aguardando === 'assessor_tipo_conteudo' && mem.dadosColetados?.assessorProcId) {
     const proc = processos.find(p => p.id === mem.dadosColetados.assessorProcId);
