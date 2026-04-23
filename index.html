@@ -439,6 +439,8 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
   #pdf-pane-form{width:100%!important;border-left:none!important;border-top:1px solid var(--border);}
   #pdf-pane-viewer{min-height:300px;}
   .stat-num{font-size:22px;}
+  /* Mobile fixes para novos módulos */
+  .stats-row{grid-template-columns:repeat(2,1fr)!important;gap:8px!important;}
 }
 @media(min-width:769px){
   #mobile-nav{display:none!important;}
@@ -4766,7 +4768,129 @@ function renderJuizes(){
         <div style="font-size:12px;font-weight:700;color:var(--text)">Inteligência Automatizada</div>
         <div style="font-size:11px;color:var(--text3);margin-top:2px;line-height:1.5">Quando um processo é importado, o Lex extrai o juiz/relator automaticamente. Ao analisar, cruza com decisões conhecidas, jurisprudência e padrão decisório para montar o perfil completo.</div>
       </div>
+    </div>
+
+    <!-- CHAT DE DEBATE COM O LEX SOBRE JUÍZES -->
+    <div style="background:var(--surface);border:1px solid var(--accent)33;border-radius:16px;margin-top:16px;overflow:hidden">
+      <div style="background:linear-gradient(135deg,var(--accent)12,transparent);padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-size:20px">🧠</span>
+        <div style="flex:1;min-width:150px">
+          <div style="font-size:13px;font-weight:700;color:var(--text)">Debater com Lex — Estratégia Judicial</div>
+          <div style="font-size:10px;color:var(--text3)">Discuta perfis, compartilhe decisões, debata estratégias. O Lex vai discordar quando necessário.</div>
+        </div>
+        <label style="cursor:pointer;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:4px;border:1px solid var(--border);border-radius:8px;padding:6px 12px;color:var(--text2);background:var(--surface);transition:all .15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+          📎 Anexar Decisão<input type="file" accept=".pdf,image/*,.docx,.txt" style="display:none" onchange="_juizAnexarDoc(this.files[0])">
+        </label>
+      </div>
+      <div id="_juizChatMsgs" style="min-height:120px;max-height:400px;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:8px">
+        <div style="text-align:center;font-size:11px;color:var(--text3);padding:20px 0">
+          💬 Pergunte sobre qualquer magistrado, compartilhe decisões que encontrou,<br>debata estratégias. O Lex analisa com visão crítica e dá o ponto de vista dele.
+        </div>
+      </div>
+      <div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap">
+        <input id="_juizChatInput" class="fi" style="flex:1;min-width:180px" placeholder="Ex: O que acha do Dr. Fulano para ação previdenciária? Vi que ele negou 3 liminares..." onkeydown="if(event.key==='Enter'){event.preventDefault();_juizChatEnviar();}">
+        <button class="btn-primary" style="padding:8px 16px;font-size:12px;white-space:nowrap" onclick="_juizChatEnviar()">💬 Debater</button>
+      </div>
+      <div id="_juizAnexoInfo" style="display:none;padding:8px 18px;font-size:11px;color:var(--accent);background:var(--accent)08;border-top:1px solid var(--accent)22"></div>
     </div>`;
+}
+
+// ── Chat de debate sobre Juízes ──
+let _juizChatHistory=[];
+let _juizAnexoAtual=null;
+
+async function _juizAnexarDoc(file){
+  if(!file) return;
+  const infoEl=document.getElementById('_juizAnexoInfo');
+  // Ler como base64 para enviar com a mensagem
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const b64=e.target.result.split(',')[1]||'';
+    _juizAnexoAtual={nome:file.name, tipo:file.type, base64:b64, tamanho:file.size};
+    if(infoEl){infoEl.style.display='block';infoEl.innerHTML='📎 <strong>'+file.name+'</strong> ('+Math.round(file.size/1024)+'KB) — será enviado com a próxima mensagem. <button onclick="_juizAnexoAtual=null;this.parentElement.style.display=\'none\'" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">✕ Remover</button>';}
+  };
+  reader.readAsDataURL(file);
+}
+
+async function _juizChatEnviar(){
+  const input=document.getElementById('_juizChatInput');
+  if(!input) return;
+  const texto=input.value.trim();
+  if(!texto && !_juizAnexoAtual) return;
+  input.value='';
+  input.disabled=true;
+  
+  const chatBox=document.getElementById('_juizChatMsgs');
+  
+  // Mostrar msg do usuário
+  let userMsg=texto;
+  if(_juizAnexoAtual) userMsg+=(userMsg?' · ':'')+'📎 '+_juizAnexoAtual.nome;
+  chatBox.innerHTML+='<div style="display:flex;justify-content:flex-end"><div style="max-width:75%;padding:10px 14px;border-radius:12px;background:var(--accent);color:white"><div style="font-size:10px;opacity:0.7;margin-bottom:3px;font-weight:600">Kleuber</div><div style="font-size:13px;white-space:pre-wrap">'+_escHtml(userMsg)+'</div></div></div>';
+  chatBox.scrollTop=chatBox.scrollHeight;
+  
+  // Loading
+  chatBox.innerHTML+='<div id="_juizChatLoading" style="display:flex;justify-content:flex-start"><div style="padding:10px 14px;border-radius:12px;background:var(--surface2);border:1px solid var(--border)"><div style="font-size:12px;color:var(--text3)">🧠 Lex analisando...</div></div></div>';
+  chatBox.scrollTop=chatBox.scrollHeight;
+  
+  // Montar contexto com juízes cadastrados
+  const juizes=JSON.parse(localStorage.getItem(JK)||'[]');
+  const juizesCtx=juizes.map(j=>'• '+j.nome+' ('+j.tribunal+')' + (j.perfil?' [PERFILADO: '+j.perfil.postura_geral+', '+j.perfil.estilo_decisorio+']':' [PENDENTE]')).join('\n');
+  
+  // Montar mensagem com anexo se houver
+  let userContent=texto;
+  if(_juizAnexoAtual){
+    if(_juizAnexoAtual.tipo.startsWith('image/')){
+      userContent+='\\n\\n[DOCUMENTO ANEXADO - IMAGEM: '+_juizAnexoAtual.nome+' - Analise visualmente o conteúdo]';
+    } else {
+      userContent+='\\n\\n[DOCUMENTO ANEXADO: '+_juizAnexoAtual.nome+' ('+_juizAnexoAtual.tipo+')]';
+    }
+  }
+  
+  _juizChatHistory.push({role:'user',content:userContent});
+  
+  // Montar mensagens com imagem se for anexo de imagem
+  let messages=[];
+  const systemMsg={role:'user',content:'[SISTEMA] Contexto dos magistrados cadastrados:\\n'+juizesCtx+'\\n\\nVocê é o Lex — analista jurídico sênior. REGRAS DE DEBATE:\\n1. NUNCA concorde automaticamente. Analise criticamente.\\n2. Se o Kleuber trouxer uma decisão, analise os pontos fracos E fortes.\\n3. Dê seu ponto de vista mesmo que contrarie o do Kleuber.\\n4. Se discordar, explique POR QUÊ com argumentos jurídicos.\\n5. Sugira estratégias alternativas que o Kleuber pode não ter pensado.\\n6. Se o Kleuber mandar uma decisão, cruze com o perfil do juiz cadastrado.\\n7. Aponte riscos que o Kleuber pode estar ignorando.\\n8. Seja direto, sem rodeios — como um sócio debatendo estratégia.'};
+  
+  messages.push(systemMsg);
+  
+  // Adicionar histórico (últimas 10 msgs)
+  const hist=_juizChatHistory.slice(-10);
+  
+  // Se último msg tem anexo de imagem, formatar corretamente
+  if(_juizAnexoAtual && _juizAnexoAtual.tipo.startsWith('image/')){
+    const histSemUltimo=hist.slice(0,-1);
+    messages=messages.concat(histSemUltimo);
+    messages.push({role:'user',content:[
+      {type:'text',text:texto||'Analise este documento/decisão:'},
+      {type:'image',source:{type:'base64',media_type:_juizAnexoAtual.tipo,data:_juizAnexoAtual.base64}}
+    ]});
+  } else {
+    messages=messages.concat(hist);
+  }
+  
+  // Limpar anexo
+  _juizAnexoAtual=null;
+  const infoEl=document.getElementById('_juizAnexoInfo');
+  if(infoEl) infoEl.style.display='none';
+  
+  try {
+    const resp=await chamarIA(messages,null,1200);
+    const loadingEl=document.getElementById('_juizChatLoading');
+    if(loadingEl) loadingEl.remove();
+    
+    if(resp){
+      _juizChatHistory.push({role:'assistant',content:resp});
+      chatBox.innerHTML+='<div style="display:flex;justify-content:flex-start"><div style="max-width:80%;padding:10px 14px;border-radius:12px;background:var(--surface2);border:1px solid var(--border)"><div style="font-size:10px;color:var(--accent);margin-bottom:3px;font-weight:700">⚖️ Lex</div><div style="font-size:13px;color:var(--text);white-space:pre-wrap;line-height:1.5">'+_escHtml(resp)+'</div></div></div>';
+    }
+  } catch(e){
+    const loadingEl=document.getElementById('_juizChatLoading');
+    if(loadingEl) loadingEl.remove();
+    chatBox.innerHTML+='<div style="font-size:11px;color:var(--red);padding:6px">Erro: '+e.message+'</div>';
+  }
+  chatBox.scrollTop=chatBox.scrollHeight;
+  input.disabled=false;
+  input.focus();
 }
 
 // Buscar e analisar juiz pelo nome digitado
@@ -5501,7 +5625,7 @@ function renderPreparacao(){
     </div>
 
     <!-- CARDS KPI -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:20px">
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;position:relative;overflow:hidden">
         <div style="position:absolute;top:-8px;right:-8px;font-size:48px;opacity:0.06">📁</div>
         <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Total</div>
@@ -8187,32 +8311,44 @@ let _centralMsgsCache = [];
 async function renderCentralMensagens(){
   const el = document.getElementById('content');
   el.innerHTML = `
-  <div style="display:flex;gap:16px;height:calc(100vh - 140px);min-height:500px">
+  <div style="display:flex;gap:12px;flex-wrap:wrap">
     <!-- PAINEL ESQUERDO: Contatos -->
-    <div style="width:300px;min-width:250px;background:var(--surface);border:1px solid var(--border);border-radius:14px;display:flex;flex-direction:column;overflow:hidden">
-      <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
-        <span style="font-size:18px">💬</span>
-        <span style="font-weight:700;font-size:14px;color:var(--text)">Conversas</span>
-        <div style="margin-left:auto;display:flex;gap:4px">
-          <button class="btn-outline" style="font-size:10px;padding:3px 8px;${_centralCanalAtivo==='todos'?'background:var(--accent);color:white':''}" onclick="_centralCanalAtivo='todos';renderCentralMensagens()">Todos</button>
-          <button class="btn-outline" style="font-size:10px;padding:3px 8px;${_centralCanalAtivo==='telegram'?'background:var(--accent);color:white':''}" onclick="_centralCanalAtivo='telegram';renderCentralMensagens()">TG</button>
-          <button class="btn-outline" style="font-size:10px;padding:3px 8px;${_centralCanalAtivo==='whatsapp'?'background:#25D366;color:white':''}" onclick="_centralCanalAtivo='whatsapp';renderCentralMensagens()">WA</button>
+    <div style="width:280px;min-width:200px;background:var(--surface);border:1px solid var(--border);border-radius:14px;display:flex;flex-direction:column;overflow:hidden;max-height:calc(100vh - 140px);flex-shrink:0" id="_centralPainelContatos">
+      <div style="padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <span style="font-size:16px">💬</span>
+        <span style="font-weight:700;font-size:13px;color:var(--text)">Conversas</span>
+        <div style="margin-left:auto;display:flex;gap:3px">
+          <button class="btn-outline" style="font-size:9px;padding:3px 7px;${_centralCanalAtivo==='todos'?'background:var(--accent);color:white;border-color:var(--accent)':''}" onclick="_centralCanalAtivo='todos';renderCentralMensagens()">Todos</button>
+          <button class="btn-outline" style="font-size:9px;padding:3px 7px;${_centralCanalAtivo==='telegram'?'background:var(--accent);color:white;border-color:var(--accent)':''}" onclick="_centralCanalAtivo='telegram';renderCentralMensagens()">TG</button>
+          <button class="btn-outline" style="font-size:9px;padding:3px 7px;${_centralCanalAtivo==='whatsapp'?'background:#25D366;color:white;border-color:#25D366':''}" onclick="_centralCanalAtivo='whatsapp';renderCentralMensagens()">WA</button>
         </div>
       </div>
-      <div id="_centralContatos" style="flex:1;overflow-y:auto;padding:8px"></div>
+      <!-- Envio direto para número novo -->
+      <div style="padding:8px 12px;border-bottom:1px solid var(--border);background:var(--surface2)">
+        <div style="font-size:10px;font-weight:600;color:var(--text3);margin-bottom:4px">Nova Conversa</div>
+        <div style="display:flex;gap:4px">
+          <select id="_centralNovoCanal" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:4px 6px;color:var(--text);font-size:11px;width:60px">
+            <option value="whatsapp">WA</option>
+            <option value="telegram">TG</option>
+          </select>
+          <input id="_centralNovoNum" class="fi" style="flex:1;font-size:11px;padding:4px 8px" placeholder="Nº ou Chat ID...">
+          <button class="btn-primary" style="font-size:10px;padding:4px 10px;white-space:nowrap" onclick="_centralIniciarNova()">💬</button>
+        </div>
+      </div>
+      <div id="_centralContatos" style="flex:1;overflow-y:auto;padding:6px"></div>
     </div>
     <!-- PAINEL DIREITO: Chat -->
-    <div style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:14px;display:flex;flex-direction:column;overflow:hidden">
-      <div id="_centralHeader" style="padding:14px 16px;border-bottom:1px solid var(--border);font-weight:600;font-size:14px;color:var(--text)">
-        ${_centralContatoAtivo ? '💬 ' + (_centralContatoAtivo.nome||_centralContatoAtivo.chatId) + ' <span style="font-size:11px;color:var(--text3);font-weight:400">(' + _centralContatoAtivo.canal + ')</span>' : 'Selecione uma conversa'}
+    <div style="flex:1;min-width:250px;background:var(--surface);border:1px solid var(--border);border-radius:14px;display:flex;flex-direction:column;overflow:hidden;max-height:calc(100vh - 140px)">
+      <div id="_centralHeader" style="padding:12px 16px;border-bottom:1px solid var(--border);font-weight:600;font-size:13px;color:var(--text);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        ${_centralContatoAtivo ? '<span style="font-size:16px">' + (_centralContatoAtivo.canal==='telegram'?'✈️':'📱') + '</span> ' + (_centralContatoAtivo.nome||_centralContatoAtivo.chatId) + ' <span style="font-size:10px;color:var(--text3);font-weight:400">(' + _centralContatoAtivo.canal + ' · ' + _centralContatoAtivo.chatId + ')</span>' : '← Selecione ou inicie uma conversa'}
       </div>
-      <div id="_centralChat" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px">
-        ${_centralContatoAtivo ? '<div style="text-align:center;color:var(--text3);font-size:12px">Carregando mensagens...</div>' : '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3);font-size:14px">← Selecione uma conversa para ver e enviar mensagens</div>'}
+      <div id="_centralChat" style="flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px;min-height:200px">
+        ${_centralContatoAtivo ? '<div style="text-align:center;color:var(--text3);font-size:12px">Carregando...</div>' : '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3);font-size:13px;text-align:center;padding:20px">Selecione uma conversa à esquerda<br>ou inicie uma nova digitando o número</div>'}
       </div>
       ${_centralContatoAtivo ? `
-      <div style="padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px">
-        <input id="_centralInput" class="fi" style="flex:1" placeholder="Digite sua mensagem..." onkeydown="if(event.key==='Enter'){event.preventDefault();_centralEnviar();}">
-        <button class="btn-primary" style="padding:8px 16px;font-size:13px" onclick="_centralEnviar()">Enviar</button>
+      <div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:6px">
+        <input id="_centralInput" class="fi" style="flex:1;font-size:13px" placeholder="Digite sua mensagem..." onkeydown="if(event.key==='Enter'){event.preventDefault();_centralEnviar();}">
+        <button class="btn-primary" style="padding:8px 14px;font-size:12px;white-space:nowrap" onclick="_centralEnviar()">📤 Enviar</button>
       </div>` : ''}
     </div>
   </div>`;
@@ -8220,6 +8356,15 @@ async function renderCentralMensagens(){
   // Carregar contatos
   _centralCarregarContatos();
   if(_centralContatoAtivo) _centralCarregarMsgs();
+}
+
+// Iniciar conversa nova com número digitado
+function _centralIniciarNova(){
+  const canal=document.getElementById('_centralNovoCanal')?.value||'whatsapp';
+  const num=(document.getElementById('_centralNovoNum')?.value||'').trim();
+  if(!num){toast('Digite o número ou Chat ID','erro');return;}
+  _centralContatoAtivo={canal,chatId:num,nome:num};
+  renderCentralMensagens();
 }
 
 async function _centralCarregarContatos(){
