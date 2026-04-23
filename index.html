@@ -4595,80 +4595,379 @@ function imprimirTexto(txt,titulo){const w=window.open('','_blank');w.document.w
 // ═══════════════ JUÍZES ═══════════════
 function renderJuizes(){
   if(!podePeticao()){
-    document.getElementById('content').innerHTML='<div style="padding:40px;text-align:center"><div style="font-size:48px;margin-bottom:16px">🔒</div><div style="font-size:18px;color:var(--text);font-weight:600;margin-bottom:8px">Acesso Restrito</div><div style="font-size:13px;color:var(--text3)">Perfil de Juízes é exclusivo para Advogados.<br>Solicite ao Administrador a liberação.</div></div>';
+    document.getElementById('content').innerHTML='<div style="padding:40px;text-align:center"><div style="font-size:48px;margin-bottom:16px">🔒</div><div style="font-size:18px;color:var(--text);font-weight:600;margin-bottom:8px">Acesso Restrito</div><div style="font-size:13px;color:var(--text3)">Perfil de Juízes é exclusivo para o CEO.<br>Solicite ao Administrador a liberação.</div></div>';
     return;
   }
   const j=JSON.parse(localStorage.getItem(JK)||'[]');window._juizes=j;
+  
+  // Extrair juízes dos processos automaticamente
+  const juizesProc=[];
+  try {
+    const procs=JSON.parse(localStorage.getItem('processos')||'[]');
+    procs.forEach(p=>{
+      const nome=p.juiz_relator||p.juiz||'';
+      if(nome.trim() && nome.trim().length>3 && !juizesProc.find(jp=>jp.nome.toLowerCase()===nome.toLowerCase())) {
+        juizesProc.push({ nome:nome.trim(), tribunal:p.vara||p.tribunal||'', processos:procs.filter(pr=>(pr.juiz_relator||pr.juiz||'').toLowerCase()===nome.toLowerCase()).length, area:p.area||'' });
+      }
+    });
+  } catch(e){}
+  
+  // Merge: juízes manuais + extraídos de processos (sem duplicatas)
+  const todosJuizes=[...j];
+  juizesProc.forEach(jp=>{
+    if(!todosJuizes.find(tj=>tj.nome.toLowerCase()===jp.nome.toLowerCase())) {
+      todosJuizes.push({...jp, autoExtracted:true});
+    }
+  });
+
+  const analisados=todosJuizes.filter(jz=>jz.perfil);
+  const pendentes=todosJuizes.filter(jz=>!jz.perfil);
+  
   document.getElementById('content').innerHTML=`
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-      <div>
-        <div style="font-size:13px;color:var(--text2);font-weight:300">Mapeie o perfil decisório dos julgadores.</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px">✨ V13: juízes são extraídos automaticamente dos PDFs importados.</div>
-      </div>
-      <button class="btn-primary" onclick="addJuiz()">+ Adicionar Juiz</button>
-    </div>
-    <div id="juizes-lista">${j.length?j.map((jz,i)=>`
-      <div class="juiz-card">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
-          <div>
-            <div style="display:flex;align-items:center;gap:8px">
-              <div class="juiz-nome">${jz.nome}</div>
-              ${jz.autoExtracted?`<span style="font-size:9px;background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent)33;border-radius:20px;padding:2px 8px;font-weight:700">AUTO</span>`:''}
-            </div>
-            <div class="juiz-cargo">${jz.tribunal||'—'} ${jz.vara?'· '+jz.vara:''} ${jz.cargo?'· '+jz.cargo:''}</div>
-          </div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap">
-            <button class="btn-primary" style="font-size:11px;padding:7px 12px" onclick="analisarJuiz(${i})">🤖 Analisar Perfil</button>
-            <button class="btn-danger" style="font-size:11px;padding:7px 12px" onclick="excluirJuiz(${i})">🗑</button>
-          </div>
+    <!-- HEADER -->
+    <div style="background:linear-gradient(135deg,#6366f115,var(--surface));border:1px solid #6366f133;border-radius:16px;padding:20px 24px;margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+        <div>
+          <div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:var(--text)">⚖️ Inteligência Judicial</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:4px">${todosJuizes.length} magistrado${todosJuizes.length!==1?'s':''} mapeado${todosJuizes.length!==1?'s':''} · ${analisados.length} com perfil completo · ${juizesProc.length} extraído${juizesProc.length!==1?'s':''} de processos</div>
         </div>
-        <div class="juiz-notas" style="margin-top:10px">${jz.notas||'Sem observações cadastradas.'}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-primary" style="padding:10px 18px;font-size:12px;font-weight:700;border-radius:10px" onclick="_juizBuscar()">🔍 Pesquisar Juiz</button>
+          <button class="btn-outline" style="padding:10px 14px;font-size:12px;border-radius:10px" onclick="addJuiz()">+ Manual</button>
+          ${todosJuizes.length>0?`<button class="btn-outline" style="padding:10px 14px;font-size:12px;border-radius:10px;color:var(--accent)" onclick="_juizAnalisarTodos()">🤖 Analisar Todos</button>`:''}
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI CARDS -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;position:relative;overflow:hidden">
+        <div style="position:absolute;top:-6px;right:-6px;font-size:40px;opacity:0.06">⚖️</div>
+        <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Total</div>
+        <div style="font-size:28px;font-weight:800;color:#6366f1;margin-top:2px">${todosJuizes.length}</div>
+        <div style="font-size:9px;color:var(--text3)">magistrados</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;position:relative;overflow:hidden">
+        <div style="position:absolute;top:-6px;right:-6px;font-size:40px;opacity:0.06">🤖</div>
+        <div style="font-size:10px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:1px">Analisados</div>
+        <div style="font-size:28px;font-weight:800;color:var(--green);margin-top:2px">${analisados.length}</div>
+        <div style="font-size:9px;color:var(--text3)">perfil completo</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;position:relative;overflow:hidden">
+        <div style="position:absolute;top:-6px;right:-6px;font-size:40px;opacity:0.06">📄</div>
+        <div style="font-size:10px;font-weight:600;color:var(--orange);text-transform:uppercase;letter-spacing:1px">Auto-Extraídos</div>
+        <div style="font-size:28px;font-weight:800;color:var(--orange);margin-top:2px">${juizesProc.length}</div>
+        <div style="font-size:9px;color:var(--text3)">de processos</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;position:relative;overflow:hidden">
+        <div style="position:absolute;top:-6px;right:-6px;font-size:40px;opacity:0.06">⏳</div>
+        <div style="font-size:10px;font-weight:600;color:var(--red);text-transform:uppercase;letter-spacing:1px">Pendentes</div>
+        <div style="font-size:28px;font-weight:800;color:var(--red);margin-top:2px">${pendentes.length}</div>
+        <div style="font-size:9px;color:var(--text3)">sem análise</div>
+      </div>
+    </div>
+
+    <!-- BUSCA RÁPIDA -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 20px;margin-bottom:20px">
+      <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px">🔍 Pesquisa Inteligente de Magistrado</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="_juizBuscaInput" class="fi" style="flex:1;min-width:200px" placeholder="Nome do juiz, desembargador ou ministro..." onkeydown="if(event.key==='Enter'){event.preventDefault();_juizBuscar();}">
+        <input id="_juizBuscaTrib" class="fi" style="width:160px" placeholder="Tribunal (TJMG, TRF-6...)">
+        <button class="btn-primary" style="padding:10px 20px;font-size:12px;white-space:nowrap" onclick="_juizBuscar()">🤖 Analisar Perfil</button>
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-top:6px">O Lex pesquisa automaticamente nas jurisprudências, decisões e monta o perfil decisório completo.</div>
+    </div>
+
+    <!-- LISTA DE JUÍZES -->
+    <div id="juizes-lista">
+    ${todosJuizes.length===0?`
+    <div style="text-align:center;padding:60px 20px">
+      <div style="font-size:64px;margin-bottom:16px;opacity:0.3">⚖️</div>
+      <div style="font-size:16px;font-weight:600;color:var(--text2);margin-bottom:8px">Nenhum magistrado mapeado</div>
+      <div style="font-size:13px;color:var(--text3);max-width:450px;margin:0 auto;line-height:1.6">
+        <strong>3 formas de adicionar:</strong><br>
+        1. Importe um PDF de processo — o juiz é extraído automaticamente<br>
+        2. Use a busca acima — o Lex analisa e cadastra<br>
+        3. Cadastro manual com + Manual
+      </div>
+    </div>`:todosJuizes.map((jz,i)=>{
+      const temPerfil=!!jz.perfil;
+      const pf=jz.perfil||{};
+      const corPostura={'conservador':'#ef4444','inovador':'#10b981','pragmático':'#3b82f6','imprevisível':'#f59e0b'};
+      const corEstilo={'formalista':'#6366f1','flexível':'#10b981','principiológico':'#8b5cf6','casuístico':'#f59e0b'};
+      const cp=corPostura[pf.postura_geral]||'var(--text3)';
+      const ce=corEstilo[pf.estilo_decisorio]||'var(--text3)';
+      
+      return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;margin-bottom:14px;overflow:hidden;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,0.05)" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.12)'" onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.05)'">
+        <div style="padding:16px 18px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+            <div style="flex:1;min-width:200px">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <span style="font-size:20px">${jz.cargo==='Des.'||jz.nome.includes('Des.')?'👨‍⚖️':jz.cargo==='Min.'||jz.nome.includes('Min.')?'🏛️':'⚖️'}</span>
+                <span style="font-family:'Playfair Display',serif;font-size:16px;font-weight:700;color:var(--text)">${jz.nome}</span>
+                ${jz.autoExtracted?'<span style="font-size:8px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--accent)15;color:var(--accent)">AUTO</span>':''}
+                ${temPerfil?'<span style="font-size:8px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--green)15;color:var(--green)">✓ PERFILADO</span>':'<span style="font-size:8px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--orange)15;color:var(--orange)">PENDENTE</span>'}
+              </div>
+              <div style="font-size:11px;color:var(--text3);margin-top:4px">${jz.tribunal||'—'} ${jz.vara?'· '+jz.vara:''} ${jz.processos?'· '+jz.processos+' processo(s)':''}</div>
+              ${temPerfil?`
+              <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+                <span style="font-size:9px;font-weight:700;padding:3px 8px;border-radius:6px;background:${cp}15;color:${cp}">${pf.postura_geral||'—'}</span>
+                <span style="font-size:9px;font-weight:700;padding:3px 8px;border-radius:6px;background:${ce}15;color:${ce}">${pf.estilo_decisorio||'—'}</span>
+                <span style="font-size:9px;font-weight:700;padding:3px 8px;border-radius:6px;background:var(--text3)15;color:var(--text3)">${pf.extensao_decisoes||'—'}</span>
+                ${pf.perfil_em_liminares?`<span style="font-size:9px;padding:3px 8px;border-radius:6px;background:#6366f115;color:#6366f1">Liminares: ${pf.perfil_em_liminares}</span>`:''}
+              </div>`:''}
+            </div>
+            <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap">
+              ${!temPerfil?`<button class="btn-primary" style="font-size:11px;padding:8px 14px;border-radius:8px" onclick="_juizAnalisar(${i})">🤖 Analisar</button>`:`<button class="btn-outline" style="font-size:11px;padding:8px 14px;border-radius:8px" onclick="_juizAnalisar(${i})">🔄 Reanalisar</button>`}
+              <button class="btn-outline" style="font-size:11px;padding:8px 14px;border-radius:8px" onclick="_juizVerPerfil(${i})">📋 Detalhes</button>
+              <button style="font-size:11px;padding:8px 10px;border-radius:8px;background:none;border:1px solid var(--red)33;color:var(--red);cursor:pointer" onclick="excluirJuiz(${i})">✕</button>
+            </div>
+          </div>
+
+          ${temPerfil?`
+          <!-- ESTRATÉGIA OURO -->
+          <div style="margin-top:12px;background:linear-gradient(135deg,#fbbf2415,#f59e0b08);border:1px solid #f59e0b33;border-radius:10px;padding:12px 14px">
+            <div style="font-size:10px;font-weight:700;color:#f59e0b;margin-bottom:4px">🏆 ESTRATÉGIA OURO</div>
+            <div style="font-size:12px;color:var(--text);line-height:1.5">${pf.estrategia_ouro||'Análise não disponível'}</div>
+          </div>
+
+          <!-- PONTOS FORTES + ATENÇÃO -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+            <div style="background:var(--green)08;border:1px solid var(--green)22;border-radius:8px;padding:10px 12px">
+              <div style="font-size:10px;font-weight:700;color:var(--green);margin-bottom:6px">✅ Argumentos que funcionam</div>
+              ${(pf.pontos_fortes_para_peticionar||[]).slice(0,3).map(p=>'<div style="font-size:11px;color:var(--text2);margin-bottom:3px;line-height:1.4">• '+p+'</div>').join('')}
+            </div>
+            <div style="background:var(--red)08;border:1px solid var(--red)22;border-radius:8px;padding:10px 12px">
+              <div style="font-size:10px;font-weight:700;color:var(--red);margin-bottom:6px">⚠️ O que evitar</div>
+              ${(pf.pontos_de_atencao||[]).slice(0,3).map(p=>'<div style="font-size:11px;color:var(--text2);margin-bottom:3px;line-height:1.4">• '+p+'</div>').join('')}
+            </div>
+          </div>
+
+          <!-- RECEPTIVIDADE POR ÁREA -->
+          ${pf.receptividade_por_area?`
+          <div style="margin-top:10px;display:flex;gap:4px;flex-wrap:wrap">
+            ${Object.entries(pf.receptividade_por_area).map(([area,nivel])=>{
+              const corNv={'alta':'var(--green)','média':'var(--orange)','baixa':'var(--red)','desconhecida':'var(--text3)'};
+              const cn=corNv[nivel]||'var(--text3)';
+              return `<span style="font-size:9px;padding:3px 7px;border-radius:6px;background:${cn}12;color:${cn};border:1px solid ${cn}22">${area}: ${nivel}</span>`;
+            }).join('')}
+          </div>`:''}`:''}
+
+          ${jz.notas&&!temPerfil?`<div style="margin-top:8px;font-size:12px;color:var(--text3);font-style:italic">${jz.notas}</div>`:''}
+        </div>
         <div id="janalise-${i}"></div>
-      </div>`).join(''):'<div style="font-size:13px;color:var(--text3);font-weight:300">Nenhum juiz cadastrado. Importe um PDF de processo para extração automática.</div>'}
+      </div>`;}).join('')}
+    </div>
+
+    <!-- DICA -->
+    <div style="margin-top:20px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <div style="font-size:28px">🧠</div>
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:12px;font-weight:700;color:var(--text)">Inteligência Automatizada</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px;line-height:1.5">Quando um processo é importado, o Lex extrai o juiz/relator automaticamente. Ao analisar, cruza com decisões conhecidas, jurisprudência e padrão decisório para montar o perfil completo.</div>
+      </div>
     </div>`;
 }
+
+// Buscar e analisar juiz pelo nome digitado
+async function _juizBuscar(){
+  const nome=(document.getElementById('_juizBuscaInput')?.value||'').trim();
+  const trib=(document.getElementById('_juizBuscaTrib')?.value||'').trim();
+  if(!nome){toast('Digite o nome do magistrado','erro');return;}
+  // Verifica se já existe
+  const j=JSON.parse(localStorage.getItem(JK)||'[]');
+  let idx=j.findIndex(jz=>jz.nome.toLowerCase()===nome.toLowerCase());
+  if(idx<0){
+    j.push({nome,tribunal:trib,vara:'',notas:'',autoExtracted:false});
+    localStorage.setItem(JK,JSON.stringify(j));
+    idx=j.length-1;
+  }
+  renderJuizes();
+  await _juizAnalisar(idx);
+}
+
+// Analisar perfil via backend /api/perfil-juiz
+async function _juizAnalisar(i){
+  const j=JSON.parse(localStorage.getItem(JK)||'[]');
+  if(!j[i]) { // pode ser auto-extraído que não está no localStorage
+    const all=window._juizes||[];
+    if(all[i]){
+      j.push(all[i]);
+      localStorage.setItem(JK,JSON.stringify(j));
+    } else return;
+  }
+  const jz=j[i];
+  const el=document.getElementById('janalise-'+i);
+  if(el) el.innerHTML='<div style="padding:14px 18px;text-align:center;font-size:12px;color:var(--accent)"><div style="font-size:24px;margin-bottom:8px;animation:spin 1s linear infinite">🔄</div>Analisando perfil decisório de <strong>'+jz.nome+'</strong>...<br><span style="font-size:10px;color:var(--text3)">Cruzando jurisprudência, decisões e padrões...</span></div>';
+  
+  try {
+    const r=await fetchComTimeout(BASE+'/api/perfil-juiz',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({nomeJuiz:jz.nome, tribunal:jz.tribunal||''})
+    });
+    const d=await r.json();
+    if(d.error){toast('Erro: '+d.error,'erro');if(el)el.innerHTML='';return;}
+    
+    // Salvar perfil no localStorage
+    j[i].perfil=d;
+    j[i].perfilEm=new Date().toISOString();
+    localStorage.setItem(JK,JSON.stringify(j));
+    toast('✓ Perfil de '+jz.nome+' atualizado!','ok');
+    renderJuizes();
+  } catch(e){
+    toast('Erro ao analisar: '+e.message,'erro');
+    if(el)el.innerHTML='';
+  }
+}
+
+// Ver perfil detalhado em modal
+function _juizVerPerfil(i){
+  const all=window._juizes||[];
+  const jz=all[i];if(!jz)return;
+  const pf=jz.perfil||{};
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:#00000099;z-index:600;display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto;z-index:700';
+  
+  const recArea=pf.receptividade_por_area||{};
+  const recHTML=Object.entries(recArea).map(([a,n])=>{
+    const corNv={'alta':'var(--green)','média':'var(--orange)','baixa':'var(--red)','desconhecida':'var(--text3)'};
+    const cn=corNv[n]||'var(--text3)';
+    const pct={'alta':85,'média':55,'baixa':25,'desconhecida':10};
+    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+      <div style="width:80px;font-size:11px;color:var(--text2);text-align:right;text-transform:capitalize">${a}</div>
+      <div style="flex:1;height:18px;background:var(--surface2);border-radius:4px;overflow:hidden;position:relative">
+        <div style="height:100%;width:${pct[n]||10}%;background:${cn};border-radius:4px;transition:width .5s"></div>
+        <span style="position:absolute;right:6px;top:2px;font-size:9px;font-weight:700;color:var(--text)">${n}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  ov.innerHTML=`<div style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:640px;padding:0;margin:auto;overflow:hidden">
+    <!-- HEADER -->
+    <div style="background:linear-gradient(135deg,#6366f120,var(--surface));padding:20px 24px;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:var(--text)">⚖️ ${jz.nome}</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:4px">${jz.tribunal||'—'} ${jz.vara?'· '+jz.vara:''}</div>
+          ${pf._gerado_em?`<div style="font-size:10px;color:var(--text3);margin-top:2px">Análise: ${pf._gerado_em} · Base: ${pf.base_analise||'—'} · Confiança: ${pf.nivel_confianca_perfil||'—'}</div>`:''}
+        </div>
+        <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3)">✕</button>
+      </div>
+    </div>
+    <div style="padding:20px 24px;max-height:70vh;overflow-y:auto">
+      ${!pf.postura_geral?'<div style="text-align:center;padding:30px;color:var(--text3)">Perfil não analisado ainda. Clique em "🤖 Analisar" na lista.</div>':`
+      <!-- TAGS DE PERFIL -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+        <div style="background:#6366f115;border:1px solid #6366f133;border-radius:10px;padding:8px 14px;text-align:center">
+          <div style="font-size:9px;font-weight:600;color:#6366f1;text-transform:uppercase">Postura</div>
+          <div style="font-size:13px;font-weight:700;color:var(--text);margin-top:2px">${pf.postura_geral}</div>
+        </div>
+        <div style="background:#10b98115;border:1px solid #10b98133;border-radius:10px;padding:8px 14px;text-align:center">
+          <div style="font-size:9px;font-weight:600;color:#10b981;text-transform:uppercase">Estilo</div>
+          <div style="font-size:13px;font-weight:700;color:var(--text);margin-top:2px">${pf.estilo_decisorio}</div>
+        </div>
+        <div style="background:#f59e0b15;border:1px solid #f59e0b33;border-radius:10px;padding:8px 14px;text-align:center">
+          <div style="font-size:9px;font-weight:600;color:#f59e0b;text-transform:uppercase">Decisões</div>
+          <div style="font-size:13px;font-weight:700;color:var(--text);margin-top:2px">${pf.extensao_decisoes}</div>
+        </div>
+        <div style="background:#8b5cf615;border:1px solid #8b5cf633;border-radius:10px;padding:8px 14px;text-align:center">
+          <div style="font-size:9px;font-weight:600;color:#8b5cf6;text-transform:uppercase">Liminares</div>
+          <div style="font-size:13px;font-weight:700;color:var(--text);margin-top:2px">${pf.perfil_em_liminares||'—'}</div>
+        </div>
+        <div style="background:#ec489915;border:1px solid #ec489933;border-radius:10px;padding:8px 14px;text-align:center">
+          <div style="font-size:9px;font-weight:600;color:#ec4899;text-transform:uppercase">Recursos</div>
+          <div style="font-size:13px;font-weight:700;color:var(--text);margin-top:2px">${pf.perfil_em_recursos||'—'}</div>
+        </div>
+      </div>
+
+      <!-- ESTRATÉGIA OURO -->
+      <div style="background:linear-gradient(135deg,#fbbf2418,#f59e0b08);border:1px solid #f59e0b44;border-radius:12px;padding:16px;margin-bottom:16px">
+        <div style="font-size:11px;font-weight:700;color:#f59e0b;margin-bottom:6px">🏆 ESTRATÉGIA OURO — A sacada principal</div>
+        <div style="font-size:13px;color:var(--text);line-height:1.6">${pf.estrategia_ouro||'—'}</div>
+      </div>
+
+      <!-- LINGUAGEM RECOMENDADA -->
+      ${pf.linguagem_recomendada?`
+      <div style="background:var(--accent)08;border:1px solid var(--accent)22;border-radius:12px;padding:16px;margin-bottom:16px">
+        <div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:6px">📝 COMO REDIGIR PARA ESTE JUIZ</div>
+        <div style="font-size:12px;color:var(--text);line-height:1.6">${pf.linguagem_recomendada}</div>
+      </div>`:''}
+
+      <!-- PONTOS FORTES + ATENÇÃO -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+        <div style="background:var(--green)08;border:1px solid var(--green)22;border-radius:10px;padding:14px">
+          <div style="font-size:11px;font-weight:700;color:var(--green);margin-bottom:8px">✅ Argumentos que funcionam</div>
+          ${(pf.pontos_fortes_para_peticionar||[]).map(p=>'<div style="font-size:12px;color:var(--text2);margin-bottom:5px;line-height:1.4;padding-left:12px;border-left:2px solid var(--green)">'+p+'</div>').join('')}
+        </div>
+        <div style="background:var(--red)08;border:1px solid var(--red)22;border-radius:10px;padding:14px">
+          <div style="font-size:11px;font-weight:700;color:var(--red);margin-bottom:8px">⚠️ O que evitar</div>
+          ${(pf.pontos_de_atencao||[]).map(p=>'<div style="font-size:12px;color:var(--text2);margin-bottom:5px;line-height:1.4;padding-left:12px;border-left:2px solid var(--red)">'+p+'</div>').join('')}
+        </div>
+      </div>
+
+      <!-- RECEPTIVIDADE POR ÁREA -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px">
+        <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:10px">📊 Receptividade por Área</div>
+        ${recHTML}
+      </div>
+
+      ${pf.advertencia?`<div style="background:var(--orange)08;border:1px solid var(--orange)22;border-radius:8px;padding:10px 14px;font-size:11px;color:var(--orange)">⚠️ ${pf.advertencia}</div>`:''}`}
+    </div>
+  </div>`;
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  document.body.appendChild(ov);
+}
+
+// Analisar todos os juízes pendentes
+async function _juizAnalisarTodos(){
+  const j=JSON.parse(localStorage.getItem(JK)||'[]');
+  const pendentes=j.map((jz,i)=>({jz,i})).filter(x=>!x.jz.perfil);
+  if(!pendentes.length){toast('Todos os juízes já foram analisados!','ok');return;}
+  toast('Analisando '+pendentes.length+' magistrado(s)...','ok');
+  for(const {i} of pendentes){
+    await _juizAnalisar(i);
+    await new Promise(r=>setTimeout(r,1000));
+  }
+  toast('✅ Todos os perfis atualizados!','ok');
+}
+
 function addJuiz(){
   const overlay=document.createElement('div');
   overlay.style.cssText='position:fixed;inset:0;background:#00000099;z-index:600;display:flex;align-items:center;justify-content:center;padding:16px';
   overlay.innerHTML=`
     <div style="background:var(--surface);border:1px solid var(--border2);border-radius:14px;width:100%;max-width:480px;padding:28px;">
-      <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:600;color:var(--text);margin-bottom:20px;">+ Cadastrar Juiz</div>
-      ${['Nome do juiz / desembargador|juiz-nome','Tribunal (ex: TJMG, TRF-6)|juiz-trib','Vara / Câmara|juiz-vara'].map(f=>{const[l,id]=f.split('|');return`<div style="margin-bottom:12px;"><label style="font-size:10px;color:var(--text3);letter-spacing:2px;display:block;margin-bottom:5px;">${l.toUpperCase()}</label><input id="${id}" style="width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:10px 13px;color:var(--text);font-family:'Lato',sans-serif;font-size:13px;"></div>`;}).join('')}
-      <div style="margin-bottom:20px;"><label style="font-size:10px;color:var(--text3);letter-spacing:2px;display:block;margin-bottom:5px;">OBSERVAÇÕES SOBRE DECISÕES</label><textarea id="juiz-notas" style="width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:10px 13px;color:var(--text);font-family:'Lato',sans-serif;font-size:13px;min-height:80px;resize:vertical;"></textarea></div>
+      <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:600;color:var(--text);margin-bottom:20px;">⚖️ Cadastrar Magistrado</div>
+      ${['Nome do juiz / desembargador / ministro|juiz-nome','Tribunal (ex: TJMG, TRF-6)|juiz-trib','Vara / Câmara / Turma|juiz-vara'].map(f=>{const[l,id]=f.split('|');return`<div style="margin-bottom:12px;"><label style="font-size:10px;color:var(--text3);letter-spacing:2px;display:block;margin-bottom:5px;">${l.toUpperCase()}</label><input id="${id}" class="fi" style="width:100%"></div>`;}).join('')}
+      <div style="margin-bottom:12px;"><label style="font-size:10px;color:var(--text3);letter-spacing:2px;display:block;margin-bottom:5px;">OBSERVAÇÕES SOBRE DECISÕES</label><textarea id="juiz-notas" class="fta" style="min-height:80px"></textarea></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;">
-        <button onclick="this.closest('div[style*=fixed]').remove()" style="background:transparent;border:1px solid var(--border2);border-radius:8px;padding:10px 20px;color:var(--text2);font-family:'Lato',sans-serif;font-size:13px;cursor:pointer;">Cancelar</button>
-        <button onclick="salvarJuiz(this)" style="background:var(--accent);border:none;border-radius:8px;padding:10px 24px;color:#fff;font-family:'Lato',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">Salvar</button>
+        <button class="btn-cancel" onclick="this.closest('div[style*=fixed]').remove()">Cancelar</button>
+        <button class="btn-save" onclick="salvarJuiz(this)">💾 Salvar e Analisar</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
 }
 
 function excluirJuiz(i){
-  if(!confirm('Excluir este juiz do cadastro?')) return;
+  if(!confirm('Excluir este magistrado do cadastro?')) return;
   const j=JSON.parse(localStorage.getItem(JK)||'[]');
   j.splice(i,1);
   localStorage.setItem(JK,JSON.stringify(j));
   renderJuizes();
-  toast('Juiz removido.','ok');
+  toast('Magistrado removido.','ok');
 }
+
 function salvarJuiz(btn){
   const nome=document.getElementById('juiz-nome')?.value?.trim();
   if(!nome){alert('Informe o nome.');return;}
   const j=JSON.parse(localStorage.getItem(JK)||'[]');
+  const idx=j.length;
   j.push({nome,tribunal:document.getElementById('juiz-trib')?.value||'',vara:document.getElementById('juiz-vara')?.value||'',notas:document.getElementById('juiz-notas')?.value||''});
   localStorage.setItem(JK,JSON.stringify(j));
   btn.closest('div[style*=fixed]').remove();
   renderJuizes();
-}
-async function analisarJuiz(i){
-  const j=window._juizes[i],el=document.getElementById(`janalise-${i}`);
-  if(!el||!j)return;
-  el.innerHTML='<div style="font-size:12px;color:var(--text3);font-style:italic;margin-top:10px">⏳ Analisando...</div>';
-  // chave no servidor
-  try{
-    const _aiResp=await chamarIA([{role:'user',content:'Analise o perfil decisorio estrategicamente:\nJULGADOR: '+j.nome+' - '+j.tribunal+' - '+j.vara+'\nOBSERVACOES: '+j.notas+'\n\n1. TENDENCIA decisoria\n2. ARGUMENTOS que funcionam\n3. O QUE EVITAR\n4. BRECHAS nas decisoes desfavoraveis\n5. ESTRUTURA recomendada da peca'}],null,500);
-    if(_aiResp) el.innerHTML='<div class="ia-box" style="margin-top:14px"><div class="ia-header"><span>🤖</span><div class="ia-label">Perfil Decisorio</div></div><div class="ia-txt">'+_aiResp+'</div></div>';
-  }catch(e){el.innerHTML='<div style="font-size:12px;color:var(--red);margin-top:8px">Erro ao analisar.</div>';}
+  // Auto-analisar ao salvar
+  _juizAnalisar(idx);
 }
 
 // ═══════════════════════════════════════════════════════════
