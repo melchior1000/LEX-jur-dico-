@@ -733,14 +733,42 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
         <input class="fi" id="divida-numero-processo" placeholder="Ex: 0001234-55.2026.5.10.0001">
       </div>
       <div class="fg">
-        <label class="fl">Tipo de Dívida</label>
+        <label class="fl">Tipo de Cálculo</label>
         <select class="fi" id="divida-tipo">
           <option value="">Selecione...</option>
-          <option value="execucao_federal">Execução Federal (RFB/PGFN)</option>
-          <option value="execucao_estadual">Execução Estadual</option>
-          <option value="bancaria">Dívida Bancária</option>
-          <option value="trabalhista">Dívida Trabalhista</option>
-          <option value="previdenciaria">Dívida Previdenciária</option>
+          <optgroup label="── Execuções Fiscais ──">
+            <option value="execucao_federal">Execução Fiscal Federal (RFB/PGFN)</option>
+            <option value="execucao_estadual">Execução Fiscal Estadual</option>
+            <option value="execucao_municipal">Execução Fiscal Municipal (IPTU/ISS)</option>
+          </optgroup>
+          <optgroup label="── Execuções Cíveis / Judiciais ──">
+            <option value="execucao_civel">Execução Cível Judicial (cumprimento de sentença)</option>
+            <option value="execucao_titulo">Execução de Título Extrajudicial</option>
+            <option value="execucao_alimentos">Execução de Alimentos</option>
+          </optgroup>
+          <optgroup label="── Dívidas Bancárias / Financeiras ──">
+            <option value="bancaria">Dívida Bancária / CDC</option>
+            <option value="financiamento">Financiamento / Leasing</option>
+            <option value="cartao_credito">Cartão de Crédito</option>
+          </optgroup>
+          <optgroup label="── Cálculos Cíveis (para cliente) ──">
+            <option value="aluguel">Aluguel Atrasado (locação)</option>
+            <option value="condominio">Condomínio em Atraso</option>
+            <option value="honorarios">Honorários Advocatícios</option>
+            <option value="indenizacao">Indenização / Danos</option>
+            <option value="emprestimo">Empréstimo Particular</option>
+            <option value="servicos">Prestação de Serviços</option>
+            <option value="calculo_geral">Cálculo Geral (juros + multa + correção)</option>
+          </optgroup>
+          <optgroup label="── Trabalhista / Previdenciário ──">
+            <option value="trabalhista">Crédito Trabalhista (CLT)</option>
+            <option value="previdenciaria">Dívida Previdenciária (INSS)</option>
+            <option value="fgts">FGTS Atrasado</option>
+          </optgroup>
+          <optgroup label="── Administrativo ──">
+            <option value="admin_multa">Multa Administrativa (PROCON, ANS, IBAMA)</option>
+            <option value="admin_debito">Débito Administrativo (CADIN/SERASA)</option>
+          </optgroup>
         </select>
       </div>
     </div>
@@ -815,9 +843,30 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
     <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
       <button class="btn-save" onclick="calcularEvolucaoDivida()">📊 Calcular Evolução</button>
       <button class="btn-save" style="background:var(--purple)" onclick="gerarParecerDivida()">📋 Gerar Parecer IA</button>
+      <button class="btn-save" style="background:var(--green)" onclick="abrirAgenteCalculos()">🤖 Falar com Agente</button>
       <button class="btn-outline" onclick="adicionarParcelaAcordo()">➕ Parcela Acordo</button>
       <button class="btn-outline" onclick="compararPropostas()">⚖️ Comparar Propostas</button>
       <button class="btn-outline" onclick="exportarPlanilhaDivida()">📥 Exportar Excel</button>
+    </div>
+    
+    <!-- Agente de Cálculos (chat inline) -->
+    <div id="agente-calculos-panel" style="display:none;background:var(--surface2);border:2px solid var(--green);border-radius:10px;padding:16px;margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-weight:700;color:var(--green);font-size:14px">🤖 Agente de Cálculos — Consultor Financeiro</div>
+        <button onclick="document.getElementById('agente-calculos-panel').style.display='none'" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px">✕</button>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Pergunte sobre os cálculos, peça para resumir para o cliente, explique dúvidas, solicite ajustes. O agente conhece todos os dados da planilha e documentos anexados.</div>
+      <div id="agente-calculos-chat" style="max-height:300px;overflow-y:auto;margin-bottom:10px;padding:8px;background:var(--surface);border-radius:8px;font-size:13px;line-height:1.6"></div>
+      <div style="display:flex;gap:8px">
+        <input id="agente-calculos-input" class="fi" placeholder="Ex: Resuma esse cálculo para enviar ao cliente por WhatsApp..." style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();enviarMsgAgenteCalculos();}">
+        <button class="btn-save" style="padding:8px 16px" onclick="enviarMsgAgenteCalculos()">Enviar</button>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+        <button class="btn-outline" style="font-size:10px;padding:4px 10px" onclick="document.getElementById('agente-calculos-input').value='Resuma esses cálculos de forma simples para eu enviar ao cliente por WhatsApp';enviarMsgAgenteCalculos()">📱 Resumo p/ cliente</button>
+        <button class="btn-outline" style="font-size:10px;padding:4px 10px" onclick="document.getElementById('agente-calculos-input').value='Explique detalhadamente cada item deste cálculo (principal, correção, juros, multa) de forma que um leigo entenda';enviarMsgAgenteCalculos()">📖 Explicar detalhado</button>
+        <button class="btn-outline" style="font-size:10px;padding:4px 10px" onclick="document.getElementById('agente-calculos-input').value='Tem algum erro ou irregularidade neste cálculo? O que posso contestar?';enviarMsgAgenteCalculos()">⚠️ Verificar erros</button>
+        <button class="btn-outline" style="font-size:10px;padding:4px 10px" onclick="document.getElementById('agente-calculos-input').value='Qual a melhor estratégia de negociação baseada nestes valores?';enviarMsgAgenteCalculos()">💡 Estratégia</button>
+      </div>
     </div>
     
     <!-- Resultado -->
@@ -2967,12 +3016,37 @@ window.onload=()=>{
   // Acorda servidor imediatamente ao carregar a página — antes mesmo do login
   fetch(SERVIDOR+'/api/ping',{method:'GET',signal:AbortSignal.timeout(8000)}).catch((e)=>{ console.warn('[ping] falha inicial:', e?.message || e); });
   // Continua acordando a cada 4 minutos após login
-  // Auto-login por sessão salva (30 dias)
+  // Auto-login por sessão salva — VALIDA token antes de entrar
   const _sp=_loadSess();
   if(_sp && _sp.token && _sp.perfil){
-    usuarioAtivo=_sp.perfil;
-    _perms=_sp.perms||PERFIS[_sp.perfil]||{};
-    setTimeout(()=>ativarApp(_sp.perfil),100);
+    // Verifica se token é válido no servidor antes de ativar
+    fetch(SERVIDOR+'/api/perfil',{
+      method:'GET',
+      headers:{'Authorization':'Bearer '+_sp.token},
+      signal:AbortSignal.timeout(12000)
+    }).then(r=>{
+      if(r.ok){
+        usuarioAtivo=_sp.perfil;
+        _perms=_sp.perms||PERFIS[_sp.perfil]||{};
+        ativarApp(_sp.perfil);
+      } else {
+        // Token inválido — tenta re-login silencioso
+        _tentarReloginSilencioso().then(ok=>{
+          if(ok){
+            const ns=_loadSess();
+            usuarioAtivo=ns.perfil;
+            _perms=ns.perms||PERFIS[ns.perfil]||{};
+            ativarApp(ns.perfil);
+          }
+          // Se falhou, fica na tela de login (comportamento correto)
+        });
+      }
+    }).catch(()=>{
+      // Servidor offline — tenta ativar offline com dados locais
+      usuarioAtivo=_sp.perfil;
+      _perms=_sp.perms||PERFIS[_sp.perfil]||{};
+      setTimeout(()=>ativarApp(_sp.perfil),100);
+    });
   }
   document.getElementById('topbar-date').textContent=new Date().toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
   // Atualiza dados do escritório na topbar
@@ -6736,13 +6810,29 @@ function calcularEvolucaoDivida() {
   // Total consolidado
   const total = subtotal + honorarios + custas;
   
-  // Nome do tipo de dívida
+  // Nome do tipo de cálculo
   const TIPOS_NOME = {
     'execucao_federal': 'Execução Fiscal Federal (Lei 6.830/80)',
     'execucao_estadual': 'Execução Fiscal Estadual',
-    'bancaria': 'Dívida Bancária / Cédula de Crédito',
+    'execucao_municipal': 'Execução Fiscal Municipal (IPTU/ISS)',
+    'execucao_civel': 'Execução Cível Judicial (Cumprimento de Sentença)',
+    'execucao_titulo': 'Execução de Título Extrajudicial',
+    'execucao_alimentos': 'Execução de Alimentos',
+    'bancaria': 'Dívida Bancária / CDC',
+    'financiamento': 'Financiamento / Leasing',
+    'cartao_credito': 'Cartão de Crédito',
+    'aluguel': 'Aluguel Atrasado (Locação)',
+    'condominio': 'Condomínio em Atraso',
+    'honorarios': 'Honorários Advocatícios',
+    'indenizacao': 'Indenização / Danos',
+    'emprestimo': 'Empréstimo Particular',
+    'servicos': 'Prestação de Serviços',
+    'calculo_geral': 'Cálculo Geral (Juros + Multa + Correção)',
     'trabalhista': 'Crédito Trabalhista (CLT art. 883)',
-    'previdenciaria': 'Dívida Previdenciária (INSS)'
+    'previdenciaria': 'Dívida Previdenciária (INSS)',
+    'fgts': 'FGTS Atrasado',
+    'admin_multa': 'Multa Administrativa',
+    'admin_debito': 'Débito Administrativo'
   };
   
   const INDICE_NOME = {
@@ -6756,10 +6846,26 @@ function calcularEvolucaoDivida() {
   // Fundamento legal por tipo
   const FUNDAMENTO = {
     'execucao_federal': 'Art. 161, §1° do CTN c/c Lei 9.065/95 (SELIC). Multa: art. 44 da Lei 9.430/96.',
-    'execucao_estadual': 'CDA conforme art. 2°, §5° da LEF (Lei 6.830/80).',
-    'bancaria': 'Art. 389 e 395 do CC/2002. Juros: art. 591 CC. Correção: índice contratual.',
-    'trabalhista': 'Art. 39, §1° da Lei 8.177/91 c/c Tema 810/STF e ADC 58.',
-    'previdenciaria': 'Art. 35 da Lei 8.212/91. SELIC: art. 61, §3° da Lei 9.430/96.'
+    'execucao_estadual': 'CDA conforme art. 2°, §5° da LEF (Lei 6.830/80). Índice conforme legislação estadual.',
+    'execucao_municipal': 'CDA conforme LEF. IPTU: art. 156, I, CF. ISS: LC 116/2003.',
+    'execucao_civel': 'Art. 523, §1° CPC (multa 10% + honorários 10%). Correção: art. 389 CC.',
+    'execucao_titulo': 'Art. 784 CPC. Juros: art. 406 CC c/c art. 161, §1° CTN.',
+    'execucao_alimentos': 'Art. 528 CPC. Prisão civil (art. 528, §3°). Correção pelo INPC.',
+    'bancaria': 'Art. 389 e 395 do CC/2002. Juros: art. 591 CC. Súmula 379 STJ (juros capitalizados).',
+    'financiamento': 'Art. 591 CC. Decreto 22.626/33 (Lei de Usura). Súmula 596 STF.',
+    'cartao_credito': 'Art. 52 CDC. Informação prévia sobre juros. Súmula 530 STJ.',
+    'aluguel': 'Art. 9° Lei 8.245/91 (Lei do Inquilinato). Multa: art. 4° e 23. Correção pelo IGP-M.',
+    'condominio': 'Art. 1.336 CC. Multa até 2% (art. 1.336, §1°). Juros de 1% a.m.',
+    'honorarios': 'Art. 22 a 26 do Estatuto da OAB (Lei 8.906/94). Tabela da OAB seccional.',
+    'indenizacao': 'Art. 944 CC (extensão do dano). Art. 186 CC (ato ilícito). Súmula 362 STJ.',
+    'emprestimo': 'Art. 586 CC (mútuo). Art. 591 CC (juros no mútuo). Art. 406 CC (taxa legal).',
+    'servicos': 'Art. 593-609 CC. Art. 14 CDC (responsabilidade). Art. 35 CDC (alternativas).',
+    'calculo_geral': 'Art. 389 CC (perdas e danos). Art. 395 CC (mora). Art. 406 CC (juros legais).',
+    'trabalhista': 'Art. 39, §1° da Lei 8.177/91 c/c Tema 810/STF e ADC 58. IPCA-E + SELIC.',
+    'previdenciaria': 'Art. 35 da Lei 8.212/91. SELIC: art. 61, §3° da Lei 9.430/96.',
+    'fgts': 'Art. 18 Lei 8.036/90 (multa 40%). TR + 3% a.a. Art. 22 (depósito mensal).',
+    'admin_multa': 'Lei 9.784/99 (processo administrativo). SELIC para correção.',
+    'admin_debito': 'Lei 10.522/2002 (CADIN). SELIC para atualização.'
   };
   
   // ═══ TABELA DE EVOLUÇÃO MENSAL (mês a mês) ═══
@@ -6952,21 +7058,59 @@ function anexarDocDivida(input) {
     }
     
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = async function(e) {
       const doc = {
         nome: file.name,
         tipo: file.type,
         tamanho: file.size,
         data: new Date().toISOString(),
-        conteudo: e.target.result // base64
+        conteudo: e.target.result, // base64
+        textoExtraido: null
       };
+      
+      // Tenta extrair texto do documento via IA (vision para imagens, parse para textos)
+      try {
+        if (file.type.startsWith('image/')) {
+          // Envia imagem para IA ler via vision
+          toast('🔍 Lendo ' + file.name + '...', 'info');
+          const msgs = [{role:'user', content:[
+            {type:'text', text:'Extraia TODO o texto desta imagem. Se for um documento jurídico, extraia valores, datas, nomes, números de processo. Retorne APENAS o texto extraído, sem comentários.'},
+            {type:'image', source:{type:'base64', media_type:file.type, data:e.target.result.split(',')[1]}}
+          ]}];
+          doc.textoExtraido = await chamarIA(msgs, 'Extraia o texto da imagem com precisão máxima.', 2000);
+          toast('✅ ' + file.name + ' — texto extraído!', 'ok');
+        } else if (file.type === 'text/plain' || file.type === 'text/csv') {
+          // Texto puro — decodifica direto
+          doc.textoExtraido = atob(e.target.result.split(',')[1]);
+        } else if (file.name.match(/\.(pdf|doc|docx)$/i)) {
+          // PDF/DOC — envia pro servidor processar
+          toast('🔍 Processando ' + file.name + '...', 'info');
+          const formData = new FormData();
+          formData.append('arquivo', file);
+          const token = getAuthToken();
+          const resp = await fetchComTimeout(SERVIDOR + '/api/ler-documento', {
+            method: 'POST',
+            headers: token ? {'Authorization': 'Bearer ' + token} : {},
+            body: formData,
+            _noAuth: true
+          }, 30000);
+          if (resp.ok) {
+            const data = await resp.json();
+            doc.textoExtraido = data.texto || data.content || null;
+            toast('✅ ' + file.name + ' — processado!', 'ok');
+          }
+        }
+      } catch(err) {
+        console.warn('[Lex] Não conseguiu extrair texto de ' + file.name + ':', err.message || err);
+      }
+      
       window._dividaDocs.push(doc);
       renderDocsDivida();
-      toast('📎 ' + file.name + ' anexado.', 'ok');
+      if (!doc.textoExtraido) toast('📎 ' + file.name + ' anexado (sem leitura automática).', 'ok');
     };
     reader.readAsDataURL(file);
   }
-  input.value = ''; // reset para permitir re-upload
+  input.value = '';
 }
 
 function renderDocsDivida() {
@@ -7007,6 +7151,10 @@ async function gerarParecerDivida() {
     return;
   }
   
+  // Pergunta formato de saída
+  const formato = prompt('Em qual formato deseja o parecer?\n\n1 - Exibir na tela\n2 - Gerar PDF para download\n3 - Gerar DOCX para download\n4 - Tela + PDF + DOCX\n\nDigite 1, 2, 3 ou 4:', '4');
+  if (!formato) return;
+  
   const resultado = document.getElementById('divida-resultado');
   resultado.style.display = 'block';
   
@@ -7042,7 +7190,9 @@ async function gerarParecerDivida() {
   if (window._dividaDocs && window._dividaDocs.length) {
     contexto += 'DOCUMENTOS ANEXADOS:\n';
     window._dividaDocs.forEach((doc, i) => {
-      contexto += (i+1) + '. ' + doc.nome + ' (' + doc.tipo + ')\n';
+      contexto += (i+1) + '. ' + doc.nome + ' (' + doc.tipo + ')';
+      if (doc.textoExtraido) contexto += '\n   CONTEÚDO: ' + doc.textoExtraido.substring(0, 3000);
+      contexto += '\n';
     });
     contexto += '\n';
   }
@@ -7094,6 +7244,102 @@ REGRAS:
     const loadEl = document.getElementById(loadingId);
     if (loadEl) loadEl.innerHTML = '<div style="color:#fff">❌ Erro ao gerar parecer: ' + (e.message || e) + '</div>';
     console.error('[Lex] Erro parecer:', e);
+  }
+}
+
+// ═══ AGENTE DE CÁLCULOS — CHAT INTERATIVO ═══
+window._agenteCalculosHistorico = [];
+
+function abrirAgenteCalculos() {
+  const panel = document.getElementById('agente-calculos-panel');
+  panel.style.display = 'block';
+  panel.scrollIntoView({behavior:'smooth', block:'center'});
+  
+  // Mensagem inicial se vazio
+  const chat = document.getElementById('agente-calculos-chat');
+  if (!chat.innerHTML.trim()) {
+    const d = window._ultimaPlanilhaDivida;
+    if (d) {
+      chat.innerHTML = '<div style="background:var(--green);color:#fff;padding:10px 14px;border-radius:12px 12px 12px 4px;margin-bottom:8px;max-width:85%"><strong>🤖 Agente:</strong> Analisei a planilha. Débito total: <strong>R$ ' + d.total.toLocaleString('pt-BR',{minimumFractionDigits:2}) + '</strong> (' + d.totalMeses + ' meses, índice ' + d.indiceCorrecao.toUpperCase() + '). Como posso ajudar? Posso resumir pra cliente, explicar cada item, verificar erros ou sugerir estratégia de negociação.</div>';
+    } else {
+      chat.innerHTML = '<div style="background:var(--green);color:#fff;padding:10px 14px;border-radius:12px 12px 12px 4px;margin-bottom:8px;max-width:85%"><strong>🤖 Agente:</strong> Ainda não há cálculo feito. Preencha os dados e clique "Calcular Evolução" primeiro, depois podemos conversar sobre os valores.</div>';
+    }
+  }
+  document.getElementById('agente-calculos-input').focus();
+}
+
+async function enviarMsgAgenteCalculos() {
+  const input = document.getElementById('agente-calculos-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  
+  const chat = document.getElementById('agente-calculos-chat');
+  // Mostra mensagem do usuário
+  chat.innerHTML += '<div style="background:var(--accent);color:#fff;padding:10px 14px;border-radius:12px 12px 4px 12px;margin-bottom:8px;max-width:85%;margin-left:auto;text-align:right">' + msg.replace(/</g,'&lt;') + '</div>';
+  chat.scrollTop = chat.scrollHeight;
+  
+  // Loading
+  const loadId = 'agente-load-' + Date.now();
+  chat.innerHTML += '<div id="' + loadId + '" style="color:var(--text3);font-size:12px;padding:6px">⏳ Pensando...</div>';
+  chat.scrollTop = chat.scrollHeight;
+  
+  // Montar contexto
+  const d = window._ultimaPlanilhaDivida;
+  let contexto = '';
+  if (d) {
+    contexto += 'DADOS DA PLANILHA:\n';
+    contexto += 'Tipo: ' + d.tipo + ' | Processo: ' + (d.numeroProcesso||'N/A') + '\n';
+    contexto += 'Principal: R$ ' + d.principal.toFixed(2) + ' | Corrigido: R$ ' + d.principalCorrigido.toFixed(2) + '\n';
+    contexto += 'Multa: R$ ' + d.multa.toFixed(2) + ' | Juros: R$ ' + d.juros.toFixed(2) + '\n';
+    contexto += 'Subtotal: R$ ' + d.subtotal.toFixed(2) + ' | Honorários: R$ ' + d.honorarios.toFixed(2) + '\n';
+    contexto += 'TOTAL: R$ ' + d.total.toFixed(2) + ' (' + d.totalMeses + ' meses, fator ' + d.fatorCorrecao.toFixed(6) + ')\n\n';
+  }
+  
+  const instrucoes = document.getElementById('divida-instrucoes')?.value?.trim();
+  if (instrucoes) contexto += 'INSTRUÇÕES DO ADVOGADO: ' + instrucoes + '\n\n';
+  
+  if (window._dividaDocs?.length) {
+    contexto += 'DOCUMENTOS ANEXADOS: ' + window._dividaDocs.map(d => d.nome + (d.textoExtraido ? ' [LIDO]' : '')).join(', ') + '\n';
+    window._dividaDocs.forEach(doc => {
+      if (doc.textoExtraido) contexto += 'CONTEÚDO ' + doc.nome + ': ' + doc.textoExtraido.substring(0, 2000) + '\n';
+    });
+    contexto += '\n';
+  }
+  
+  // Histórico do chat
+  window._agenteCalculosHistorico.push({role:'user', content: msg});
+  
+  const system = `Você é o Agente de Cálculos do Escritório Lex — consultor financeiro e contábil.
+
+REGRAS:
+- Responda de forma direta, objetiva, profissional
+- Se pedirem resumo para cliente: linguagem simples, sem juridiquês, números claros
+- Se pedirem explicação: detalhe cada componente (principal, correção, juros, multa)
+- Se pedirem verificação de erros: analise metodologia, índices, fundamento legal
+- Se pedirem estratégia: sugira negociação, parcelamento, desconto viável
+- Use os dados reais da planilha, não invente números
+- Máximo 400 palavras por resposta
+- Formatação: use **negrito** para valores e termos importantes
+
+CONTEXTO ATUAL:
+${contexto}`;
+
+  try {
+    const messages = window._agenteCalculosHistorico.map(m => ({role: m.role, content: m.content}));
+    const resposta = await chamarIA(messages, system, 1500);
+    
+    window._agenteCalculosHistorico.push({role:'assistant', content: resposta});
+    
+    const loadEl = document.getElementById(loadId);
+    if (loadEl) loadEl.remove();
+    
+    const respostaHTML = resposta.replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
+    chat.innerHTML += '<div style="background:var(--green);color:#fff;padding:10px 14px;border-radius:12px 12px 12px 4px;margin-bottom:8px;max-width:85%"><strong>🤖</strong> ' + respostaHTML + '</div>';
+    chat.scrollTop = chat.scrollHeight;
+  } catch(e) {
+    const loadEl = document.getElementById(loadId);
+    if (loadEl) loadEl.innerHTML = '<span style="color:var(--red)">❌ Erro: ' + (e.message||e) + '</span>';
   }
 }
 
