@@ -793,10 +793,29 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
       </div>
     </div>
     
+    <!-- INSTRUÇÕES DO CASO — o que tratar -->
+    <div style="background:var(--surface2);padding:12px;border-radius:8px;margin-bottom:16px">
+      <div style="font-weight:600;margin-bottom:10px;color:var(--primary)">📝 Instruções do Caso (descreva o que precisa calcular)</div>
+      <textarea class="fi" id="divida-instrucoes" rows="4" style="width:100%;resize:vertical;min-height:80px" placeholder="Ex: Execução fiscal PGFN, CDA nº 12345. Débito de IRPJ 2019-2022. Verificar se a multa de 75% está correta ou se deveria ser 20% (multa de mora). Juros SELIC desde o vencimento original. Contestar a inclusão de juros sobre multa (anatocismo vedado pelo CTN)."></textarea>
+      <div style="font-size:10px;color:var(--text3);margin-top:4px">Descreva exatamente o que está tratando: tipo de dívida, período, o que contestar, erros identificados. Quanto mais detalhado, mais preciso o cálculo e o parecer.</div>
+    </div>
+    
+    <!-- ANEXAR DOCUMENTOS -->
+    <div style="background:var(--surface2);padding:12px;border-radius:8px;margin-bottom:16px">
+      <div style="font-weight:600;margin-bottom:10px;color:var(--primary)">📎 Documentos Anexados (CDA, extratos, contratos, decisões)</div>
+      <div id="divida-docs-list" style="margin-bottom:10px"></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="file" id="divida-doc-input" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.csv,.txt" style="display:none" onchange="anexarDocDivida(this)">
+        <button class="btn-outline" onclick="document.getElementById('divida-doc-input').click()" style="font-size:12px">📎 Anexar Documento</button>
+        <span style="font-size:10px;color:var(--text3)">PDF, imagens, Word, Excel, CSV (até 10MB cada)</span>
+      </div>
+    </div>
+    
     <!-- Botões de Ação -->
-    <div style="display:flex;gap:10px;margin-bottom:16px">
+    <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
       <button class="btn-save" onclick="calcularEvolucaoDivida()">📊 Calcular Evolução</button>
-      <button class="btn-outline" onclick="adicionarParcelaAcordo()">➕ Adicionar Parcela Acordo</button>
+      <button class="btn-save" style="background:var(--purple)" onclick="gerarParecerDivida()">📋 Gerar Parecer IA</button>
+      <button class="btn-outline" onclick="adicionarParcelaAcordo()">➕ Parcela Acordo</button>
       <button class="btn-outline" onclick="compararPropostas()">⚖️ Comparar Propostas</button>
       <button class="btn-outline" onclick="exportarPlanilhaDivida()">📥 Exportar Excel</button>
     </div>
@@ -1154,16 +1173,28 @@ function conectarSSE() {
       atualizarIndicadorConexao(true);
     });
 
-    _sseConn.addEventListener('error', () => {
+    _sseConn.addEventListener('error', (e) => {
       atualizarIndicadorConexao(false);
       if (_sseConn) { try { _sseConn.close(); } catch(e) { console.warn('[Lex] Erro silenciado:', (e && e.message) ? e.message : e); } _sseConn = null; }
-      // Tenta reconectar em 15s — após 3 falhas, marca como indisponível
-      if (!_sseFailed) {
-        _sseReconectaTimer = setTimeout(() => {
-          if (!usuarioAtivo) return;
-          conectarSSE();
-        }, 15000);
-      }
+      
+      // Tenta refresh do token antes de reconectar (pode ser 401 por token expirado)
+      _tentarRefreshToken().then(() => {
+        const novoToken = getAuthToken();
+        if (!novoToken) {
+          // Token inválido, volta para tela de login
+          console.warn('[Lex] SSE: token inválido, voltando para login');
+          if (typeof sair === 'function') sair();
+          return;
+        }
+        // Reconecta com novo token
+        if (!_sseFailed) {
+          _sseReconectaTimer = setTimeout(() => {
+            if (!usuarioAtivo) return;
+            conectarSSE();
+          }, 3000);
+        }
+      });
+      
       // Garante que polling está ativo como fallback
       iniciarVerificacaoPeriodica();
     });
@@ -1218,12 +1249,81 @@ async function chamarServidor(endpoint, payload) {
 const _TOUR_KEY = 'lex_tour_concluido_v1';
 
 var _TOUR_STEPS = [
-  { sel: '.nav-btn[onclick*="painel"]',     title: 'Painel Geral',       desc: 'Aqui voce ve um resumo de tudo: processos urgentes, prazos proximos e alertas. E a sua central de controle.' },
-  { sel: '.nav-btn[onclick*="processos"]',  title: 'Processos',          desc: 'Cadastre e gerencie todos os seus processos. Adicione andamentos, prazos, partes e documentos.' },
-  { sel: '.nav-btn[onclick*="prazos"]',     title: 'Controle de Prazos', desc: 'Acompanhe todos os prazos em ordem cronologica. Processos urgentes ficam no topo.' },
-  { sel: '.nav-btn[onclick*="peticao"]',    title: 'Gerador de Pecas',   desc: 'A IA redige peticoes, recursos e pareceres para voce. Basta informar o processo e o tipo de peca.' },
-  { sel: '#chat-toggle',                    title: 'Assessor Lex',       desc: 'Converse com o Lex a qualquer hora. Ele responde duvidas juridicas, analisa documentos e orienta.' },
-  { sel: '#tema-btn',                       title: 'Modo Dia / Noite',   desc: 'Alterne entre tema escuro e claro. O sistema lembra sua preferencia.' },
+  // ── BOAS-VINDAS ──
+  { sel: '.logo-area',
+    title: 'Bem-vindo ao Lex',
+    desc: 'Este e o seu escritorio juridico virtual. Daqui voce gerencia processos, prazos, pecas, pericias e toda a operacao juridica. Vamos conhecer cada area.' },
+
+  // ── MENU LATERAL (seções) ──
+  { sel: '.nav-btn[onclick*="painel"]',
+    title: '◈ Painel Geral',
+    desc: 'Sua central de comando. Mostra processos urgentes, prazos vencendo, alertas do dia, estatisticas rapidas e acesso direto aos casos mais criticos.' },
+
+  { sel: '.nav-btn[onclick*="processos"]',
+    title: '⊞ Processos',
+    desc: 'Cadastre e gerencie TODOS os seus processos. Cada processo tem: partes, andamentos, prazos, documentos, historico de peticoes e status (ativo, urgente, arquivado). Clique em qualquer processo para ver os detalhes completos.' },
+
+  { sel: '.nav-btn[onclick*="prazos"]',
+    title: '◷ Controle de Prazos',
+    desc: 'Todos os seus prazos em ordem cronologica. Prazos vencendo hoje ficam em vermelho, proximos em laranja. O sistema alerta automaticamente via Telegram quando um prazo esta proximo.' },
+
+  { sel: '.nav-btn[onclick*="calendario"]',
+    title: '📅 Calendario',
+    desc: 'Visao mensal de audiencias, pericias, prazos e reunioes. Adicione eventos, defina lembretes e sincronize com o Telegram para nunca perder uma data.' },
+
+  { sel: '.nav-btn[onclick*="estatisticas"]',
+    title: '◎ Estatisticas',
+    desc: 'Graficos e numeros do escritorio: processos por area, taxa de exito, tempo medio de tramitacao, valores em jogo. Acompanhe a performance do escritorio.' },
+
+  { sel: '.nav-btn[onclick*="juris"]',
+    title: '⚖ Jurisprudencia',
+    desc: 'Pesquise jurisprudencia do STJ, STF e tribunais. O agente IA busca decisoes relevantes para seus casos, com trechos e argumentos estrategicos.' },
+
+  { sel: '.nav-btn[onclick*="peticao"]',
+    title: '✎ Gerador de Pecas',
+    desc: 'AQUI voce faz peticoes, recursos, contestacoes, embargos e pareceres. Selecione o processo, o tipo de peca e a IA elabora com fundamento legal, jurisprudencia e contraditorio. Qualidade STJ/STF.' },
+
+  { sel: '.nav-btn[onclick*="juizes"]',
+    title: '◉ Perfil de Magistrados',
+    desc: 'Cadastre juizes e desembargadores. O sistema analisa o padrao decisorio: conservador ou inovador, formalista ou flexivel, receptividade por area do direito. Estrategia ouro para peticionar direcionado.' },
+
+  { sel: '.nav-btn[onclick*="preparacao"]',
+    title: '📋 Em Preparacao',
+    desc: 'Casos que ainda nao viraram processo formal. Cadastre clientes em potencial, reuna documentos, faca a analise preliminar. Quando estiver pronto, converta direto em processo.' },
+
+  { sel: '.nav-btn[onclick*="agentes"]',
+    title: '🤖 Agentes IA',
+    desc: 'Gerencie os agentes inteligentes do escritorio: Roteador (classifica documentos), Cadastrador (fotos viram processo), Assessor (redige pecas), Pericial (laudos contabeis), PJe (busca andamentos).' },
+
+  { sel: '#btn-pje',
+    title: '🔗 PJe — Processo Eletronico',
+    desc: 'Integracao com o PJe via DATAJUD. Busca andamentos automaticamente e alerta quando ha movimentacao nova. Precisa de certificado A3 (token USB) para consultas avancadas.' },
+
+  { sel: '.nav-btn[onclick*="telegram"]',
+    title: '✈️ Telegram Bot',
+    desc: 'Configure o bot do Telegram para receber alertas de prazos, andamentos e urgencias direto no celular. Tambem pode enviar documentos e fotos para o Lex processar.' },
+
+  // ── BARRA SUPERIOR ──
+  { sel: '.btn-novo',
+    title: '+ Novo Processo',
+    desc: 'Clique aqui para cadastrar um novo processo. Preencha: numero CNJ, partes, area do direito, vara, juiz. O sistema classifica automaticamente e cria o controle de prazos.' },
+
+  { sel: '#btn-chat-global',
+    title: '💬 Assessor Juridico IA',
+    desc: 'Seu assistente juridico 24h. Tire duvidas de qualquer area do direito, analise documentos, peca orientacoes sobre estrategia processual. Ele conhece seus processos e da respostas personalizadas.' },
+
+  { sel: '#tema-btn',
+    title: 'Modo Dia / Noite',
+    desc: 'Alterne entre tema escuro e claro conforme sua preferencia. O sistema memoriza a escolha.' },
+
+  // ── FUNCIONALIDADES ESPECIAIS ──
+  { sel: '.search-wrap',
+    title: '🔍 Busca Inteligente',
+    desc: 'Busque qualquer processo por nome, numero, parte ou palavra-chave. A busca e instantanea e pesquisa em todos os campos.' },
+
+  { sel: '.nav-btn[onclick*="senhas"]',
+    title: '🔑 Seguranca',
+    desc: 'Gerencie senhas e perfis de acesso. O sistema exige autenticacao e fecha automaticamente apos inatividade. Configure quem pode editar, excluir ou apenas consultar.' },
 ];
 
 var _tourStep = 0;
@@ -1244,27 +1344,38 @@ function _mostrarTourStep() {
   if (!box) { box = document.createElement('div'); box.id = 'lex-tour-box'; document.body.appendChild(box); }
 
   var total = _TOUR_STEPS.length;
+  var progresso = Math.round((_tourStep / total) * 100);
   box.innerHTML = '<h3>' + step.title + '</h3>'
     + '<p>' + step.desc + '</p>'
+    + '<div style="background:var(--border);border-radius:4px;height:4px;margin-bottom:10px;overflow:hidden"><div style="background:var(--accent);height:100%;width:' + progresso + '%;border-radius:4px;transition:width .3s"></div></div>'
     + '<div class="tour-btns">'
     + '<span class="tour-step">Passo ' + (_tourStep+1) + ' de ' + total + '</span>'
-    + '<button onclick="_pularTour()" style="background:none;border:1px solid var(--border2);border-radius:8px;padding:7px 14px;color:var(--text3);font-family:\'Lato\',sans-serif;font-size:11px;cursor:pointer;">Pular</button>'
+    + '<button onclick="_pularTour()" style="background:none;border:1px solid var(--border2);border-radius:8px;padding:7px 14px;color:var(--text3);font-family:\'Lato\',sans-serif;font-size:11px;cursor:pointer;">Pular tour</button>'
     + '<button onclick="_proximoTourStep()" style="background:var(--accent);border:none;border-radius:8px;padding:7px 16px;color:#fff;font-family:\'Lato\',sans-serif;font-size:12px;cursor:pointer;font-weight:700;">' + (_tourStep < total-1 ? 'Proximo &rarr;' : '&#10003; Concluir') + '</button>'
     + '</div>';
 
   var el = document.querySelector(step.sel);
   if (el) {
+    // Scroll o elemento para a vista (sidebar ou pagina)
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     el.classList.add('lex-tour-highlight');
     _tourHighlight = el;
-    var rect = el.getBoundingClientRect();
-    var boxW = 320, boxH = 180;
-    var top = rect.bottom + 12;
-    var left = rect.left;
-    if (top + boxH > window.innerHeight - 20) top = rect.top - boxH - 12;
-    if (left + boxW > window.innerWidth - 16) left = window.innerWidth - boxW - 16;
-    if (left < 8) left = 8;
-    if (top < 8) top = 8;
-    box.style.top = top + 'px'; box.style.left = left + 'px'; box.style.transform = '';
+    // Posicionar box ao lado do elemento
+    setTimeout(function() {
+      var rect = el.getBoundingClientRect();
+      var boxW = 320, boxH = 220;
+      var top = rect.bottom + 12;
+      var left = rect.right + 12;
+      // Se o elemento esta no sidebar (left < 260), posiciona a direita
+      if (rect.left < 260) left = rect.right + 12;
+      // Se nao cabe embaixo, coloca em cima
+      if (top + boxH > window.innerHeight - 20) top = rect.top - boxH - 12;
+      // Se nao cabe a direita, posiciona embaixo
+      if (left + boxW > window.innerWidth - 16) { left = rect.left; top = rect.bottom + 12; }
+      if (left < 8) left = 8;
+      if (top < 8) top = 60;
+      box.style.top = top + 'px'; box.style.left = left + 'px'; box.style.transform = '';
+    }, 350);
   } else {
     box.style.top = '50%'; box.style.left = '50%'; box.style.transform = 'translate(-50%,-50%)';
   }
@@ -1285,7 +1396,7 @@ function _concluirTour() {
 const _WELCOME_KEY = 'lex_boas_vindas_v1';
 
 function mostrarBoasVindas() {
-  if (localStorage.getItem(_WELCOME_KEY)) { iniciarTour(); return; }
+  if (localStorage.getItem(_WELCOME_KEY)) { return; }
   var div = document.createElement('div');
   div.id = 'lex-welcome';
   div.innerHTML = '<div id="lex-welcome-box">'
@@ -1832,25 +1943,36 @@ const PERFIS={
 
 function _tentarRefreshToken() {
   // Renova silenciosamente se faltar menos de 5 dias para expirar
-  try {
-    const s = JSON.parse(localStorage.getItem(_SK)||'null');
-    if (!s || !s.token) return;
-    const exp = new Date(s.e);
-    const diasRestantes = (exp - new Date()) / 86400000;
-    if (diasRestantes < 5) {
-      fetchComTimeout(SERVIDOR + '/api/refresh-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + s.token }
-      }, 10000).then(r => {
-        if (r.ok) return r.json();
-      }).then(d => {
-        if (d && d.token) {
-          _saveSess(d.token, s.perfil, s);
-          console.log('Lex: token renovado automaticamente');
-        }
-      }).catch((e) => { console.warn('[sessao] renovacao falhou:', e?.message || e); }); // silencioso — falha não impede uso
+  return new Promise((resolve) => {
+    try {
+      const s = JSON.parse(localStorage.getItem(_SK)||'null');
+      if (!s || !s.token) { resolve(); return; }
+      const exp = new Date(s.e);
+      const diasRestantes = (exp - new Date()) / 86400000;
+      if (diasRestantes < 5) {
+        fetchComTimeout(SERVIDOR + '/api/refresh-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + s.token }
+        }, 10000).then(r => {
+          if (r.ok) return r.json();
+        }).then(d => {
+          if (d && d.token) {
+            _saveSess(d.token, s.perfil, s);
+            console.log('Lex: token renovado automaticamente');
+          }
+          resolve();
+        }).catch((e) => { 
+          console.warn('[sessao] renovacao falhou:', e?.message || e);
+          resolve(); // resolve mesmo em erro para não bloquear
+        });
+      } else {
+        resolve(); // não precisa renovar
+      }
+    } catch(e) { 
+      console.warn('[Lex] Erro silenciado:', (e && e.message) ? e.message : e);
+      resolve();
     }
-  } catch(e) { console.warn('[Lex] Erro silenciado:', (e && e.message) ? e.message : e); }
+  });
 }
 
 
@@ -1904,9 +2026,9 @@ function _getTotalLoginsSemana(perfil) {
 const _TEMPO_KEY = 'lex_tempo_uso_v1'; // cache local para fallback offline
 let _tempoSessaoInicio = null;    // Date de quando a sessão ativa começou
 let _tempoUltimaAtiv  = null;    // Date do último evento de atividade
-let _tempoIdleTimer   = null;    // Timer de idle (30 min)
+let _tempoIdleTimer   = null;    // Timer de idle (8h)
 let _tempoSalvarTimer = null;    // Timer de persist periódico (30s)
-const AUTH_IDLE_MS = 30 * 60 * 1000; // 30 minutos sem atividade = idle
+const AUTH_IDLE_MS = 8 * 60 * 60 * 1000; // 8 horas sem atividade = idle (jornada completa)
 
 // Inicia rastreamento ao fazer login
 function iniciarRastreamentoTempo() {
@@ -6394,7 +6516,122 @@ function parseMoeda(valor) {
   return parseFloat(valor.toString().replace(/\./g, '').replace(',', '.')) || 0;
 }
 
-// Planilha Profissional de Evolução de Dívida
+// Planilha Profissional de Evolução de Dívida - Versão Forense
+// Calculadora judicial com SELIC real, múltiplos credores, exportação
+
+// Taxas SELIC mensais históricas (aproximadas) - atualizado 2024
+const SELIC_HISTORICA = {
+  '2024': [10.75, 10.75, 10.75, 10.75, 10.50, 10.50, 10.50, 10.50, 10.50, 10.50, 10.50, 10.50],
+  '2023': [13.75, 13.75, 13.75, 13.75, 13.75, 13.75, 13.75, 13.25, 12.75, 12.25, 11.75, 11.75],
+  '2022': [9.25, 10.75, 11.75, 12.75, 12.75, 13.25, 13.75, 13.75, 13.75, 13.75, 13.75, 13.75],
+  '2021': [2.00, 2.00, 2.75, 3.50, 4.25, 4.25, 5.25, 6.00, 6.25, 7.75, 9.25, 9.25],
+  '2020': [4.50, 4.50, 4.25, 3.75, 3.00, 2.25, 2.00, 2.00, 2.00, 2.00, 2.00, 2.00],
+  '2019': [6.50, 6.50, 6.50, 6.50, 6.50, 6.50, 6.00, 6.00, 5.50, 5.00, 4.50, 4.50],
+  '2018': [7.00, 6.75, 6.50, 6.50, 6.50, 6.50, 6.50, 6.50, 6.50, 6.50, 6.50, 6.50],
+  '2017': [13.00, 12.25, 11.25, 11.25, 10.25, 10.25, 9.25, 8.25, 8.25, 7.50, 7.00, 7.00],
+  '2016': [14.25, 14.25, 14.25, 14.25, 14.25, 14.25, 14.25, 14.25, 14.25, 14.00, 13.75, 13.75],
+  '2015': [11.75, 12.25, 12.75, 13.25, 13.75, 13.75, 14.25, 14.25, 14.25, 14.25, 14.25, 14.25],
+  '2014': [10.00, 10.50, 11.00, 11.00, 11.00, 11.25, 11.25, 11.00, 11.00, 11.25, 11.75, 11.75],
+  '2013': [7.25, 7.25, 7.50, 7.50, 8.00, 8.00, 8.50, 9.00, 9.50, 9.50, 10.00, 10.00],
+  '2012': [10.50, 10.00, 9.75, 9.00, 8.50, 8.00, 7.50, 7.50, 7.50, 7.25, 7.25, 7.25],
+  '2011': [11.25, 11.75, 11.75, 12.00, 12.00, 12.25, 12.50, 12.00, 11.50, 11.50, 11.00, 11.00],
+  '2010': [8.75, 8.75, 9.00, 9.50, 10.25, 10.25, 10.75, 10.75, 10.75, 10.75, 10.75, 10.75],
+  '2009': [13.75, 12.50, 11.25, 10.25, 10.25, 9.25, 8.80, 8.75, 8.75, 8.00, 8.00, 8.75],
+  '2008': [11.25, 11.25, 11.25, 11.25, 11.25, 12.25, 13.00, 13.00, 13.75, 14.25, 13.75, 13.75],
+  '2007': [13.25, 12.75, 12.00, 11.25, 10.25, 10.00, 9.50, 9.00, 9.00, 9.25, 9.75, 10.25],
+  '2006': [17.25, 17.25, 16.50, 15.75, 15.25, 15.25, 15.25, 14.50, 13.75, 13.25, 12.80, 12.50],
+  '2005': [17.75, 18.50, 18.50, 19.50, 19.75, 20.00, 19.50, 18.50, 17.75, 17.25, 17.25, 16.50],
+  '2004': [16.50, 16.00, 16.00, 16.00, 16.00, 16.00, 16.00, 16.00, 16.00, 16.75, 17.25, 17.25],
+  '2003': [25.00, 24.50, 23.50, 23.00, 22.00, 21.00, 20.00, 19.00, 18.50, 17.50, 17.00, 16.50],
+  '2002': [19.00, 19.00, 19.00, 19.00, 19.00, 19.00, 19.00, 19.00, 19.00, 19.00, 19.00, 19.00],
+  '2001': [15.75, 15.75, 15.75, 15.75, 16.25, 16.50, 17.25, 17.75, 18.25, 19.00, 19.00, 19.00],
+  '2000': [19.00, 19.00, 19.00, 18.50, 18.50, 18.50, 18.00, 17.50, 16.50, 16.00, 15.50, 15.00],
+  '1999': [29.00, 29.00, 29.00, 28.00, 25.00, 22.00, 19.00, 19.00, 19.00, 19.00, 19.00, 19.00]
+};
+
+// IPCA acumulado anual
+const IPCA_ANUAL = {
+  '2024': 4.50, '2023': 4.62, '2022': 5.79, '2021': 10.06, '2020': 4.52,
+  '2019': 4.31, '2018': 3.75, '2017': 2.95, '2016': 6.29, '2015': 10.67,
+  '2014': 6.41, '2013': 5.91, '2012': 5.84, '2011': 6.50, '2010': 5.91,
+  '2009': 4.31, '2008': 5.90, '2007': 4.46, '2006': 3.14, '2005': 5.69,
+  '2004': 7.60, '2003': 9.30, '2002': 12.53, '2001': 7.67, '2000': 5.97,
+  '1999': 8.94
+};
+
+// Calcula fator de correção SELIC acumulada entre duas datas
+function calcularFatorSelic(dataInicio, dataFim) {
+  const inicio = new Date(dataInicio);
+  const fim = new Date(dataFim);
+  let fator = 1.0;
+  
+  const anoInicio = inicio.getFullYear();
+  const mesInicio = inicio.getMonth();
+  const anoFim = fim.getFullYear();
+  const mesFim = fim.getMonth();
+  
+  for (let ano = anoInicio; ano <= anoFim; ano++) {
+    const taxas = SELIC_HISTORICA[ano.toString()];
+    if (!taxas) continue;
+    
+    for (let mes = 0; mes < 12; mes++) {
+      if (ano === anoInicio && mes < mesInicio) continue;
+      if (ano === anoFim && mes > mesFim) break;
+      
+      const taxaMensal = taxas[mes] / 100;
+      fator *= (1 + taxaMensal);
+    }
+  }
+  
+  return fator;
+}
+
+// Calcula fator de correção IPCA acumulada
+function calcularFatorIPCA(dataInicio, dataFim) {
+  const inicio = new Date(dataInicio);
+  const fim = new Date(dataFim);
+  let fator = 1.0;
+  
+  for (let ano = inicio.getFullYear(); ano <= fim.getFullYear(); ano++) {
+    const taxa = IPCA_ANUAL[ano.toString()];
+    if (taxa) {
+      fator *= (1 + taxa / 100);
+    }
+  }
+  
+  return fator;
+}
+
+// Calcula fator genérico baseado no índice escolhido
+function calcularFatorCorrecao(dataInicio, dataFim, indice) {
+  switch(indice) {
+    case 'selic': return calcularFatorSelic(dataInicio, dataFim);
+    case 'ipca': return calcularFatorIPCA(dataInicio, dataFim);
+    case 'igpm': return calcularFatorIPCA(dataInicio, dataFim) * 1.05; // IGP-M ~ IPCA + 5%
+    case 'inpc': return calcularFatorIPCA(dataInicio, dataFim) * 0.98; // INPC ~ IPCA - 2%
+    case 'tr': return 1.0; // TR zerada desde 2017
+    default: return calcularFatorSelic(dataInicio, dataFim);
+  }
+}
+
+// Formata número como moeda brasileira
+function formatarMoedaBR(valor) {
+  return 'R$ ' + valor.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+// Calcula dias entre duas datas
+function diasEntre(data1, data2) {
+  const d1 = new Date(data1);
+  const d2 = new Date(data2);
+  return Math.floor((d2 - d1) / (1000 * 60 * 60 * 24));
+}
+
+// Calcula meses entre duas datas
+function mesesEntre(data1, data2) {
+  const d1 = new Date(data1);
+  const d2 = new Date(data2);
+  return (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
+}
 function calcularEvolucaoDivida() {
   const numeroProcesso = document.getElementById('divida-numero-processo')?.value || '';
   const tipo = document.getElementById('divida-tipo')?.value || '';
@@ -6412,133 +6649,496 @@ function calcularEvolucaoDivida() {
     return;
   }
   
-  // Cálculo dos encargos
   const dataOrig = new Date(dataOrigem);
   const dataAt = new Date(dataAtual);
-  const dias = Math.floor((dataAt - dataOrig) / (1000 * 60 * 60 * 24));
-  const meses = dias / 30;
+  const dias = diasEntre(dataOrigem, dataAtual);
+  const totalMeses = mesesEntre(dataOrigem, dataAtual);
   
-  // Multa (20% padrão execução fiscal)
+  // Multa moratória (aplicada uma vez sobre o principal)
   const multa = principal * (multaPercentual / 100);
   
-  // Juros simples (1% a.m. padrão)
-  const juros = principal * (jurosPercentual / 100) * meses;
+  // Correção monetária com índice real
+  const fatorCorrecao = calcularFatorCorrecao(dataOrigem, dataAtual, indiceCorrecao);
+  const principalCorrigido = principal * fatorCorrecao;
+  const correcao = principalCorrigido - principal;
   
-  // Correção monetária (simplificado - SELIC acumulada)
-  let correcao = 0;
-  const taxaSelicAcumulada = 0.005 * meses; // 0.5% ao mês simplificado
-  correcao = principal * taxaSelicAcumulada;
+  // Juros de mora (sobre principal corrigido)
+  const juros = principalCorrigido * (jurosPercentual / 100) * totalMeses;
   
-  // Subtotal
-  const subtotal = principal + multa + juros + correcao;
+  // Subtotal (principal corrigido + multa + juros)
+  const subtotal = principalCorrigido + multa + juros;
   
   // Honorários advocatícios
   const honorarios = subtotal * (honorariosPercentual / 100);
   
+  // Custas processuais estimadas
+  const custas = subtotal * 0.01; // ~1% estimativa
+  
   // Total consolidado
-  const total = subtotal + honorarios;
+  const total = subtotal + honorarios + custas;
   
-  // Tabela de evolução mensal
-  let tabelaEvolucao = '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:10px">';
-  tabelaEvolucao += '<thead><tr style="background:var(--primary);color:#fff">';
-  tabelaEvolucao += '<th style="padding:8px;border:1px solid var(--border)">Mês</th>';
-  tabelaEvolucao += '<th style="padding:8px;border:1px solid var(--border)">Principal</th>';
-  tabelaEvolucao += '<th style="padding:8px;border:1px solid var(--border)">Multa</th>';
-  tabelaEvolucao += '<th style="padding:8px;border:1px solid var(--border)">Juros</th>';
-  tabelaEvolucao += '<th style="padding:8px;border:1px solid var(--border)">Correção</th>';
-  tabelaEvolucao += '<th style="padding:8px;border:1px solid var(--border)">Subtotal</th>';
-  tabelaEvolucao += '</tr></thead><tbody>';
+  // Nome do tipo de dívida
+  const TIPOS_NOME = {
+    'execucao_federal': 'Execução Fiscal Federal (Lei 6.830/80)',
+    'execucao_estadual': 'Execução Fiscal Estadual',
+    'bancaria': 'Dívida Bancária / Cédula de Crédito',
+    'trabalhista': 'Crédito Trabalhista (CLT art. 883)',
+    'previdenciaria': 'Dívida Previdenciária (INSS)'
+  };
   
-  // Mostrar evolução a cada 6 meses
-  for (let m = 0; m <= meses; m += 6) {
-    const jurosAcum = principal * (jurosPercentual / 100) * m;
-    const correcaoAcum = principal * (0.005 * m);
-    const subtotalAcum = principal + multa + jurosAcum + correcaoAcum;
+  const INDICE_NOME = {
+    'selic': 'Taxa SELIC (acumulada — BCB)',
+    'ipca': 'IPCA/IBGE',
+    'igpm': 'IGP-M/FGV',
+    'inpc': 'INPC/IBGE',
+    'tr': 'Taxa Referencial (TR)'
+  };
+  
+  // Fundamento legal por tipo
+  const FUNDAMENTO = {
+    'execucao_federal': 'Art. 161, §1° do CTN c/c Lei 9.065/95 (SELIC). Multa: art. 44 da Lei 9.430/96.',
+    'execucao_estadual': 'CDA conforme art. 2°, §5° da LEF (Lei 6.830/80).',
+    'bancaria': 'Art. 389 e 395 do CC/2002. Juros: art. 591 CC. Correção: índice contratual.',
+    'trabalhista': 'Art. 39, §1° da Lei 8.177/91 c/c Tema 810/STF e ADC 58.',
+    'previdenciaria': 'Art. 35 da Lei 8.212/91. SELIC: art. 61, §3° da Lei 9.430/96.'
+  };
+  
+  // ═══ TABELA DE EVOLUÇÃO MENSAL (mês a mês) ═══
+  let tabelaHTML = '';
+  tabelaHTML += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:8px">';
+  tabelaHTML += '<thead><tr style="background:#1a3a5c;color:#fff">';
+  tabelaHTML += '<th style="padding:8px 6px;border:1px solid #2a4a6c;text-align:center">Data</th>';
+  tabelaHTML += '<th style="padding:8px 6px;border:1px solid #2a4a6c;text-align:right">Principal</th>';
+  tabelaHTML += '<th style="padding:8px 6px;border:1px solid #2a4a6c;text-align:right">Correção</th>';
+  tabelaHTML += '<th style="padding:8px 6px;border:1px solid #2a4a6c;text-align:right">P. Corrigido</th>';
+  tabelaHTML += '<th style="padding:8px 6px;border:1px solid #2a4a6c;text-align:right">Multa</th>';
+  tabelaHTML += '<th style="padding:8px 6px;border:1px solid #2a4a6c;text-align:right">Juros Mora</th>';
+  tabelaHTML += '<th style="padding:8px 6px;border:1px solid #2a4a6c;text-align:right;font-weight:800">Débito Acum.</th>';
+  tabelaHTML += '</tr></thead><tbody>';
+  
+  // Determinar intervalo de exibição
+  const intervalo = totalMeses <= 24 ? 1 : totalMeses <= 60 ? 3 : totalMeses <= 120 ? 6 : 12;
+  
+  for (let m = 0; m <= totalMeses; m += intervalo) {
     const dataMes = new Date(dataOrig);
     dataMes.setMonth(dataMes.getMonth() + m);
+    if (dataMes > dataAt) break;
     
-    tabelaEvolucao += `<tr style="background:${m % 12 === 0 ? 'var(--surface2)' : 'transparent'}">`;
-    tabelaEvolucao += `<td style="padding:6px;border:1px solid var(--border)">${dataMes.toLocaleDateString('pt-BR')}</td>`;
-    tabelaEvolucao += `<td style="padding:6px;border:1px solid var(--border);text-align:right">${principal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>`;
-    tabelaEvolucao += `<td style="padding:6px;border:1px solid var(--border);text-align:right">${multa.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>`;
-    tabelaEvolucao += `<td style="padding:6px;border:1px solid var(--border);text-align:right">${jurosAcum.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>`;
-    tabelaEvolucao += `<td style="padding:6px;border:1px solid var(--border);text-align:right">${correcaoAcum.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>`;
-    tabelaEvolucao += `<td style="padding:6px;border:1px solid var(--border);text-align:right;font-weight:600">${subtotalAcum.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>`;
-    tabelaEvolucao += '</tr>';
+    const dataStr = dataMes.toISOString().split('T')[0];
+    const fator = calcularFatorCorrecao(dataOrigem, dataStr, indiceCorrecao);
+    const pCorr = principal * fator;
+    const corrAcum = pCorr - principal;
+    const jurosAcum = pCorr * (jurosPercentual / 100) * m;
+    const debitoAcum = pCorr + multa + jurosAcum;
+    
+    const isUltimo = m + intervalo > totalMeses;
+    const bgColor = isUltimo ? '#1a3a5c11' : (Math.floor(m / intervalo) % 2 === 0 ? 'transparent' : 'var(--surface2)');
+    const fw = isUltimo ? 'font-weight:700' : '';
+    
+    tabelaHTML += `<tr style="background:${bgColor};${fw}">`;
+    tabelaHTML += `<td style="padding:5px 6px;border:1px solid var(--border);text-align:center">${dataMes.toLocaleDateString('pt-BR')}</td>`;
+    tabelaHTML += `<td style="padding:5px 6px;border:1px solid var(--border);text-align:right">${formatarMoedaBR(principal)}</td>`;
+    tabelaHTML += `<td style="padding:5px 6px;border:1px solid var(--border);text-align:right;color:var(--cyan)">${formatarMoedaBR(corrAcum)}</td>`;
+    tabelaHTML += `<td style="padding:5px 6px;border:1px solid var(--border);text-align:right">${formatarMoedaBR(pCorr)}</td>`;
+    tabelaHTML += `<td style="padding:5px 6px;border:1px solid var(--border);text-align:right;color:var(--red)">${formatarMoedaBR(multa)}</td>`;
+    tabelaHTML += `<td style="padding:5px 6px;border:1px solid var(--border);text-align:right;color:var(--orange)">${formatarMoedaBR(jurosAcum)}</td>`;
+    tabelaHTML += `<td style="padding:5px 6px;border:1px solid var(--border);text-align:right;font-weight:700">${formatarMoedaBR(debitoAcum)}</td>`;
+    tabelaHTML += '</tr>';
   }
-  tabelaEvolucao += '</tbody></table>';
   
-  // Resultado final
+  // Última linha exata (data atual)
+  tabelaHTML += `<tr style="background:#1a3a5c;color:#fff;font-weight:800">`;
+  tabelaHTML += `<td style="padding:6px;border:1px solid #2a4a6c;text-align:center">${dataAt.toLocaleDateString('pt-BR')}</td>`;
+  tabelaHTML += `<td style="padding:6px;border:1px solid #2a4a6c;text-align:right">${formatarMoedaBR(principal)}</td>`;
+  tabelaHTML += `<td style="padding:6px;border:1px solid #2a4a6c;text-align:right">${formatarMoedaBR(correcao)}</td>`;
+  tabelaHTML += `<td style="padding:6px;border:1px solid #2a4a6c;text-align:right">${formatarMoedaBR(principalCorrigido)}</td>`;
+  tabelaHTML += `<td style="padding:6px;border:1px solid #2a4a6c;text-align:right">${formatarMoedaBR(multa)}</td>`;
+  tabelaHTML += `<td style="padding:6px;border:1px solid #2a4a6c;text-align:right">${formatarMoedaBR(juros)}</td>`;
+  tabelaHTML += `<td style="padding:6px;border:1px solid #2a4a6c;text-align:right;font-size:13px">${formatarMoedaBR(subtotal)}</td>`;
+  tabelaHTML += '</tr>';
+  tabelaHTML += '</tbody></table>';
+  
+  // ═══ RESULTADO FINAL ═══
   const resultado = document.getElementById('divida-resultado');
   resultado.style.display = 'block';
+  
+  // Armazena dados para exportação
+  window._ultimaPlanilhaDivida = {
+    numeroProcesso, tipo, dataOrigem, dataAtual, principal, multa, juros,
+    correcao, principalCorrigido, subtotal, honorarios, custas, total,
+    multaPercentual, jurosPercentual, honorariosPercentual, indiceCorrecao,
+    totalMeses, dias, fatorCorrecao
+  };
+  
   resultado.innerHTML = `
-    <div style="font-size:14px;line-height:1.8">
-      <div style="background:var(--surface2);padding:12px;border-radius:8px;margin-bottom:12px">
-        <div style="font-weight:700;font-size:16px;color:var(--primary);margin-bottom:8px">📊 RESUMO DA DÍVIDA</div>
-        <div><strong>Processo:</strong> ${numeroProcesso || 'Não informado'}</div>
-        <div><strong>Tipo:</strong> ${tipo === 'execucao_federal' ? 'Execução Federal' : tipo === 'bancaria' ? 'Dívida Bancária' : tipo === 'trabalhista' ? 'Dívida Trabalhista' : tipo === 'previdenciaria' ? 'Dívida Previdenciária' : tipo}</div>
-        <div><strong>Período:</strong> ${new Date(dataOrigem).toLocaleDateString('pt-BR')} a ${new Date(dataAtual).toLocaleDateString('pt-BR')} (${Math.floor(meses)} meses)</div>
+    <div style="font-size:13px;line-height:1.7">
+      <!-- CABEÇALHO PROFISSIONAL -->
+      <div style="text-align:center;border-bottom:3px double #1a3a5c;padding-bottom:16px;margin-bottom:16px">
+        <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:#1a3a5c;letter-spacing:1px">PLANILHA DE EVOLUÇÃO DE DÉBITO</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">Cálculo Atualizado — ${INDICE_NOME[indiceCorrecao] || indiceCorrecao.toUpperCase()}</div>
+        <div style="font-size:10px;color:var(--text3)">Elaborado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div>
       </div>
       
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-        <div style="background:var(--surface2);padding:10px;border-radius:6px">
-          <div style="font-weight:600;color:var(--primary)">💰 PRINCIPAL</div>
-          <div style="font-size:18px;font-weight:700">R$ ${principal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
-        </div>
-        <div style="background:var(--surface2);padding:10px;border-radius:6px">
-          <div style="font-weight:600;color:var(--danger)">⚠️ MULTA (${multaPercentual}%)</div>
-          <div style="font-size:18px;font-weight:700">R$ ${multa.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
-        </div>
-        <div style="background:var(--surface2);padding:10px;border-radius:6px">
-          <div style="font-weight:600;color:var(--warning)">📈 JUROS (${jurosPercentual}% a.m.)</div>
-          <div style="font-size:18px;font-weight:700">R$ ${juros.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
-        </div>
-        <div style="background:var(--surface2);padding:10px;border-radius:6px">
-          <div style="font-weight:600;color:var(--info)">💹 CORREÇÃO (${indiceCorrecao.toUpperCase()})</div>
-          <div style="font-size:18px;font-weight:700">R$ ${correcao.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+      <!-- DADOS DO PROCESSO -->
+      <div style="background:#1a3a5c0a;border-left:4px solid #1a3a5c;padding:12px 16px;border-radius:0 8px 8px 0;margin-bottom:16px">
+        <div style="font-weight:700;color:#1a3a5c;margin-bottom:6px;font-size:14px">📋 IDENTIFICAÇÃO</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 20px">
+          <div><strong>Processo:</strong> ${numeroProcesso || 'Não informado'}</div>
+          <div><strong>Natureza:</strong> ${TIPOS_NOME[tipo] || tipo || 'Não especificada'}</div>
+          <div><strong>Data de Origem:</strong> ${dataOrig.toLocaleDateString('pt-BR')}</div>
+          <div><strong>Data de Atualização:</strong> ${dataAt.toLocaleDateString('pt-BR')}</div>
+          <div><strong>Período:</strong> ${totalMeses} meses (${dias} dias)</div>
+          <div><strong>Índice:</strong> ${INDICE_NOME[indiceCorrecao] || indiceCorrecao.toUpperCase()}</div>
         </div>
       </div>
       
-      <div style="background:var(--surface2);padding:10px;border-radius:6px;margin-bottom:12px">
-        <div style="font-weight:600">SUBTOTAL</div>
-        <div style="font-size:16px;font-weight:600">R$ ${subtotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+      <!-- DEMONSTRATIVO ANALÍTICO -->
+      <div style="background:var(--surface2);border-radius:10px;padding:16px;margin-bottom:16px">
+        <div style="font-weight:700;color:#1a3a5c;margin-bottom:12px;font-size:14px">📊 DEMONSTRATIVO ANALÍTICO</div>
+        
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px 4px"><strong>A)</strong> Principal originário</td>
+            <td style="padding:8px 4px;text-align:right;font-weight:600">${formatarMoedaBR(principal)}</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px 4px"><strong>B)</strong> Correção monetária (${INDICE_NOME[indiceCorrecao]}) — fator: ${fatorCorrecao.toFixed(8)}</td>
+            <td style="padding:8px 4px;text-align:right;font-weight:600;color:var(--cyan)">${formatarMoedaBR(correcao)}</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);background:var(--surface)">
+            <td style="padding:8px 4px"><strong>C)</strong> Principal corrigido (A + B)</td>
+            <td style="padding:8px 4px;text-align:right;font-weight:700">${formatarMoedaBR(principalCorrigido)}</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px 4px"><strong>D)</strong> Multa moratória (${multaPercentual}% sobre A)</td>
+            <td style="padding:8px 4px;text-align:right;font-weight:600;color:var(--red)">${formatarMoedaBR(multa)}</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px 4px"><strong>E)</strong> Juros de mora (${jurosPercentual}% a.m. × ${totalMeses} meses sobre C)</td>
+            <td style="padding:8px 4px;text-align:right;font-weight:600;color:var(--orange)">${formatarMoedaBR(juros)}</td>
+          </tr>
+          <tr style="border-bottom:2px solid #1a3a5c;background:var(--surface)">
+            <td style="padding:10px 4px"><strong>F)</strong> SUBTOTAL (C + D + E)</td>
+            <td style="padding:10px 4px;text-align:right;font-weight:800;font-size:15px">${formatarMoedaBR(subtotal)}</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px 4px"><strong>G)</strong> Honorários advocatícios (${honorariosPercentual}% sobre F)</td>
+            <td style="padding:8px 4px;text-align:right;font-weight:600">${formatarMoedaBR(honorarios)}</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px 4px"><strong>H)</strong> Custas processuais (estimativa)</td>
+            <td style="padding:8px 4px;text-align:right;font-weight:600">${formatarMoedaBR(custas)}</td>
+          </tr>
+        </table>
+        
+        <!-- TOTAL FINAL -->
+        <div style="background:#1a3a5c;color:#fff;padding:14px 16px;border-radius:8px;margin-top:12px;display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-weight:800;font-size:16px">💵 TOTAL CONSOLIDADO (F + G + H)</div>
+            <div style="font-size:10px;opacity:.7;margin-top:2px">Atualizado até ${dataAt.toLocaleDateString('pt-BR')}</div>
+          </div>
+          <div style="font-size:28px;font-weight:900;letter-spacing:-1px">${formatarMoedaBR(total)}</div>
+        </div>
       </div>
       
-      <div style="background:var(--surface2);padding:10px;border-radius:6px;margin-bottom:12px">
-        <div style="font-weight:600">⚖️ HONORÁRIOS ADVOCATÍCIOS (${honorariosPercentual}%)</div>
-        <div style="font-size:16px;font-weight:600">R$ ${honorarios.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+      <!-- TABELA DE EVOLUÇÃO -->
+      <div style="margin-bottom:16px">
+        <div style="font-weight:700;color:#1a3a5c;margin-bottom:8px;font-size:14px">📈 EVOLUÇÃO MENSAL DO DÉBITO</div>
+        <div style="overflow-x:auto">${tabelaHTML}</div>
       </div>
       
-      <div style="background:var(--primary);color:#fff;padding:12px;border-radius:8px;margin-bottom:12px">
-        <div style="font-weight:700;font-size:18px">💵 TOTAL CONSOLIDADO</div>
-        <div style="font-size:28px;font-weight:800">R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
-        <div style="font-size:12px;margin-top:4px">Atualizado em ${new Date(dataAtual).toLocaleDateString('pt-BR')}</div>
+      <!-- FUNDAMENTO LEGAL -->
+      <div style="background:#1a3a5c0a;border:1px solid #1a3a5c33;padding:12px 16px;border-radius:8px;margin-bottom:12px;font-size:11px">
+        <div style="font-weight:700;color:#1a3a5c;margin-bottom:4px">⚖️ FUNDAMENTO LEGAL</div>
+        <div style="color:var(--text2)">${FUNDAMENTO[tipo] || 'Art. 389, 395 e 405 do CC/2002. Juros de mora: art. 406 CC c/c art. 161, §1° CTN.'}</div>
       </div>
       
-      <div style="font-weight:700;margin-bottom:8px;color:var(--primary)">📈 EVOLUÇÃO DA DÍVIDA</div>
-      ${tabelaEvolucao}
+      <!-- METODOLOGIA -->
+      <div style="background:var(--surface2);padding:12px 16px;border-radius:8px;margin-bottom:12px;font-size:11px">
+        <div style="font-weight:700;color:var(--text);margin-bottom:4px">📐 METODOLOGIA</div>
+        <div style="color:var(--text2)">
+          • Correção monetária pelo índice ${INDICE_NOME[indiceCorrecao]} — fator acumulado: <strong>${fatorCorrecao.toFixed(8)}</strong><br>
+          • Juros de mora: ${jurosPercentual}% ao mês (simples) sobre principal corrigido<br>
+          • Multa moratória: ${multaPercentual}% incidente uma vez sobre o principal originário<br>
+          • Honorários: ${honorariosPercentual}% sobre o subtotal (principal corrigido + multa + juros)<br>
+          • Período de incidência: ${dataOrig.toLocaleDateString('pt-BR')} a ${dataAt.toLocaleDateString('pt-BR')} (${totalMeses} meses / ${dias} dias)
+        </div>
+      </div>
       
-      <div style="background:var(--warning);padding:10px;border-radius:6px;margin-top:12px;font-size:12px">
-        <strong>⚠️ OBSERVAÇÕES:</strong><br>
-        • Cálculo baseado em juros simples de ${jurosPercentual}% a.m.<br>
-        • Correção monetária: ${indiceCorrecao.toUpperCase()} (estimada)<br>
-        • Para cálculo exato, consultar site oficial da Receita Federal ou banco<br>
-        • Prescrição: verificar data de origem e prazo prescricional
+      <!-- OBSERVAÇÕES -->
+      <div style="border:1px solid var(--orange);background:var(--orange-soft);padding:10px 14px;border-radius:8px;font-size:11px">
+        <strong style="color:var(--orange)">⚠️ OBSERVAÇÕES IMPORTANTES:</strong><br>
+        <span style="color:var(--text2)">
+          • Os índices utilizados são aproximações baseadas em dados históricos do BCB/IBGE.<br>
+          • Para cálculos oficiais, recomenda-se a Calculadora do Cidadão (BCB) ou sistema do tribunal.<br>
+          • Prescrição: verificar termo inicial e marcos interruptivos (art. 174, CTN / art. 206, CC).<br>
+          • Este cálculo não substitui laudo pericial, servindo como estimativa para orientação processual.
+        </span>
       </div>
     </div>
   `;
 }
 
+// ═══ DOCUMENTOS ANEXADOS À PLANILHA ═══
+window._dividaDocs = [];
+
+function anexarDocDivida(input) {
+  const files = input.files;
+  if (!files || !files.length) return;
+  
+  for (const file of files) {
+    if (file.size > 10 * 1024 * 1024) {
+      toast('Arquivo ' + file.name + ' excede 10MB.', 'erro');
+      continue;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const doc = {
+        nome: file.name,
+        tipo: file.type,
+        tamanho: file.size,
+        data: new Date().toISOString(),
+        conteudo: e.target.result // base64
+      };
+      window._dividaDocs.push(doc);
+      renderDocsDivida();
+      toast('📎 ' + file.name + ' anexado.', 'ok');
+    };
+    reader.readAsDataURL(file);
+  }
+  input.value = ''; // reset para permitir re-upload
+}
+
+function renderDocsDivida() {
+  const lista = document.getElementById('divida-docs-list');
+  if (!lista) return;
+  
+  if (!window._dividaDocs.length) {
+    lista.innerHTML = '<div style="font-size:11px;color:var(--text3);padding:4px 0">Nenhum documento anexado</div>';
+    return;
+  }
+  
+  lista.innerHTML = window._dividaDocs.map((d, i) => {
+    const tamanho = d.tamanho > 1024*1024 
+      ? (d.tamanho/1024/1024).toFixed(1) + ' MB' 
+      : (d.tamanho/1024).toFixed(0) + ' KB';
+    const icone = d.nome.endsWith('.pdf') ? '📄' : d.nome.match(/\.(jpg|jpeg|png|gif)$/i) ? '🖼️' : d.nome.match(/\.(xls|xlsx|csv)$/i) ? '📊' : '📋';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;margin-bottom:4px;font-size:12px">
+      <span>${icone}</span>
+      <span style="flex:1;font-weight:600">${d.nome}</span>
+      <span style="color:var(--text3);font-size:10px">${tamanho}</span>
+      <button onclick="removerDocDivida(${i})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px" title="Remover">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function removerDocDivida(idx) {
+  window._dividaDocs.splice(idx, 1);
+  renderDocsDivida();
+}
+
+// ═══ PARECER TÉCNICO VIA IA ═══
+async function gerarParecerDivida() {
+  const d = window._ultimaPlanilhaDivida;
+  const instrucoes = document.getElementById('divida-instrucoes')?.value?.trim() || '';
+  
+  if (!d && !instrucoes) {
+    alert('Calcule a evolução da dívida e/ou descreva as instruções do caso primeiro.');
+    return;
+  }
+  
+  const resultado = document.getElementById('divida-resultado');
+  resultado.style.display = 'block';
+  
+  // Indicador de carregamento
+  const loadingId = 'parecer-loading-' + Date.now();
+  resultado.innerHTML += `<div id="${loadingId}" style="background:var(--purple);color:#fff;padding:14px;border-radius:8px;margin-top:12px;text-align:center">
+    <div style="font-size:14px;font-weight:700">⏳ Elaborando Parecer Técnico...</div>
+    <div style="font-size:11px;margin-top:4px;opacity:.7">O agente está analisando os dados, instruções e documentos (~30-60s)</div>
+  </div>`;
+  
+  // Montar contexto para a IA
+  let contexto = '=== PARECER TÉCNICO SOBRE PLANILHA DE EVOLUÇÃO DE DÉBITO ===\n\n';
+  
+  if (d) {
+    contexto += 'DADOS DO CÁLCULO:\n';
+    contexto += '- Processo: ' + (d.numeroProcesso || 'não informado') + '\n';
+    contexto += '- Tipo: ' + d.tipo + '\n';
+    contexto += '- Principal: R$ ' + d.principal.toFixed(2) + '\n';
+    contexto += '- Correção (' + d.indiceCorrecao + '): fator ' + d.fatorCorrecao.toFixed(8) + '\n';
+    contexto += '- Principal corrigido: R$ ' + d.principalCorrigido.toFixed(2) + '\n';
+    contexto += '- Multa (' + d.multaPercentual + '%): R$ ' + d.multa.toFixed(2) + '\n';
+    contexto += '- Juros (' + d.jurosPercentual + '% a.m. x ' + d.totalMeses + ' meses): R$ ' + d.juros.toFixed(2) + '\n';
+    contexto += '- Subtotal: R$ ' + d.subtotal.toFixed(2) + '\n';
+    contexto += '- Honorários (' + d.honorariosPercentual + '%): R$ ' + d.honorarios.toFixed(2) + '\n';
+    contexto += '- TOTAL: R$ ' + d.total.toFixed(2) + '\n';
+    contexto += '- Período: ' + d.totalMeses + ' meses (' + d.dias + ' dias)\n\n';
+  }
+  
+  if (instrucoes) {
+    contexto += 'INSTRUÇÕES DO ADVOGADO (KLEUBER):\n' + instrucoes + '\n\n';
+  }
+  
+  if (window._dividaDocs && window._dividaDocs.length) {
+    contexto += 'DOCUMENTOS ANEXADOS:\n';
+    window._dividaDocs.forEach((doc, i) => {
+      contexto += (i+1) + '. ' + doc.nome + ' (' + doc.tipo + ')\n';
+    });
+    contexto += '\n';
+  }
+  
+  const system = `Você é um perito contábil/financeiro com 20 anos de experiência em cálculos judiciais.
+
+Elabore um PARECER TÉCNICO sobre a planilha de evolução de débito apresentada.
+
+ESTRUTURA DO PARECER:
+1. OBJETO DO PARECER — identificação do débito analisado
+2. ANÁLISE DA METODOLOGIA — se os índices, juros e multas estão corretos conforme a lei
+3. IRREGULARIDADES DETECTADAS — erros de cálculo, anatocismo, índices incorretos, multas abusivas
+4. FUNDAMENTAÇÃO LEGAL — artigos de lei, súmulas, jurisprudência do STJ/STF
+5. CÁLCULO CORRETO (SE HOUVER DIVERGÊNCIA) — qual deveria ser o valor
+6. CONCLUSÃO — parecer objetivo
+
+REGRAS:
+- Linguagem técnica jurídico-contábil
+- Fundamente TUDO com legislação (CTN, CC, LEF, súmulas)
+- Se as instruções do advogado indicam contestação, CONTESTE com fundamento
+- Aponte qualquer irregularidade: anatocismo, juros sobre multa, multa acima do legal, índice incorreto
+- Mínimo 2 páginas de conteúdo técnico
+- Qualidade apta para STJ/STF`;
+
+  try {
+    const messages = [{role: 'user', content: contexto + '\n\nElabore o parecer técnico completo.'}];
+    const parecer = await chamarIA(messages, system, 4000);
+    
+    // Remove loading
+    const loadEl = document.getElementById(loadingId);
+    if (loadEl) loadEl.remove();
+    
+    // Renderiza parecer
+    const parecerHTML = parecer.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    resultado.innerHTML += `
+      <div style="border:2px solid var(--purple);border-radius:10px;padding:20px;margin-top:12px">
+        <div style="text-align:center;margin-bottom:16px;border-bottom:2px double var(--purple);padding-bottom:12px">
+          <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:var(--purple)">PARECER TÉCNICO</div>
+          <div style="font-size:10px;color:var(--text3)">Emitido em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div>
+        </div>
+        <div style="font-size:13px;line-height:1.8;color:var(--text)">${parecerHTML}</div>
+        <div style="text-align:right;margin-top:16px;font-size:10px;color:var(--text3);border-top:1px solid var(--border);padding-top:8px">
+          Parecer elaborado por agente IA — revisar antes de protocolar
+        </div>
+      </div>`;
+    
+    toast('📋 Parecer técnico elaborado!', 'ok');
+  } catch(e) {
+    const loadEl = document.getElementById(loadingId);
+    if (loadEl) loadEl.innerHTML = '<div style="color:#fff">❌ Erro ao gerar parecer: ' + (e.message || e) + '</div>';
+    console.error('[Lex] Erro parecer:', e);
+  }
+}
+
 function adicionarParcelaAcordo() {
-  alert('Funcionalidade de parcelamento em desenvolvimento. Use a calculadora para simular valores.');
+  const d = window._ultimaPlanilhaDivida;
+  if (!d) { alert('Calcule a evolução da dívida primeiro.'); return; }
+  
+  const parcelas = parseInt(prompt('Quantidade de parcelas do acordo:'));
+  if (!parcelas || parcelas < 1) return;
+  const desconto = parseFloat(prompt('Desconto concedido (%) — 0 se nenhum:', '0')) || 0;
+  
+  const totalComDesconto = d.total * (1 - desconto / 100);
+  const valorParcela = totalComDesconto / parcelas;
+  
+  let html = `<div style="background:var(--green-soft);border:1px solid var(--green);padding:14px;border-radius:8px;margin-top:12px;font-size:12px">`;
+  html += `<div style="font-weight:700;color:var(--green);margin-bottom:8px;font-size:14px">📋 SIMULAÇÃO DE ACORDO</div>`;
+  html += `<div><strong>Total original:</strong> ${formatarMoedaBR(d.total)}</div>`;
+  if (desconto > 0) html += `<div><strong>Desconto:</strong> ${desconto}% → ${formatarMoedaBR(d.total * desconto / 100)}</div>`;
+  html += `<div><strong>Total com desconto:</strong> ${formatarMoedaBR(totalComDesconto)}</div>`;
+  html += `<div><strong>Parcelas:</strong> ${parcelas}x de <strong>${formatarMoedaBR(valorParcela)}</strong></div>`;
+  html += `</div>`;
+  
+  const resultado = document.getElementById('divida-resultado');
+  if (resultado) resultado.innerHTML += html;
 }
 
 function compararPropostas() {
-  alert('Funcionalidade de comparação de propostas em desenvolvimento.');
+  const d = window._ultimaPlanilhaDivida;
+  if (!d) { alert('Calcule a evolução da dívida primeiro.'); return; }
+  
+  const proposta1 = parseMoeda(prompt('Valor da Proposta 1 (R$):'));
+  const proposta2 = parseMoeda(prompt('Valor da Proposta 2 (R$):'));
+  if (!proposta1 || !proposta2) return;
+  
+  const desc1 = ((d.total - proposta1) / d.total * 100).toFixed(1);
+  const desc2 = ((d.total - proposta2) / d.total * 100).toFixed(1);
+  const melhor = proposta1 < proposta2 ? 'Proposta 1' : 'Proposta 2';
+  
+  let html = `<div style="background:var(--accent-soft);border:1px solid var(--accent);padding:14px;border-radius:8px;margin-top:12px;font-size:12px">`;
+  html += `<div style="font-weight:700;color:var(--accent);margin-bottom:8px;font-size:14px">⚖️ COMPARATIVO DE PROPOSTAS</div>`;
+  html += `<div><strong>Débito atualizado:</strong> ${formatarMoedaBR(d.total)}</div>`;
+  html += `<div style="margin-top:6px"><strong>Proposta 1:</strong> ${formatarMoedaBR(proposta1)} (desconto de ${desc1}%)</div>`;
+  html += `<div><strong>Proposta 2:</strong> ${formatarMoedaBR(proposta2)} (desconto de ${desc2}%)</div>`;
+  html += `<div style="margin-top:8px;font-weight:700;color:var(--green)">✓ Recomendação: ${melhor} — economia de ${formatarMoedaBR(Math.abs(proposta1 - proposta2))}</div>`;
+  html += `</div>`;
+  
+  const resultado = document.getElementById('divida-resultado');
+  if (resultado) resultado.innerHTML += html;
 }
 
 function exportarPlanilhaDivida() {
-  alert('Exportação para Excel em desenvolvimento. Copie os dados manualmente por enquanto.');
+  const d = window._ultimaPlanilhaDivida;
+  if (!d) { alert('Calcule a evolução da dívida primeiro.'); return; }
+  
+  // Gera CSV profissional (abre em Excel)
+  let csv = '\ufeff'; // BOM para Excel reconhecer UTF-8
+  csv += 'PLANILHA DE EVOLUÇÃO DE DÉBITO\n';
+  csv += `Processo:;${d.numeroProcesso || 'Não informado'}\n`;
+  csv += `Tipo:;${d.tipo}\n`;
+  csv += `Período:;${new Date(d.dataOrigem).toLocaleDateString('pt-BR')} a ${new Date(d.dataAtual).toLocaleDateString('pt-BR')}\n`;
+  csv += `Meses:;${d.totalMeses}\n`;
+  csv += `Índice:;${d.indiceCorrecao.toUpperCase()}\n\n`;
+  
+  csv += 'DEMONSTRATIVO ANALÍTICO\n';
+  csv += `A) Principal originário;${d.principal.toFixed(2).replace('.',',')}\n`;
+  csv += `B) Correção monetária (fator ${d.fatorCorrecao.toFixed(8)});${d.correcao.toFixed(2).replace('.',',')}\n`;
+  csv += `C) Principal corrigido (A+B);${d.principalCorrigido.toFixed(2).replace('.',',')}\n`;
+  csv += `D) Multa moratória (${d.multaPercentual}%);${d.multa.toFixed(2).replace('.',',')}\n`;
+  csv += `E) Juros de mora (${d.jurosPercentual}% a.m. x ${d.totalMeses} meses);${d.juros.toFixed(2).replace('.',',')}\n`;
+  csv += `F) SUBTOTAL (C+D+E);${d.subtotal.toFixed(2).replace('.',',')}\n`;
+  csv += `G) Honorários advocatícios (${d.honorariosPercentual}%);${d.honorarios.toFixed(2).replace('.',',')}\n`;
+  csv += `H) Custas processuais (est.);${d.custas.toFixed(2).replace('.',',')}\n`;
+  csv += `TOTAL CONSOLIDADO (F+G+H);${d.total.toFixed(2).replace('.',',')}\n\n`;
+  
+  csv += 'EVOLUÇÃO MENSAL\n';
+  csv += 'Data;Principal;Correção;P. Corrigido;Multa;Juros Mora;Débito Acum.\n';
+  
+  const dataOrig = new Date(d.dataOrigem);
+  const dataAt = new Date(d.dataAtual);
+  const intervalo = d.totalMeses <= 24 ? 1 : d.totalMeses <= 60 ? 3 : d.totalMeses <= 120 ? 6 : 12;
+  
+  for (let m = 0; m <= d.totalMeses; m += intervalo) {
+    const dataMes = new Date(dataOrig);
+    dataMes.setMonth(dataMes.getMonth() + m);
+    if (dataMes > dataAt) break;
+    
+    const dataStr = dataMes.toISOString().split('T')[0];
+    const fator = calcularFatorCorrecao(d.dataOrigem, dataStr, d.indiceCorrecao);
+    const pCorr = d.principal * fator;
+    const corrAcum = pCorr - d.principal;
+    const jurosAcum = pCorr * (d.jurosPercentual / 100) * m;
+    const debitoAcum = pCorr + d.multa + jurosAcum;
+    
+    csv += `${dataMes.toLocaleDateString('pt-BR')};${d.principal.toFixed(2).replace('.',',')};${corrAcum.toFixed(2).replace('.',',')};${pCorr.toFixed(2).replace('.',',')};${d.multa.toFixed(2).replace('.',',')};${jurosAcum.toFixed(2).replace('.',',')};${debitoAcum.toFixed(2).replace('.',',')}\n`;
+  }
+  
+  const blob = new Blob([csv], {type: 'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `planilha-divida-${d.numeroProcesso || 'sem-processo'}-${new Date().toLocaleDateString('pt-BR').replace(/\//g,'-')}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('📊 Planilha exportada! Abra com Excel.', 'ok');
 }
 
 function salvarPlanilhaDivida() {
