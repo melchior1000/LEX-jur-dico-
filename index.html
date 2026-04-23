@@ -3961,7 +3961,7 @@ function renderEstatisticas(){
     if(prob<45 || (prazoLocal!=null && prazoLocal<90) || p.status==='URGENTE'){classe='alto';cor='var(--red)';label='Alto';}
     else if(prob<65 || (prazoLocal!=null && prazoLocal<=180)){classe='medio';cor='var(--gold)';label='Médio';}
     return {id:p.id,nome:p.nome,tribunal:p.tribunal,prob,prazoLocal,classe,cor,label};
-  }).sort((a,b)=>({alto:0,medio:1,baixo:2}[a.classe]-({alto:0,medio:1,baixo:2}[b.classe)) || a.prob-b.prob).slice(0,20);
+  }).sort((a,b)=>({alto:0,medio:1,baixo:2}[a.classe])-({alto:0,medio:1,baixo:2}[b.classe]) || a.prob-b.prob).slice(0,20);
   const topValor = ps.slice().sort((a,b)=>(Number(b.valor)||0)-(Number(a.valor)||0)).slice(0,5);
   const topUrg = ps.slice().sort((a,b)=>{
     const da = diasRestantes(a.prazo), db = diasRestantes(b.prazo);
