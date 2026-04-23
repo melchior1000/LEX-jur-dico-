@@ -13,6 +13,7 @@
   --accent:#4f6ef7;--accent-soft:#4f6ef722;
   --red:#e84545;--red-soft:#e8454520;--orange:#f0832a;--orange-soft:#f0832a20;
   --green:#2ec97e;--green-soft:#2ec97e20;--cyan:#1ab8d8;--purple:#9b6ef7;--gold:#c9a84c;
+  --setor-autuacao:#f0832a;--setor-admin:#4f6ef7;--setor-judicial:#c9a84c;
 }
 
 /* MODO DIA */
@@ -192,8 +193,8 @@ nav{padding:18px 12px;flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-colo
 .secao-count{background:var(--border);color:var(--text2);font-size:10px;padding:2px 8px;border-radius:20px;}
 
 /* PROCESSO CARD */
-.proc-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 22px;margin-bottom:8px;cursor:pointer;border-left:3px solid transparent;transition:all .16s;overflow:hidden;word-break:break-word;}
-.proc-card:hover{background:var(--surface2);border-color:var(--border2);}
+.proc-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 22px;margin-bottom:8px;cursor:pointer;border-left:3px solid transparent;transition:all .22s ease;overflow:hidden;word-break:break-word;box-shadow:0 4px 16px #00000014;}
+.proc-card:hover{background:var(--surface2);border-color:var(--border2);transform:translateY(-1px);box-shadow:0 8px 20px #00000026;}
 .pc-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}
 .pc-nome{font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:600;color:var(--text);margin-bottom:3px;overflow-wrap:break-word;word-break:break-word;min-width:0;}
 .pc-partes{font-size:12px;color:var(--text2);font-weight:400;overflow-wrap:break-word;word-break:break-word;}
@@ -550,6 +551,7 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
     <div class="nav-section">Principal</div>
     <button class="nav-btn active" onclick="ir('painel',this)"><span class="nav-icon">◈</span> Painel Geral</button>
     <button class="nav-btn" onclick="ir('processos',this)"><span class="nav-icon">⊞</span> Processos</button>
+    <button class="nav-btn" onclick="ir('autuacao',this)"><span class="nav-icon">🗂</span> Autuação</button>
     <button class="nav-btn" onclick="ir('processos_admin',this)"><span class="nav-icon">▣</span> Processo Administrativo</button>
     <button class="nav-btn" onclick="ir('prazos',this)"><span class="nav-icon">◷</span> Prazos</button>
     <button class="nav-btn" onclick="ir('calendario',this)"><span class="nav-icon">📅</span> Calendário</button>
@@ -634,7 +636,7 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
   <div class="mob-nav-items">
     <button class="mob-nav-btn active" id="mob-painel" onclick="ir('painel',null);mobActive('mob-painel')"><span>◈</span>Painel</button>
     <button class="mob-nav-btn" id="mob-processos" onclick="ir('processos',null);mobActive('mob-processos')"><span>⊞</span>Procs</button>
-    <button class="mob-nav-btn" id="mob-proc-admin" onclick="ir('processos_admin',null);mobActive('mob-proc-admin')"><span>▣</span>Admin</button>
+    <button class="mob-nav-btn" id="mob-autuacao" onclick="ir('autuacao',null);mobActive('mob-autuacao')"><span>🗂</span>Autuação</button>
     <button class="mob-nav-btn" id="mob-agenda" onclick="ir('agenda',null);mobActive('mob-agenda')"><span>📇</span>Contatos</button>
     <button class="mob-nav-btn" id="mob-mensagens" onclick="ir('mensagens',null);mobActive('mob-mensagens')"><span>💬</span>Msgs</button>
     <button class="mob-nav-btn" id="mob-menu" onclick="toggleSidebar()"><span>☰</span>Menu ▸</button>
@@ -684,6 +686,13 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
         <select class="fs" id="f-tipo">
           <option value="judicial">Judicial</option>
           <option value="administrativo">Administrativo</option>
+        </select>
+      </div>
+      <div class="fg"><label class="fl">Setor</label>
+        <select class="fs" id="f-setor">
+          <option value="autuacao">Autuação</option>
+          <option value="administrativo">Administrativo</option>
+          <option value="judicial">Judicial</option>
         </select>
       </div>
       <div class="fg"><label class="fl">Tribunal</label><input class="fi" id="f-trib" placeholder="Ex: TJMG, TRF-6, STJ"></div>
@@ -3605,9 +3614,9 @@ function ir(p,btn){
   pag=p; procAtivo=null; fecharSidebar(); esconderBackBar();
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   if(btn) btn.classList.add('active');
-  const t={painel:'Painel Geral',processos:'Processos',processos_admin:'Processo Administrativo',prazos:'Prazos',calendario:'Calendário',estatisticas:'Estatísticas',juris:'Jurisprudência',peticao:'Gerador de Peça',juizes:'Perfil de Juízes',senhas:'Gestão de Senhas',telegram:'Telegram Bot',mensagens:'Central de Mensagens',agenda:'Agenda / Contatos',preparacao:'Em Preparação',agentes:'Agentes IA',pje:'Integração PJe'};
+  const t={painel:'Painel Geral',processos:'Processos',autuacao:'Autuação',processos_admin:'Processo Administrativo',prazos:'Prazos',calendario:'Calendário',estatisticas:'Estatísticas',juris:'Jurisprudência',peticao:'Gerador de Peça',juizes:'Perfil de Juízes',senhas:'Gestão de Senhas',telegram:'Telegram Bot',mensagens:'Central de Mensagens',agenda:'Agenda / Contatos',preparacao:'Em Preparação',agentes:'Agentes IA',pje:'Integração PJe'};
   document.getElementById('page-title').textContent=t[p]||p;
-  ({painel:renderPainel,processos:renderProcessos,processos_admin:renderProcessosAdministrativos,prazos:renderPrazos,calendario:renderCalendario,estatisticas:renderEstatisticas,juris:renderJuris,peticao:renderPeticao,juizes:renderJuizes,senhas:renderGestaoSenhas,telegram:renderTelegram,mensagens:renderCentralMensagens,agenda:renderAgenda,preparacao:renderPreparacao,agentes:renderAgentes,pje:renderPje})[p]?.();
+  ({painel:renderPainel,processos:renderProcessos,autuacao:renderAutuacao,processos_admin:renderProcessosAdministrativos,prazos:renderPrazos,calendario:renderCalendario,estatisticas:renderEstatisticas,juris:renderJuris,peticao:renderPeticao,juizes:renderJuizes,senhas:renderGestaoSenhas,telegram:renderTelegram,mensagens:renderCentralMensagens,agenda:renderAgenda,preparacao:renderPreparacao,agentes:renderAgentes,pje:renderPje})[p]?.();
 }
 
 // ═══════════════ BUSCA ═══════════════
@@ -3719,18 +3728,21 @@ function secao(label,cor,lista){
   return `<div class="secao-titulo" style="color:${cor}"><div style="width:8px;height:8px;border-radius:50%;background:${cor};flex-shrink:0"></div>${label.toUpperCase()}<div class="secao-linha"></div><div class="secao-count">${lista.length}</div></div>${lista.map(p=>cardProc(p)).join('')}`;
 }
 function cardProc(p){
-  const tipoProc = String(p.tipo||'').toLowerCase();
-  const ehAdmin = tipoProc === 'administrativo';
-  const corBase = ehAdmin ? 'var(--accent)' : (COR[p.area]||'var(--gold)');
+  const setorProc = _normalizarSetorProcLocal(p);
+  const ehAutuacao = setorProc === 'autuacao';
+  const ehAdmin = setorProc === 'administrativo';
+  const corBase = ehAutuacao ? 'var(--setor-autuacao)' : (ehAdmin ? 'var(--setor-admin)' : 'var(--setor-judicial)');
   const cor=corBase, sc=SC[p.status]||'#888', pf=fmtPrazo(p);
-  const chipTipo = ehAdmin
-    ? '<span class="tag" style="background:var(--accent)22;color:var(--accent);border-color:var(--accent)">ADMINISTRATIVO</span>'
-    : '<span class="tag" style="background:var(--gold)22;color:var(--gold);border-color:var(--gold)">JUDICIAL</span>';
+  const chipTipo = ehAutuacao
+    ? '<span class="tag" style="background:var(--setor-autuacao)22;color:var(--setor-autuacao);border-color:var(--setor-autuacao)">AUTUAÇÃO</span>'
+    : (ehAdmin
+      ? '<span class="tag" style="background:var(--setor-admin)22;color:var(--setor-admin);border-color:var(--setor-admin)">ADMINISTRATIVO</span>'
+      : '<span class="tag" style="background:var(--setor-judicial)22;color:var(--setor-judicial);border-color:var(--setor-judicial)">JUDICIAL</span>');
   const d=p.prazo?diasRestantes(p.prazo):null;
   const chip=d!==null&&d<=5&&d>=0?`<span class="chip-alerta">⚠ ${d===0?'HOJE':d+'d'}</span>`:'';
   // V12: badge de "tempo sem movimentação"
   let chipParado='';
-  if(['URGENTE','ATIVO','RECURSAL'].includes(p.status)){
+  if(['URGENTE','ATIVO','RECURSAL','EM_PREP'].includes(p.status)){
     const ands=p.andamentos||[];
     if(ands.length){
       const [dd,mm,aa]=(ands[0].data||'').split('/').map(Number);
@@ -3743,7 +3755,7 @@ function cardProc(p){
       }
     }
   }
-  return `<div class="proc-card" style="border-left-color:${cor}${ehAdmin?';box-shadow:inset 0 0 0 1px var(--accent)33':''}" onclick="abrirProc(${p.id})">
+  return `<div class="proc-card" style="border-left-color:${cor}${ehAutuacao?';box-shadow:inset 0 0 0 1px var(--setor-autuacao)33':(ehAdmin?';box-shadow:inset 0 0 0 1px var(--setor-admin)33':'')}" onclick="abrirProc(${p.id})">
     <div class="pc-top"><div><div class="pc-nome">${p.nome}</div><div class="pc-partes">${p.partes}</div></div>
     <div class="pc-right"><div class="pc-tribunal">${p.tribunal}</div><div class="pc-prazo" style="color:${pf.cor}">${pf.txt}</div></div></div>
     <div class="pc-bottom"><span class="badge" style="background:${sc}22;color:${sc}">${p.status}</span>${chipTipo}<span class="tag">${p.area}</span>${chip}${chipParado}${(p.frentes||[]).slice(0,2).map(f=>`<span class="tag">${f}</span>`).join('')}</div>
@@ -3763,7 +3775,7 @@ function renderProcessos(){ renderProcessosFiltrado(filtroAtivo); }
 
 function renderProcessosAdministrativos(){
   const ps = getProcs();
-  const admin = ps.filter(p => String(p.tipo||'').toLowerCase() === 'administrativo');
+  const admin = ps.filter(p => _normalizarSetorProcLocal(p) === 'administrativo');
   const porGrupo = {};
   admin.forEach(p => {
     const g = p.grupo || 'Outros';
@@ -3776,6 +3788,23 @@ function renderProcessosAdministrativos(){
   });
   const topo = `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap"><div style="font-size:11px;color:var(--text3);letter-spacing:1px">PROCESSOS ADMINISTRATIVOS</div><button class="btn-outline" style="padding:6px 12px;font-size:11px" onclick="ir('processos',_btnNavProcessosPrincipal())">Ver todos</button></div>`;
   document.getElementById('content').innerHTML = topo + (cardsHtml || '<div style="font-size:13px;color:var(--text3);padding:20px">Nenhum processo administrativo cadastrado.</div>');
+}
+
+function renderAutuacao(){
+  const ps = getProcs();
+  const aut = ps.filter(p => _normalizarSetorProcLocal(p) === 'autuacao');
+  const porGrupo = {};
+  aut.forEach(p => {
+    const g = p.grupo || 'Outros';
+    if(!porGrupo[g]) porGrupo[g] = [];
+    porGrupo[g].push(p);
+  });
+  let cardsHtml = '';
+  Object.keys(porGrupo).sort().forEach(g => {
+    cardsHtml += `<div style="margin-bottom:4px"><div class="secao-titulo" style="color:var(--setor-autuacao)"><div style="width:8px;height:8px;border-radius:50%;background:var(--setor-autuacao);flex-shrink:0"></div>${g.toUpperCase()}<div class="secao-linha"></div><div class="secao-count">${porGrupo[g].length}</div></div>${porGrupo[g].map(p=>cardProc(p)).join('')}</div>`;
+  });
+  const topo = `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap"><div style="font-size:11px;color:var(--text3);letter-spacing:1px">SETOR DE AUTUAÇÃO (COBRANÇA A CADA 10 DIAS)</div><button class="btn-outline" style="padding:6px 12px;font-size:11px" onclick="ir('processos',_btnNavProcessosPrincipal())">Ver todos</button></div>`;
+  document.getElementById('content').innerHTML = topo + (cardsHtml || '<div style="font-size:13px;color:var(--text3);padding:20px">Nenhum processo em autuação.</div>');
 }
 
 function renderProcessosFiltrado(filtro){
@@ -3806,12 +3835,25 @@ function _normalizarTipoProcLocal(p){
   return area.includes('administ') ? 'administrativo' : 'judicial';
 }
 
+function _normalizarSetorProcLocal(p){
+  const s = String((p && p.setor) || '').toLowerCase().trim();
+  if(s === 'autuacao' || s === 'autuação') return 'autuacao';
+  if(s === 'administrativo') return 'administrativo';
+  if(s === 'judicial') return 'judicial';
+  const tipo = _normalizarTipoProcLocal(p);
+  const st = String((p && p.status) || '').toUpperCase();
+  if(st === 'EM_PREP') return 'autuacao';
+  return tipo === 'administrativo' ? 'administrativo' : 'judicial';
+}
+
 function _normalizarTiposProcessosLocais(){
   const ps = getProcs();
   let mudou = false;
   ps.forEach(p => {
     const n = _normalizarTipoProcLocal(p);
     if((p.tipo || '') !== n) { p.tipo = n; mudou = true; }
+    const s = _normalizarSetorProcLocal(p);
+    if((p.setor || '') !== s) { p.setor = s; mudou = true; }
   });
   if(mudou) saveProcs(ps);
 }
@@ -4663,7 +4705,7 @@ function confirmarAndamento(id, btn){
 
 // ═══════════════ CADASTRO/EDIÇÃO ═══════════════
 function abrirModal(){document.getElementById('modal-titulo').textContent='Cadastrar Processo';document.getElementById('modal').removeAttribute('data-edit');document.getElementById('modal-bg').classList.add('open');}
-function fecharModal(){document.getElementById('modal-bg').classList.remove('open');['f-nome','f-grupo','f-num','f-partes','f-trib','f-prazo','f-desc','f-provas','f-frentes','f-valor','f-proxacao','f-honor','f-honor-status','f-prev-dist','f-docs-falt'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';}); const ft=document.getElementById('f-tipo'); if(ft) ft.value='judicial';}
+function fecharModal(){document.getElementById('modal-bg').classList.remove('open');['f-nome','f-grupo','f-num','f-partes','f-trib','f-prazo','f-desc','f-provas','f-frentes','f-valor','f-proxacao','f-honor','f-honor-status','f-prev-dist','f-docs-falt'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';}); const ft=document.getElementById('f-tipo'); if(ft) ft.value='judicial'; const fs=document.getElementById('f-setor'); if(fs) fs.value='autuacao';}
 function editarProc(id){
   const p=getProcs().find(x=>x.id===id);if(!p)return;
   document.getElementById('f-nome').value=p.nome||'';
@@ -4672,6 +4714,7 @@ function editarProc(id){
   document.getElementById('f-grupo').value=p.grupo||'';
   document.getElementById('f-area').value=p.area||'Cível';
   const ft=document.getElementById('f-tipo'); if(ft) ft.value=(p.tipo||'judicial');
+  const fs=document.getElementById('f-setor'); if(fs) fs.value=(p.setor||_normalizarSetorProcLocal(p)||'autuacao');
   document.getElementById('f-trib').value=p.tribunal||'';
   document.getElementById('f-status').value=p.status||'ATIVO';
   document.getElementById('f-prazo').value=p.prazoReal||p.prazo||'';
@@ -4694,7 +4737,8 @@ function salvarProc(){
   let statusVal=document.getElementById('f-status').value;
   if(prazo && diasRestantes(prazo)<=7) statusVal='URGENTE';
   else if(statusVal==='URGENTE') statusVal='ATIVO';
-  const dados={nome,grupo:document.getElementById('f-grupo').value||'Outros',tipo:document.getElementById('f-tipo')?.value||'judicial',numero:document.getElementById('f-num').value,partes:document.getElementById('f-partes').value,area,tribunal:document.getElementById('f-trib').value,status:statusVal,prazo,prazoReal,valor:document.getElementById('f-valor').value,proxacao:document.getElementById('f-proxacao')?.value||'',honor:document.getElementById('f-honor')?.value||'',honorStatus:document.getElementById('f-honor-status')?.value||'',descricao:document.getElementById('f-desc').value,provas:document.getElementById('f-provas').value.split(',').map(s=>s.trim()).filter(Boolean),frentes:document.getElementById('f-frentes').value.split(',').map(s=>s.trim()).filter(Boolean),prevDist:statusVal==='EM_PREP'?(document.getElementById('f-prev-dist')?.value||''):'',docsFaltantes:statusVal==='EM_PREP'?(document.getElementById('f-docs-falt')?.value||''):''};
+  const setorVal=document.getElementById('f-setor')?.value||'autuacao';
+  const dados={nome,grupo:document.getElementById('f-grupo').value||'Outros',tipo:document.getElementById('f-tipo')?.value||'judicial',setor:setorVal,numero:document.getElementById('f-num').value,partes:document.getElementById('f-partes').value,area,tribunal:document.getElementById('f-trib').value,status:setorVal==='autuacao'?'EM_PREP':statusVal,prazo,prazoReal,valor:document.getElementById('f-valor').value,proxacao:document.getElementById('f-proxacao')?.value||'',honor:document.getElementById('f-honor')?.value||'',honorStatus:document.getElementById('f-honor-status')?.value||'',descricao:document.getElementById('f-desc').value,provas:document.getElementById('f-provas').value.split(',').map(s=>s.trim()).filter(Boolean),frentes:document.getElementById('f-frentes').value.split(',').map(s=>s.trim()).filter(Boolean),prevDist:(setorVal==='autuacao'||statusVal==='EM_PREP')?(document.getElementById('f-prev-dist')?.value||''):'',docsFaltantes:(setorVal==='autuacao'||statusVal==='EM_PREP')?(document.getElementById('f-docs-falt')?.value||''):''};
   if(editId){const idx=ps.findIndex(x=>x.id==editId);if(idx>-1) ps[idx]={...ps[idx],...dados};}
   else ps.push({id:Date.now(),...dados,andamentos:[],arquivos:[]});
   const _editedId=document.getElementById('modal').getAttribute('data-edit');saveProcs(ps); atualizarUrgentes(); fecharModal(); setTimeout(sincronizarComBot,500);
@@ -6736,7 +6780,7 @@ Número CNJ (ou vazio para preencher depois):`);
   savePrep(getPrep().filter(x=>x.id!==id));
   try{
     const ps=getProcs();
-    ps.push({id:Date.now(),nome:c.nome,grupo:'Outros',numero:num.trim()||'',partes:c.partes||'',area:c.area||'Cível',tribunal:c.tribunal||'',status:'ATIVO',prazo:'',prazoReal:'',proxacao:'Acompanhar distribuição inicial',valor:c.valor||'',descricao:(c.obs||'')+(c.tipo?'\nTipo: '+c.tipo:''),frentes:[c.tipo||''].filter(Boolean),provas:[],andamentos:[{data:new Date().toLocaleDateString('pt-BR'),txt:'Distribuído. Nº: '+(num.trim()||'a confirmar')+(c.previsao?'\nPrevisão original: '+c.previsao:'')}],arquivos:[]});
+    ps.push({id:Date.now(),nome:c.nome,grupo:'Outros',numero:num.trim()||'',partes:c.partes||'',area:c.area||'Cível',tipo:'judicial',setor:'judicial',tribunal:c.tribunal||'',status:'ATIVO',prazo:'',prazoReal:'',proxacao:'Acompanhar distribuição inicial',valor:c.valor||'',descricao:(c.obs||'')+(c.tipo?'\nTipo: '+c.tipo:''),frentes:[c.tipo||''].filter(Boolean),provas:[],andamentos:[{data:new Date().toLocaleDateString('pt-BR'),txt:'Distribuído. Nº: '+(num.trim()||'a confirmar')+(c.previsao?'\nPrevisão original: '+c.previsao:'')}],arquivos:[]});
     saveProcs(ps);atualizarUrgentes();toast('✓ Processo criado como ATIVO!','ok');
   }catch(e){toast('Removido da preparação.','ok');}
   renderPreparacao();ir('processos',document.querySelector('.nav-btn[onclick*="processos"]'));
