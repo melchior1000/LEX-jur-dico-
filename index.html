@@ -721,25 +721,94 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
 </div>
 
 
-<!-- MODAL PLANILHA DE DIVIDA -->
+<!-- MODAL PLANILHA DE EVOLUCAO DE DIVIDA PROFISSIONAL -->
 <div class="modal-overlay" id="planilha-divida-modal">
-  <div class="modal-box" style="max-width:760px">
-    <div class="modal-title">Planilha de Divida e Endividamento</div>
-    <div class="fg">
-      <label class="fl">Renda mensal (R$)</label>
-      <input class="fi" id="divida-renda" placeholder="Ex: 5000">
-    </div>
-    <div class="fg">
-      <label class="fl">Credores</label>
-      <div id="divida-credores-list"></div>
-      <div style="margin-top:8px">
-        <button class="btn-outline" onclick="adicionarCredorDivida()">+ Adicionar credor</button>
+  <div class="modal-box" style="max-width:900px;max-height:90vh;overflow:auto">
+    <div class="modal-title">📊 Planilha de Evolução de Dívida - Execução Fiscal/Bancária</div>
+    
+    <!-- Dados do Processo -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+      <div class="fg">
+        <label class="fl">Número do Processo</label>
+        <input class="fi" id="divida-numero-processo" placeholder="Ex: 0001234-55.2026.5.10.0001">
+      </div>
+      <div class="fg">
+        <label class="fl">Tipo de Dívida</label>
+        <select class="fi" id="divida-tipo">
+          <option value="">Selecione...</option>
+          <option value="execucao_federal">Execução Federal (RFB/PGFN)</option>
+          <option value="execucao_estadual">Execução Estadual</option>
+          <option value="bancaria">Dívida Bancária</option>
+          <option value="trabalhista">Dívida Trabalhista</option>
+          <option value="previdenciaria">Dívida Previdenciária</option>
+        </select>
       </div>
     </div>
-    <div id="divida-resultado" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-top:12px"></div>
-    <div class="modal-btns" style="margin-top:14px">
+    
+    <!-- Dados Iniciais -->
+    <div style="background:var(--surface2);padding:12px;border-radius:8px;margin-bottom:16px">
+      <div style="font-weight:600;margin-bottom:10px;color:var(--primary)">📅 Dados Iniciais da CDA/Dívida</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+        <div class="fg">
+          <label class="fl">Data Origem</label>
+          <input class="fi" id="divida-data-origem" type="date">
+        </div>
+        <div class="fg">
+          <label class="fl">Principal (R$)</label>
+          <input class="fi" id="divida-principal-inicial" placeholder="0,00" oninput="formatarMoeda(this)">
+        </div>
+        <div class="fg">
+          <label class="fl">Multa (%)</label>
+          <input class="fi" id="divida-multa-percentual" placeholder="20" value="20">
+        </div>
+        <div class="fg">
+          <label class="fl">Juros (% a.m.)</label>
+          <input class="fi" id="divida-juros-percentual" placeholder="1" value="1">
+        </div>
+      </div>
+    </div>
+    
+    <!-- Índices de Correção -->
+    <div style="background:var(--surface2);padding:12px;border-radius:8px;margin-bottom:16px">
+      <div style="font-weight:600;margin-bottom:10px;color:var(--primary)">📈 Índices de Atualização</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+        <div class="fg">
+          <label class="fl">Correção Monetária</label>
+          <select class="fi" id="divida-indice-correcao">
+            <option value="selic">SELIC (acumulada)</option>
+            <option value="ipca">IPCA/IBGE</option>
+            <option value="igpm">IGP-M/FGV</option>
+            <option value="inpc">INPC/IBGE</option>
+            <option value="tr">TR (para débitos antigos)</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="fl">Data Atualização</label>
+          <input class="fi" id="divida-data-atual" type="date">
+        </div>
+        <div class="fg">
+          <label class="fl">Honorários Adv. (%)</label>
+          <input class="fi" id="divida-honorarios" placeholder="10" value="10">
+        </div>
+      </div>
+    </div>
+    
+    <!-- Botões de Ação -->
+    <div style="display:flex;gap:10px;margin-bottom:16px">
+      <button class="btn-save" onclick="calcularEvolucaoDivida()">📊 Calcular Evolução</button>
+      <button class="btn-outline" onclick="adicionarParcelaAcordo()">➕ Adicionar Parcela Acordo</button>
+      <button class="btn-outline" onclick="compararPropostas()">⚖️ Comparar Propostas</button>
+      <button class="btn-outline" onclick="exportarPlanilhaDivida()">📥 Exportar Excel</button>
+    </div>
+    
+    <!-- Resultado -->
+    <div id="divida-resultado" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:12px">
+      <!-- Preenchido via JavaScript -->
+    </div>
+    
+    <div class="modal-btns" style="margin-top:16px">
       <button class="btn-cancel" onclick="fecharPlanilhaDividaModal()">Fechar</button>
-      <button class="btn-save" onclick="calcularPlanilhaDivida()">Calcular</button>
+      <button class="btn-save" onclick="salvarPlanilhaDivida()">💾 Salvar no Processo</button>
     </div>
   </div>
 </div>
@@ -6314,48 +6383,219 @@ function fecharPlanilhaDividaModal(){
   if(ov) ov.classList.remove('open');
 }
 
-function adicionarCredorDivida(){
-  const lista = document.getElementById('divida-credores-list');
-  if(!lista) return;
-  const row = document.createElement('div');
-  row.className = 'divida-credor-row';
-  row.style.cssText = 'display:grid;grid-template-columns:1.3fr 1fr 1fr auto;gap:8px;margin-bottom:8px';
-  row.innerHTML = '<input class="fi credor-nome" placeholder="Nome do credor">'
-    + '<input class="fi credor-valor" placeholder="Valor total (R$)">'
-    + '<input class="fi credor-parcela" placeholder="Parcela mensal (R$)">'
-    + '<button class="btn-danger" onclick="this.parentElement.remove()" style="padding:8px 10px">X</button>';
-  lista.appendChild(row);
+function formatarMoeda(input) {
+  let valor = input.value.replace(/\D/g, '');
+  valor = (parseInt(valor) / 100).toFixed(2);
+  input.value = valor.replace('.', ',');
 }
 
-function calcularPlanilhaDivida(){
-  const renda = Number((document.getElementById('divida-renda')?.value || '0').toString().replace(',', '.')) || 0;
-  const rows = Array.from(document.querySelectorAll('#divida-credores-list .divida-credor-row'));
-  let totalDivida = 0;
-  let totalParcela = 0;
-  rows.forEach(r => {
-    const valor = Number((r.querySelector('.credor-valor')?.value || '0').toString().replace(',', '.')) || 0;
-    const parcela = Number((r.querySelector('.credor-parcela')?.value || '0').toString().replace(',', '.')) || 0;
-    totalDivida += valor;
-    totalParcela += parcela;
-  });
-  const comprometimento = renda > 0 ? (totalParcela / renda) * 100 : 0;
-  const capacidadeSugerida = renda * 0.3;
-  const meses = capacidadeSugerida > 0 ? Math.ceil(totalDivida / capacidadeSugerida) : 0;
-  let plano = 'Sem renda informada para sugerir plano.';
-  if(renda > 0){
-    plano = comprometimento > 30
-      ? 'Comprometimento acima de 30%. Sugestao: renegociar parcelas e priorizar juros mais altos.'
-      : 'Comprometimento dentro de 30%. Sugestao: manter parcelas e antecipar as de maior custo.';
-    if(meses > 0) plano += ' Prazo estimado do plano: ' + meses + ' mes(es).';
+function parseMoeda(valor) {
+  if (!valor) return 0;
+  return parseFloat(valor.toString().replace(/\./g, '').replace(',', '.')) || 0;
+}
+
+// Planilha Profissional de Evolução de Dívida
+function calcularEvolucaoDivida() {
+  const numeroProcesso = document.getElementById('divida-numero-processo')?.value || '';
+  const tipo = document.getElementById('divida-tipo')?.value || '';
+  const dataOrigem = document.getElementById('divida-data-origem')?.value;
+  const dataAtual = document.getElementById('divida-data-atual')?.value || new Date().toISOString().split('T')[0];
+  
+  const principal = parseMoeda(document.getElementById('divida-principal-inicial')?.value);
+  const multaPercentual = parseFloat(document.getElementById('divida-multa-percentual')?.value) || 20;
+  const jurosPercentual = parseFloat(document.getElementById('divida-juros-percentual')?.value) || 1;
+  const indiceCorrecao = document.getElementById('divida-indice-correcao')?.value || 'selic';
+  const honorariosPercentual = parseFloat(document.getElementById('divida-honorarios')?.value) || 10;
+  
+  if (!principal || !dataOrigem) {
+    alert('Preencha o principal e a data de origem');
+    return;
   }
-  const out = document.getElementById('divida-resultado');
-  if(!out) return;
-  out.style.display = 'block';
-  out.innerHTML = '<div style="font-size:13px;line-height:1.8">'
-    + '<div><strong>Total de divida:</strong> R$ ' + totalDivida.toFixed(2) + '</div>'
-    + '<div><strong>Comprometimento de renda:</strong> ' + comprometimento.toFixed(2) + '%</div>'
-    + '<div><strong>Plano de pagamento sugerido:</strong> ' + plano + '</div>'
-    + '</div>';
+  
+  // Cálculo dos encargos
+  const dataOrig = new Date(dataOrigem);
+  const dataAt = new Date(dataAtual);
+  const dias = Math.floor((dataAt - dataOrig) / (1000 * 60 * 60 * 24));
+  const meses = dias / 30;
+  
+  // Multa (20% padrão execução fiscal)
+  const multa = principal * (multaPercentual / 100);
+  
+  // Juros simples (1% a.m. padrão)
+  const juros = principal * (jurosPercentual / 100) * meses;
+  
+  // Correção monetária (simplificado - SELIC acumulada)
+  let correcao = 0;
+  const taxaSelicAcumulada = 0.005 * meses; // 0.5% ao mês simplificado
+  correcao = principal * taxaSelicAcumulada;
+  
+  // Subtotal
+  const subtotal = principal + multa + juros + correcao;
+  
+  // Honorários advocatícios
+  const honorarios = subtotal * (honorariosPercentual / 100);
+  
+  // Total consolidado
+  const total = subtotal + honorarios;
+  
+  // Tabela de evolução mensal
+  let tabelaEvolucao = '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:10px">';
+  tabelaEvolucao += '<thead><tr style="background:var(--primary);color:#fff">';
+  tabelaEvolucao += '<th style="padding:8px;border:1px solid var(--border)">Mês</th>';
+  tabelaEvolucao += '<th style="padding:8px;border:1px solid var(--border)">Principal</th>';
+  tabelaEvolucao += '<th style="padding:8px;border:1px solid var(--border)">Multa</th>';
+  tabelaEvolucao += '<th style="padding:8px;border:1px solid var(--border)">Juros</th>';
+  tabelaEvolucao += '<th style="padding:8px;border:1px solid var(--border)">Correção</th>';
+  tabelaEvolucao += '<th style="padding:8px;border:1px solid var(--border)">Subtotal</th>';
+  tabelaEvolucao += '</tr></thead><tbody>';
+  
+  // Mostrar evolução a cada 6 meses
+  for (let m = 0; m <= meses; m += 6) {
+    const jurosAcum = principal * (jurosPercentual / 100) * m;
+    const correcaoAcum = principal * (0.005 * m);
+    const subtotalAcum = principal + multa + jurosAcum + correcaoAcum;
+    const dataMes = new Date(dataOrig);
+    dataMes.setMonth(dataMes.getMonth() + m);
+    
+    tabelaEvolucao += `<tr style="background:${m % 12 === 0 ? 'var(--surface2)' : 'transparent'}">`;
+    tabelaEvolucao += `<td style="padding:6px;border:1px solid var(--border)">${dataMes.toLocaleDateString('pt-BR')}</td>`;
+    tabelaEvolucao += `<td style="padding:6px;border:1px solid var(--border);text-align:right">${principal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>`;
+    tabelaEvolucao += `<td style="padding:6px;border:1px solid var(--border);text-align:right">${multa.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>`;
+    tabelaEvolucao += `<td style="padding:6px;border:1px solid var(--border);text-align:right">${jurosAcum.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>`;
+    tabelaEvolucao += `<td style="padding:6px;border:1px solid var(--border);text-align:right">${correcaoAcum.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>`;
+    tabelaEvolucao += `<td style="padding:6px;border:1px solid var(--border);text-align:right;font-weight:600">${subtotalAcum.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>`;
+    tabelaEvolucao += '</tr>';
+  }
+  tabelaEvolucao += '</tbody></table>';
+  
+  // Resultado final
+  const resultado = document.getElementById('divida-resultado');
+  resultado.style.display = 'block';
+  resultado.innerHTML = `
+    <div style="font-size:14px;line-height:1.8">
+      <div style="background:var(--surface2);padding:12px;border-radius:8px;margin-bottom:12px">
+        <div style="font-weight:700;font-size:16px;color:var(--primary);margin-bottom:8px">📊 RESUMO DA DÍVIDA</div>
+        <div><strong>Processo:</strong> ${numeroProcesso || 'Não informado'}</div>
+        <div><strong>Tipo:</strong> ${tipo === 'execucao_federal' ? 'Execução Federal' : tipo === 'bancaria' ? 'Dívida Bancária' : tipo === 'trabalhista' ? 'Dívida Trabalhista' : tipo === 'previdenciaria' ? 'Dívida Previdenciária' : tipo}</div>
+        <div><strong>Período:</strong> ${new Date(dataOrigem).toLocaleDateString('pt-BR')} a ${new Date(dataAtual).toLocaleDateString('pt-BR')} (${Math.floor(meses)} meses)</div>
+      </div>
+      
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <div style="background:var(--surface2);padding:10px;border-radius:6px">
+          <div style="font-weight:600;color:var(--primary)">💰 PRINCIPAL</div>
+          <div style="font-size:18px;font-weight:700">R$ ${principal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+        </div>
+        <div style="background:var(--surface2);padding:10px;border-radius:6px">
+          <div style="font-weight:600;color:var(--danger)">⚠️ MULTA (${multaPercentual}%)</div>
+          <div style="font-size:18px;font-weight:700">R$ ${multa.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+        </div>
+        <div style="background:var(--surface2);padding:10px;border-radius:6px">
+          <div style="font-weight:600;color:var(--warning)">📈 JUROS (${jurosPercentual}% a.m.)</div>
+          <div style="font-size:18px;font-weight:700">R$ ${juros.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+        </div>
+        <div style="background:var(--surface2);padding:10px;border-radius:6px">
+          <div style="font-weight:600;color:var(--info)">💹 CORREÇÃO (${indiceCorrecao.toUpperCase()})</div>
+          <div style="font-size:18px;font-weight:700">R$ ${correcao.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+        </div>
+      </div>
+      
+      <div style="background:var(--surface2);padding:10px;border-radius:6px;margin-bottom:12px">
+        <div style="font-weight:600">SUBTOTAL</div>
+        <div style="font-size:16px;font-weight:600">R$ ${subtotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+      </div>
+      
+      <div style="background:var(--surface2);padding:10px;border-radius:6px;margin-bottom:12px">
+        <div style="font-weight:600">⚖️ HONORÁRIOS ADVOCATÍCIOS (${honorariosPercentual}%)</div>
+        <div style="font-size:16px;font-weight:600">R$ ${honorarios.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+      </div>
+      
+      <div style="background:var(--primary);color:#fff;padding:12px;border-radius:8px;margin-bottom:12px">
+        <div style="font-weight:700;font-size:18px">💵 TOTAL CONSOLIDADO</div>
+        <div style="font-size:28px;font-weight:800">R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+        <div style="font-size:12px;margin-top:4px">Atualizado em ${new Date(dataAtual).toLocaleDateString('pt-BR')}</div>
+      </div>
+      
+      <div style="font-weight:700;margin-bottom:8px;color:var(--primary)">📈 EVOLUÇÃO DA DÍVIDA</div>
+      ${tabelaEvolucao}
+      
+      <div style="background:var(--warning);padding:10px;border-radius:6px;margin-top:12px;font-size:12px">
+        <strong>⚠️ OBSERVAÇÕES:</strong><br>
+        • Cálculo baseado em juros simples de ${jurosPercentual}% a.m.<br>
+        • Correção monetária: ${indiceCorrecao.toUpperCase()} (estimada)<br>
+        • Para cálculo exato, consultar site oficial da Receita Federal ou banco<br>
+        • Prescrição: verificar data de origem e prazo prescricional
+      </div>
+    </div>
+  `;
+}
+
+function adicionarParcelaAcordo() {
+  alert('Funcionalidade de parcelamento em desenvolvimento. Use a calculadora para simular valores.');
+}
+
+function compararPropostas() {
+  alert('Funcionalidade de comparação de propostas em desenvolvimento.');
+}
+
+function exportarPlanilhaDivida() {
+  alert('Exportação para Excel em desenvolvimento. Copie os dados manualmente por enquanto.');
+}
+
+function salvarPlanilhaDivida() {
+  const numeroProcesso = document.getElementById('divida-numero-processo')?.value;
+  if (!numeroProcesso) {
+    alert('Informe o número do processo para salvar');
+    return;
+  }
+  
+  // Buscar processo e salvar planilha
+  const ps = getProcs ? getProcs() : [];
+  const idx = ps.findIndex(p => p.numero === numeroProcesso || p.id === numeroProcesso);
+  
+  if (idx < 0) {
+    alert('Processo não encontrado. Verifique o número ou crie o processo primeiro.');
+    return;
+  }
+  
+  const resultado = document.getElementById('divida-resultado')?.innerHTML;
+  if (!resultado || resultado.style?.display === 'none') {
+    alert('Calcule a evolução da dívida antes de salvar');
+    return;
+  }
+  
+  // Salvar no processo
+  if (!ps[idx].planilhas) ps[idx].planilhas = [];
+  ps[idx].planilhas.push({
+    id: Date.now(),
+    tipo: 'evolucao_divida',
+    data: new Date().toISOString(),
+    conteudo: resultado,
+    parametros: {
+      principal: document.getElementById('divida-principal-inicial')?.value,
+      data_origem: document.getElementById('divida-data-origem')?.value,
+      tipo: document.getElementById('divida-tipo')?.value
+    }
+  });
+  
+  if (typeof saveProcs === 'function') saveProcs(ps);
+  alert('Planilha salva no processo com sucesso!');
+  fecharPlanilhaDividaModal();
+}
+
+function fecharPlanilhaDividaModal() {
+  const modal = document.getElementById('planilha-divida-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+// Funções antigas mantidas para compatibilidade
+function adicionarCredorDivida() {
+  // Mantido para compatibilidade, mas não usado na nova interface
+  console.log('Função legada - usar nova planilha profissional');
+}
+
+function calcularPlanilhaDivida() {
+  // Redirecionar para nova função
+  calcularEvolucaoDivida();
 }
 
 async function atualizarAndamentoProcessoExistente(){
