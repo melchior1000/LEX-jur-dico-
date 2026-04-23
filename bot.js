@@ -4248,6 +4248,12 @@ async function processarMensagem(ctx, dados) {
     return await _responderCumprimento(ctx, mem, txt);
   }
 
+  // /meuid — mostra o Chat ID do Telegram (necessário pra Central de Mensagens)
+  if(low==='/meuid' || low==='/meu_id' || low==='/id') {
+    await env('🆔 Seu Chat ID: `' + ctx.chatId + '`\n\n📋 Use este número na Central de Mensagens do Lex para enviar mensagens diretamente pelo painel web.', ctx);
+    return;
+  }
+
   if(low==='/prazos') { await env(formatPrazos(getPrazos(15)), ctx); return; }
   if(low==='/status') {
     await env('Lex Bot ativo\nIA: OK\nProcessos: '+processos.length+'\nMemória sessões: '+Object.keys(MEMORIA).length+'\n'+horaBrasilia().toLocaleString('pt-BR'), ctx);
