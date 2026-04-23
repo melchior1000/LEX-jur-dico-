@@ -564,6 +564,7 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
     <input type="file" id="import-file" accept=".json" style="display:none" onchange="importarBackup(this)">
     <button class="nav-btn" onclick="ir('telegram',this)"><span class="nav-icon">✈️</span> Telegram Bot</button>
     <button class="nav-btn" onclick="ir('mensagens',this)"><span class="nav-icon">💬</span> Central Mensagens</button>
+    <button class="nav-btn" onclick="ir('agenda',this)"><span class="nav-icon">📇</span> Agenda / Contatos</button>
     <button class="nav-btn" onclick="ir('preparacao',this)"><span class="nav-icon">📋</span> Em Preparação</button>
     <button class="nav-btn" onclick="ir('agentes',this)"><span class="nav-icon">🤖</span> Agentes IA</button>
     <button class="nav-btn" id="btn-pje" onclick="ir('pje',this)"><span class="nav-icon">🔗</span> PJe <span id="_pjeDot" style="font-size:9px;color:var(--red-soft)">○</span></button>
@@ -581,7 +582,7 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
 <div id="main">
   <div class="topbar">
     <div style="display:flex;align-items:center;gap:8px;min-width:0;flex-shrink:1;">
-      <button id="hambtn" onclick="toggleSidebar()">☰</button>
+      <button id="hambtn" onclick="toggleSidebar()" title="Abrir menu lateral">☰ ◂</button>
       <div class="page-title" id="page-title" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Painel Geral</div>
       <div class="topbar-date" id="topbar-date" style="flex-shrink:0;"></div>
     </div>
@@ -632,9 +633,9 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
   <div class="mob-nav-items">
     <button class="mob-nav-btn active" id="mob-painel" onclick="ir('painel',null);mobActive('mob-painel')"><span>◈</span>Painel</button>
     <button class="mob-nav-btn" id="mob-processos" onclick="ir('processos',null);mobActive('mob-processos')"><span>⊞</span>Procs</button>
-    <button class="mob-nav-btn" id="mob-calendario" onclick="ir('calendario',null);mobActive('mob-calendario')"><span>📅</span>Agenda</button>
+    <button class="mob-nav-btn" id="mob-agenda" onclick="ir('agenda',null);mobActive('mob-agenda')"><span>📇</span>Contatos</button>
     <button class="mob-nav-btn" id="mob-mensagens" onclick="ir('mensagens',null);mobActive('mob-mensagens')"><span>💬</span>Msgs</button>
-    <button class="mob-nav-btn" id="mob-menu" onclick="toggleSidebar()"><span>☰</span>Menu</button>
+    <button class="mob-nav-btn" id="mob-menu" onclick="toggleSidebar()"><span>☰</span>Menu ▸</button>
   </div>
 </div>
 
@@ -3585,9 +3586,9 @@ function ir(p,btn){
   pag=p; procAtivo=null; fecharSidebar(); esconderBackBar();
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   if(btn) btn.classList.add('active');
-  const t={painel:'Painel Geral',processos:'Processos',prazos:'Prazos',calendario:'Calendário',estatisticas:'Estatísticas',juris:'Jurisprudência',peticao:'Gerador de Peça',juizes:'Perfil de Juízes',senhas:'Gestão de Senhas',telegram:'Telegram Bot',mensagens:'Central de Mensagens',preparacao:'Em Preparação',agentes:'Agentes IA',pje:'Integração PJe'};
+  const t={painel:'Painel Geral',processos:'Processos',prazos:'Prazos',calendario:'Calendário',estatisticas:'Estatísticas',juris:'Jurisprudência',peticao:'Gerador de Peça',juizes:'Perfil de Juízes',senhas:'Gestão de Senhas',telegram:'Telegram Bot',mensagens:'Central de Mensagens',agenda:'Agenda / Contatos',preparacao:'Em Preparação',agentes:'Agentes IA',pje:'Integração PJe'};
   document.getElementById('page-title').textContent=t[p]||p;
-  ({painel:renderPainel,processos:renderProcessos,prazos:renderPrazos,calendario:renderCalendario,estatisticas:renderEstatisticas,juris:renderJuris,peticao:renderPeticao,juizes:renderJuizes,senhas:renderGestaoSenhas,telegram:renderTelegram,mensagens:renderCentralMensagens,preparacao:renderPreparacao,agentes:renderAgentes,pje:renderPje})[p]?.();
+  ({painel:renderPainel,processos:renderProcessos,prazos:renderPrazos,calendario:renderCalendario,estatisticas:renderEstatisticas,juris:renderJuris,peticao:renderPeticao,juizes:renderJuizes,senhas:renderGestaoSenhas,telegram:renderTelegram,mensagens:renderCentralMensagens,agenda:renderAgenda,preparacao:renderPreparacao,agentes:renderAgentes,pje:renderPje})[p]?.();
 }
 
 // ═══════════════ BUSCA ═══════════════
@@ -8948,6 +8949,161 @@ let _centralContatoAtivo = null;
 let _centralCanalAtivo = 'telegram';
 let _centralMsgsCache = [];
 
+// ═══════════════ AGENDA / CONTATOS ═══════════════
+function _getAgenda(){return JSON.parse(localStorage.getItem('lex_agenda')||'[]');}
+function _salvarAgenda(a){localStorage.setItem('lex_agenda',JSON.stringify(a));}
+function _addContato(c){const a=_getAgenda();const idx=a.findIndex(x=>x.telefone===c.telefone);if(idx>=0){Object.assign(a[idx],c);}else{a.push({...c,id:Date.now(),criado_em:new Date().toISOString()});}a.sort((x,y)=>(x.nome||'').localeCompare(y.nome||''));_salvarAgenda(a);}
+
+async function renderAgenda(){
+  const el = document.getElementById('content');
+  el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3);">Carregando contatos...</div>';
+  
+  // Carrega do backend (Supabase) com fallback localStorage
+  let contatos = [];
+  try {
+    const tk = getAuthToken()||'';
+    const r = await fetchComTimeout(SERVIDOR+'/api/contatos',{headers:{'Authorization':'Bearer '+tk}},10000);
+    if(r.ok) { contatos = await r.json(); _salvarAgenda(contatos); }
+    else { contatos = _getAgenda(); }
+  } catch(e) { contatos = _getAgenda(); }
+  
+  // Pré-adiciona Kleuber se não existir
+  if(!contatos.find(c=>c.telefone==='61999917171')){
+    contatos.unshift({id:1,nome:'Kleuber Melchior de Souza (CEO)',telefone:'61999917171',telegram_id:'696337324',cpf:'',email:'',processo_id:null,processo_nome:'',obs:'CEO — Admin do escritório',criado_em:new Date().toISOString()});
+  }
+  
+  const procs = getProcs();
+  
+  el.innerHTML = `
+  <div style="margin-bottom:16px;">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+      <input id="agenda-busca" class="fi" placeholder="🔍 Buscar contato..." style="flex:1;min-width:150px;max-width:300px;font-size:13px;padding:10px 14px;" oninput="filtrarAgenda()">
+      <button class="btn-primary" onclick="abrirNovoContato()" style="font-size:12px;padding:9px 16px;">+ Novo Contato</button>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">${contatos.length} contato${contatos.length!==1?'s':''} na agenda</div>
+  </div>
+  <div id="agenda-lista"></div>
+  
+  <!-- MODAL NOVO CONTATO -->
+  <div id="modal-contato" style="display:none;position:fixed;inset:0;background:#000a;z-index:200;display:none;align-items:center;justify-content:center;">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;max-width:400px;width:calc(100% - 32px);max-height:80vh;overflow-y:auto;">
+      <div style="font-size:10px;color:var(--accent);letter-spacing:2px;margin-bottom:14px;">📇 NOVO CONTATO</div>
+      <div class="fg" style="margin-bottom:10px;"><label class="fl">Nome completo</label><input class="fi" id="ct-nome" placeholder="Nome do cliente" style="font-size:13px;"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+        <div class="fg"><label class="fl">WhatsApp</label><input class="fi" id="ct-whatsapp" placeholder="61999991234" style="font-size:13px;"></div>
+        <div class="fg"><label class="fl">Telegram Chat ID</label><input class="fi" id="ct-telegram" placeholder="Opcional" style="font-size:13px;"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+        <div class="fg"><label class="fl">CPF</label><input class="fi" id="ct-cpf" placeholder="000.000.000-00" style="font-size:13px;"></div>
+        <div class="fg"><label class="fl">E-mail</label><input class="fi" id="ct-email" placeholder="Opcional" style="font-size:13px;"></div>
+      </div>
+      <div class="fg" style="margin-bottom:10px;"><label class="fl">Processo vinculado</label>
+        <select class="fi" id="ct-processo" style="font-size:13px;">
+          <option value="">— Nenhum —</option>
+          ${procs.map(p=>'<option value="'+p.id+'">'+p.nome+' ('+p.numero+')</option>').join('')}
+        </select>
+      </div>
+      <div class="fg" style="margin-bottom:14px;"><label class="fl">Observações</label><textarea class="fi" id="ct-obs" placeholder="Notas sobre o cliente..." rows="2" style="font-size:13px;resize:vertical;"></textarea></div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-primary" onclick="salvarContato()" style="font-size:12px;">💾 Salvar</button>
+        <button class="btn-outline" onclick="fecharModalContato()" style="font-size:12px;">Cancelar</button>
+      </div>
+    </div>
+  </div>`;
+  
+  _renderListaAgenda(contatos, procs);
+}
+
+function _renderListaAgenda(contatos, procs){
+  const box = document.getElementById('agenda-lista');
+  if(!box) return;
+  if(!contatos.length){
+    box.innerHTML='<div style="text-align:center;padding:40px;color:var(--text3);">Nenhum contato cadastrado.<br><br>Contatos são adicionados automaticamente quando um cliente entra pelo WhatsApp (/novocaso) ou você pode adicionar manualmente.</div>';
+    return;
+  }
+  box.innerHTML = contatos.map(c => {
+    const proc = c.processo_id ? procs.find(p=>p.id==c.processo_id) : null;
+    const procTxt = proc ? '<span style="font-size:10px;background:var(--accent)22;color:var(--accent);padding:2px 8px;border-radius:10px;">📁 '+proc.nome+'</span>' : '';
+    return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;" data-nome="'+(c.nome||'').toLowerCase()+'">'
+      +'<div style="min-width:0;flex:1;">'
+      +'<div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:2px;">'+( c.nome||'Sem nome')+'</div>'
+      +'<div style="font-size:12px;color:var(--text2);display:flex;gap:10px;flex-wrap:wrap;align-items:center;">'
+      +(c.telefone ? '<span>📱 '+c.telefone+'</span>' : '')
+      +(c.telegram_id ? '<span>✈️ '+c.telegram_id+'</span>' : '')
+      +(c.email ? '<span>📧 '+c.email+'</span>' : '')
+      +'</div>'
+      +(procTxt ? '<div style="margin-top:4px;">'+procTxt+'</div>' : '')
+      +(c.obs ? '<div style="font-size:11px;color:var(--text3);margin-top:4px;">'+c.obs+'</div>' : '')
+      +'</div>'
+      +'<div style="display:flex;gap:6px;flex-shrink:0;">'
+      +(c.telefone ? '<button class="btn-outline" style="font-size:11px;padding:6px 10px;" onclick="enviarMsgAgenda(\''+c.telefone+'\',\''+( c.nome||'')+'\',\'whatsapp\')">💬 WhatsApp</button>' : '')
+      +(c.telegram_id ? '<button class="btn-outline" style="font-size:11px;padding:6px 10px;" onclick="enviarMsgAgenda(\''+c.telegram_id+'\',\''+(c.nome||'')+'\',\'telegram\')">✈️ Telegram</button>' : '')
+      +'<button class="btn-outline" style="font-size:11px;padding:6px 8px;color:var(--red);border-color:var(--red)33;" onclick="removerContato('+c.id+')">✕</button>'
+      +'</div></div>';
+  }).join('');
+}
+
+function filtrarAgenda(){
+  const q = (document.getElementById('agenda-busca')?.value||'').toLowerCase();
+  document.querySelectorAll('#agenda-lista > div[data-nome]').forEach(el => {
+    el.style.display = !q || (el.dataset.nome||'').includes(q) ? '' : 'none';
+  });
+}
+
+function abrirNovoContato(){
+  const m = document.getElementById('modal-contato');
+  if(m) m.style.display='flex';
+}
+function fecharModalContato(){
+  const m = document.getElementById('modal-contato');
+  if(m) m.style.display='none';
+}
+
+function salvarContato(){
+  const nome = document.getElementById('ct-nome')?.value?.trim()||'';
+  const whatsapp = document.getElementById('ct-whatsapp')?.value?.trim()||'';
+  const telegram = document.getElementById('ct-telegram')?.value?.trim()||'';
+  const cpf = document.getElementById('ct-cpf')?.value?.trim()||'';
+  const email = document.getElementById('ct-email')?.value?.trim()||'';
+  const procId = document.getElementById('ct-processo')?.value||'';
+  const obs = document.getElementById('ct-obs')?.value?.trim()||'';
+  if(!nome){toast('Informe o nome do contato','erro');return;}
+  if(!whatsapp && !telegram){toast('Informe WhatsApp ou Telegram','erro');return;}
+  _addContato({nome, telefone:whatsapp, telegram_id:telegram, cpf, email, processo_id:procId?parseInt(procId):null, obs});
+  fecharModalContato();
+  renderAgenda();
+  toast('✓ Contato salvo!','ok');
+}
+
+function removerContato(id){
+  if(!confirm('Remover contato?')) return;
+  const a = _getAgenda().filter(c=>c.id!==id);
+  _salvarAgenda(a);
+  renderAgenda();
+  toast('Contato removido','ok');
+}
+
+async function enviarMsgAgenda(dest, nome, canal){
+  const msg = prompt('Mensagem para ' + nome + ':');
+  if(!msg) return;
+  try{
+    const tk = getAuthToken()||'';
+    let destino = dest;
+    if(canal==='whatsapp'){
+      const numLimpo = dest.replace(/\\D/g,'');
+      destino = (numLimpo.startsWith('55') ? numLimpo : '55'+numLimpo) + '@s.whatsapp.net';
+    }
+    const r = await fetchComTimeout(SERVIDOR+'/api/mensagens/enviar',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},
+      body:JSON.stringify({canal, destino, texto:msg})
+    },15000);
+    if(r.ok) toast('✓ Mensagem enviada!','ok');
+    else toast('Erro ao enviar','erro');
+  }catch(e){toast('Erro: '+e.message,'erro');}
+}
+
+// ═══════════════ CENTRAL DE MENSAGENS ═══════════════
 async function renderCentralMensagens(){
   const el = document.getElementById('content');
   el.innerHTML = `

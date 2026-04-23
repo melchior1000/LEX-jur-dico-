@@ -3616,6 +3616,22 @@ async function _conversarWhatsAppCliente(numero, mensagem, sessao) {
   sessao.processo = idv.processo || null;
   sessao.cliente = idv.cliente || null;
 
+  // ── AUTO-ADICIONAR NA AGENDA quando cliente se identifica no WhatsApp ──
+  try {
+    const telCliente = _normalizarNumeroWhats(numero);
+    if(telCliente && dados_informados?.nome_completo) {
+      await sbReq('POST', 'contatos', {
+        nome: dados_informados.nome_completo,
+        telefone: telCliente,
+        cpf: dados_informados.cpf || '',
+        processo_id: sessao.processo?.id || null,
+        processo_nome: sessao.processo?.nome || '',
+        obs: 'Auto-cadastrado via WhatsApp em ' + _agoraBrasilia(),
+        criado_em: _agoraIso()
+      }, {}, { onConflict: 'telefone', merge: 'nome,cpf,processo_id,processo_nome' }).catch(()=>{});
+    }
+  } catch(e) {}
+
   // ── SE NÃO TEM PROCESSO CADASTRADO: levanta dados e cobra Kleuber ──
   if(!sessao.processo && !sessao._cobrou_cadastro) {
     sessao._cobrou_cadastro = true;
@@ -4906,6 +4922,22 @@ REGRAS:
         const casoId = salvo.body && salvo.body[0] ? salvo.body[0].id : '?';
         const docsRecebidos = dados.docs_recebidos || [];
         const docsFaltantes = dados.docs_faltantes || [];
+
+        // ── AUTO-ADICIONAR NA AGENDA ──
+        try {
+          const contatoAgenda = {
+            nome: dados.nome_cliente || '',
+            telefone: dados.telefone || '',
+            cpf: dados.cpf || '',
+            email: dados.email || '',
+            processo_id: casoId,
+            processo_nome: dados.tipo_acao || novoCaso.nome || '',
+            obs: 'Cadastrado via /novocaso em ' + _agoraBrasilia(),
+            criado_em: _agoraIso()
+          };
+          // Salva no Supabase tabela contatos
+          await sbReq('POST', 'contatos', contatoAgenda, {}, { onConflict: 'telefone', merge: 'nome,cpf,email,processo_id,processo_nome,obs' }).catch(()=>{});
+        } catch(e) { console.warn('[Agenda] Erro ao salvar contato:', e.message); }
 
         // 5. Mensagem de confirmação completa
         let msg = '✅ *CASO CADASTRADO COM SUCESSO!* (#' + casoId + ')\n\n';
@@ -8825,6 +8857,31 @@ if(url==='/api/memoria' && req.method==='GET') {
       msgs.sort((a,b) => new Date(b.em) - new Date(a.em));
       res.writeHead(200, corsHeaders(req));
       res.end(JSON.stringify({ ok:true, total:msgs.length, mensagens:msgs.slice(0,limite) }));
+    } catch(e) { res.writeHead(500,corsHeaders(req)); res.end(JSON.stringify({error:e.message})); }
+    return;
+  }
+
+  // GET /api/contatos — lista contatos da agenda
+  if(url==='/api/contatos' && req.method==='GET') {
+    try {
+      const pf = validarToken(getToken(req));
+      if(!pf) { res.writeHead(401,corsHeaders(req)); res.end(JSON.stringify({error:'Nao autorizado'})); return; }
+      const r = await sbReq('GET', 'contatos', null, { order: 'nome.asc' });
+      res.writeHead(200,{...corsHeaders(req),'Content-Type':'application/json'});
+      res.end(JSON.stringify(r.body||[]));
+    } catch(e) { res.writeHead(200,{...corsHeaders(req),'Content-Type':'application/json'}); res.end('[]'); }
+    return;
+  }
+
+  // POST /api/contatos — salvar contato na agenda
+  if(url==='/api/contatos' && req.method==='POST') {
+    try {
+      const pf = validarToken(getToken(req));
+      if(!pf) { res.writeHead(401,corsHeaders(req)); res.end(JSON.stringify({error:'Nao autorizado'})); return; }
+      const b = await lerBody(req);
+      const r = await sbReq('POST', 'contatos', b, {}, { onConflict: 'telefone', merge: 'nome,cpf,email,processo_id,processo_nome,obs' });
+      res.writeHead(200,{...corsHeaders(req),'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:true}));
     } catch(e) { res.writeHead(500,corsHeaders(req)); res.end(JSON.stringify({error:e.message})); }
     return;
   }
