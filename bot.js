@@ -4320,7 +4320,110 @@ function _agendarCobrador() {
 // FIM AGENTE COBRADOR
 // ════════════════════════════════════════════════════════════════════════════
 
+// ════════════════════════════════════════════════════════════════════════════
+// COBRANÇA PIX — Lex cobra clientes pelo WhatsApp com educação
+// ════════════════════════════════════════════════════════════════════════════
+const _PIX_CONFIG = {
+  tipo_chave: 'aleatoria',
+  chave: '', // Kleuber vai passar a chave amanhã
+  beneficiario: 'KLEUBER MELCHIOR DE SOUZA',
+  cidade: 'BRASILIA',
+  celular: '61999917171'
+};
 
+// Gera código PIX EMV estático (padrão Banco Central do Brasil)
+function _gerarPixPayloadBackend(valor, descricao) {
+  const chave = _PIX_CONFIG.chave || '';
+  if(!chave) return null;
+  const nome = (_PIX_CONFIG.beneficiario||'').toUpperCase().substring(0,25).normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const cidade = (_PIX_CONFIG.cidade||'BRASILIA').toUpperCase().substring(0,15).normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const valorStr = valor ? parseFloat(valor).toFixed(2) : '';
+  const desc = (descricao||'').substring(0,25).normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  
+  function tlv(id,val){const l=val.length.toString().padStart(2,'0');return id+l+val;}
+  function crc16(str){
+    let crc=0xFFFF;
+    for(let i=0;i<str.length;i++){
+      crc^=str.charCodeAt(i)<<8;
+      for(let j=0;j<8;j++) crc=(crc&0x8000)?((crc<<1)^0x1021):(crc<<1);
+      crc&=0xFFFF;
+    }
+    return crc.toString(16).toUpperCase().padStart(4,'0');
+  }
+  
+  let gui = tlv('00','br.gov.bcb.pix');
+  let chaveTlv = tlv('01',chave);
+  let descTlv = desc ? tlv('02',desc) : '';
+  let merchantAccount = tlv('26', gui+chaveTlv+descTlv);
+  
+  let payload = '';
+  payload += tlv('00','01');
+  payload += merchantAccount;
+  payload += tlv('52','0000');
+  payload += tlv('53','986');
+  if(valorStr && parseFloat(valorStr)>0) payload += tlv('54',valorStr);
+  payload += tlv('58','BR');
+  payload += tlv('59',nome);
+  payload += tlv('60',cidade);
+  payload += tlv('62', tlv('05','***'));
+  payload += '6304';
+  
+  const crc = crc16(payload);
+  return payload + crc;
+}
+
+// Lex cobra o cliente com toda educação via WhatsApp
+async function _lexCobrarClienteWhatsApp(clienteNome, clienteWhatsapp, valor, referencia) {
+  if(!_PIX_CONFIG.chave) {
+    await envTelegram('⚠️ Chave PIX não configurada! Use /setpix <chave> para configurar.', null, CHAT_ID).catch(()=>{});
+    return { ok: false, erro: 'Chave PIX não configurada' };
+  }
+  
+  const codigo = _gerarPixPayloadBackend(valor, referencia);
+  if(!codigo) return { ok: false, erro: 'Erro ao gerar código PIX' };
+  
+  const primeiroNome = (clienteNome||'').split(' ')[0] || '';
+  
+  // Monta mensagem educada e profissional
+  const msg = (primeiroNome ? primeiroNome + ', ' : '') + 'tudo bem? 😊\n\n'
+    + 'Passando pra te lembrar da mensalidade'+(referencia ? ' ref. *'+referencia+'*' : '')+'.\n\n'
+    + '💵 *Valor: R$ ' + parseFloat(valor).toFixed(2) + '*\n\n'
+    + '📲 *PIX Copia e Cola:*\n'
+    + codigo + '\n\n'
+    + 'É só copiar o código acima e colar no app do seu banco! Se preferir, pode usar o PIX por chave aleatória ou entrar em contato pelo ' + _PIX_CONFIG.celular + '.\n\n'
+    + 'Qualquer dúvida, estou por aqui! 🤝\n'
+    + '— Lex, Escritório Camargos Advocacia';
+  
+  try {
+    const jid = clienteWhatsapp.includes('@') ? clienteWhatsapp : (clienteWhatsapp.replace(/\D/g,'') + '@s.whatsapp.net');
+    await envWhatsApp(msg, jid);
+    _registrarMsgCentral('whatsapp', 'saida', jid, 'Lex (cobrança PIX)', msg);
+    
+    // Notifica Kleuber
+    await envTelegram('💰 *Cobrança enviada!*\n👤 ' + clienteNome + '\n💵 R$ ' + parseFloat(valor).toFixed(2) + '\n📋 ' + (referencia||'—'), null, CHAT_ID).catch(()=>{});
+    
+    // Salva registro no Supabase
+    try {
+      await sbReq('POST', 'cobrancas_pix', {
+        cliente_nome: clienteNome,
+        cliente_whatsapp: clienteWhatsapp,
+        valor: parseFloat(valor),
+        referencia: referencia || null,
+        status: 'enviada',
+        criado_em: _agoraIso()
+      });
+    } catch(e) { /* tabela pode não existir ainda */ }
+    
+    return { ok: true };
+  } catch(e) {
+    await envTelegram('⚠️ Erro ao enviar cobrança pra ' + clienteNome + ': ' + e.message, null, CHAT_ID).catch(()=>{});
+    return { ok: false, erro: e.message };
+  }
+}
+
+// Comando /setpix — Kleuber configura a chave PIX via Telegram
+// Comando /cobrar <nome> <whatsapp> <valor> <ref> — Kleuber manda Lex cobrar
+// Comando /cobrarlote — cobra todos os clientes pendentes
 // ════════════════════════════════════════════════════════════════════════════
 // PIPELINE UNIFICADA — Telegram E WhatsApp passam por aqui
 // ════════════════════════════════════════════════════════════════════════════
@@ -4534,6 +4637,42 @@ async function processarMensagem(ctx, dados) {
   // /meuid — mostra o Chat ID do Telegram (necessário pra Central de Mensagens)
   if(low==='/meuid' || low==='/meu_id' || low==='/id') {
     await env('🆔 Seu Chat ID: `' + ctx.chatId + '`\n\n📋 Use este número na Central de Mensagens do Lex para enviar mensagens diretamente pelo painel web.', ctx);
+    return;
+  }
+
+  // ── /setpix <chave> — Kleuber configura a chave PIX via Telegram/WhatsApp ──
+  if(/^\/setpix\s+/i.test(txt) && isAdmin(chatId)) {
+    const novaChave = txt.replace(/^\/setpix\s+/i, '').trim();
+    if(!novaChave) { await env('Use: /setpix <sua-chave-pix-aleatoria>', ctx); return; }
+    _PIX_CONFIG.chave = novaChave;
+    // Persiste no Supabase
+    try { await sbReq('POST', 'config', { chave: 'pix_chave', valor: novaChave }, {}, { onConflict: 'chave', merge: 'valor' }); } catch(e) {}
+    await env('✅ Chave PIX configurada!\n\n🔑 Chave: `' + novaChave + '`\n👤 Beneficiário: ' + _PIX_CONFIG.beneficiario + '\n📱 Celular: ' + _PIX_CONFIG.celular + '\n\nAgora pode usar /cobrar para enviar cobranças pelo WhatsApp.', ctx);
+    return;
+  }
+
+  // ── /cobrar <nome> | <whatsapp> | <valor> | <referência> ──
+  if(/^\/cobrar\s+/i.test(txt) && isAdmin(chatId)) {
+    const partes = txt.replace(/^\/cobrar\s+/i, '').split('|').map(s => s.trim());
+    if(partes.length < 3) {
+      await env('📋 *Como usar o /cobrar:*\n\n`/cobrar Nome do Cliente | 61999991234 | 150.00 | Mensalidade Abril/2026`\n\nSepare com `|` (barra):\n1. Nome do cliente\n2. WhatsApp (com DDD)\n3. Valor em R$\n4. Referência (opcional)', ctx);
+      return;
+    }
+    const [nome, whats, valorStr, ref] = partes;
+    const valor = parseFloat((valorStr||'').replace(',','.'));
+    if(!nome || !whats || isNaN(valor) || valor <= 0) {
+      await env('⚠️ Dados inválidos. Use: /cobrar Nome | WhatsApp | Valor | Referência', ctx);
+      return;
+    }
+    const numLimpo = whats.replace(/\D/g,'');
+    const jid = (numLimpo.startsWith('55') ? numLimpo : '55'+numLimpo) + '@s.whatsapp.net';
+    await env('📤 Enviando cobrança PIX para ' + nome + '...', ctx);
+    const result = await _lexCobrarClienteWhatsApp(nome, jid, valor, ref||null);
+    if(result.ok) {
+      await env('✅ Cobrança enviada pro ' + nome + '!\n💵 R$ ' + valor.toFixed(2) + '\n📱 WhatsApp: ' + whats, ctx);
+    } else {
+      await env('❌ Falha: ' + (result.erro||'erro desconhecido'), ctx);
+    }
     return;
   }
 
@@ -9693,6 +9832,10 @@ server.listen(process.env.PORT||3000, async () => {
           if(!_configRuntime.secretario_whatsapp.operadores) _configRuntime.secretario_whatsapp.operadores = {...SECRETARIO_WHATSAPP_CONFIG.operadores};
           _configRuntime.secretario_whatsapp.operadores.secretaria.telegram_chat_id = String(cfg.valor);
           console.log('[MULTI-OP] Secretária Telegram Chat ID carregado:', cfg.valor);
+        }
+        if(cfg.chave === 'pix_chave' && cfg.valor) {
+          _PIX_CONFIG.chave = String(cfg.valor);
+          console.log('[PIX] Chave PIX carregada do Supabase');
         }
       }
     }
