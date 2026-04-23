@@ -581,12 +581,12 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
 
 <div id="main">
   <div class="topbar">
-    <div style="display:flex;align-items:center;gap:8px;min-width:0;flex-shrink:1;">
+    <div style="display:flex;align-items:center;gap:6px;min-width:0;">
       <button id="hambtn" onclick="toggleSidebar()" title="Abrir menu lateral">☰ ◂</button>
-      <div class="page-title" id="page-title" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Painel Geral</div>
-      <div class="topbar-date" id="topbar-date" style="flex-shrink:0;"></div>
+      <div class="page-title" id="page-title" style="white-space:nowrap;font-size:16px;font-weight:700;">Painel Geral</div>
     </div>
     <div class="topbar-right" style="flex-shrink:0;gap:6px;">
+      <div class="topbar-date" id="topbar-date" style="font-size:11px;white-space:nowrap;color:var(--text3);"></div>
       <div class="search-wrap">
         <span class="search-icon">🔍</span>
         <input class="search-input" id="search-in" placeholder="Buscar..." oninput="buscarLive(this.value)" onblur="setTimeout(fecharBusca,200)">
@@ -3483,10 +3483,10 @@ window.onload=()=>{
   // Relógio de Brasília ao vivo
   function _atualizarRelogioBrasilia(){
     const agora = new Date(new Date().toLocaleString('en-US',{timeZone:'America/Sao_Paulo'}));
-    const dia = agora.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+    const dia = agora.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
     const hora = agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
     const el = document.getElementById('topbar-date');
-    if(el) el.innerHTML = dia + ' · <span style="color:var(--accent);font-weight:700;">' + hora + '</span> <span style="font-size:9px;opacity:0.6;">Brasília</span>';
+    if(el) el.innerHTML = dia + ' <span style="color:var(--accent);font-weight:700;">' + hora + '</span>';
   }
   _atualizarRelogioBrasilia();
   setInterval(_atualizarRelogioBrasilia, 30000); // Atualiza a cada 30s
