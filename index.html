@@ -982,8 +982,7 @@ async function _tentarReloginSilencioso() {
     const sess = JSON.parse(localStorage.getItem('lex_sessao_v2') || 'null');
     const senhaHash = localStorage.getItem('lex_pwd_cache');
     if(!sess || !sess.perfil || !senhaHash) {
-      console.warn('[Lex] Sem credenciais para re-login — redirecionando para login');
-      if(typeof sair === 'function') sair();
+      // Sem credenciais salvas — mostra tela de login sem erro no console
       return false;
     }
     const r = await fetch(SERVIDOR + '/api/login', {
@@ -1000,7 +999,6 @@ async function _tentarReloginSilencioso() {
       }
     }
     console.warn('[Lex] Re-login falhou — senha pode ter mudado');
-    if(typeof sair === 'function') sair();
     return false;
   } catch(e) {
     console.warn('[Lex] Erro no re-login:', e.message || e);
@@ -3030,7 +3028,7 @@ window.onload=()=>{
         _perms=_sp.perms||PERFIS[_sp.perfil]||{};
         ativarApp(_sp.perfil);
       } else {
-        // Token inválido — tenta re-login silencioso
+        // Token inválido — tenta re-login silencioso (sem erro visível)
         _tentarReloginSilencioso().then(ok=>{
           if(ok){
             const ns=_loadSess();
@@ -3038,11 +3036,12 @@ window.onload=()=>{
             _perms=ns.perms||PERFIS[ns.perfil]||{};
             ativarApp(ns.perfil);
           }
-          // Se falhou, fica na tela de login (comportamento correto)
+          // Se falhou, fica na tela de login — usuário digita senha
         });
       }
     }).catch(()=>{
-      // Servidor offline — tenta ativar offline com dados locais
+      // Servidor offline/dormindo — tenta ativar com dados locais
+      // Render free tier pode demorar até 50s para acordar
       usuarioAtivo=_sp.perfil;
       _perms=_sp.perms||PERFIS[_sp.perfil]||{};
       setTimeout(()=>ativarApp(_sp.perfil),100);
