@@ -6676,8 +6676,15 @@ function validarToken(token) {
   } catch(e) { return null; }
 }
 function getToken(req) {
+  // 1. Tenta header Authorization
   const auth = req.headers['authorization'] || '';
   if(auth.startsWith('Bearer ')) return auth.slice(7);
+  // 2. Tenta query parameter ?token= (necessário para SSE/EventSource que não suporta headers)
+  try {
+    const urlObj = new URL(req.url, 'http://localhost');
+    const tk = urlObj.searchParams.get('token');
+    if(tk) return tk;
+  } catch(e) {}
   return null;
 }
 
