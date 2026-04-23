@@ -5,7 +5,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lex — Sistema Jurídico v14</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+<!-- Fonte Arial nativa — mais legível, sem dependência externa -->
 <style>
 :root {
   --bg:#07070f;--surface:#0d0d1a;--surface2:#111120;--border:#1c1c30;--border2:#26263d;
@@ -25,7 +25,7 @@ body.dia {
 }
 *{margin:0;padding:0;box-sizing:border-box;}
 html,body{height:100%;}
-body{background:var(--bg);color:var(--text);font-family:'Lato',sans-serif;display:flex;min-height:100dvh;font-size:14px;overflow-y:auto;}
+body{background:var(--bg);color:var(--text);font-family:Arial,Helvetica,sans-serif;display:flex;min-height:100dvh;font-size:14px;overflow-y:auto;}
 
 body.noite{
   background:#1a1a2e;
@@ -36,11 +36,11 @@ body.noite{
 #sidebar{width:240px;min-height:100vh;height:100vh;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;z-index:100;transition:transform .28s cubic-bezier(.4,0,.2,1);overflow:hidden;}
 .logo-area{padding:28px 24px 22px;border-bottom:1px solid var(--border);background:linear-gradient(160deg,#0f0f22,#0d0d1a);}
 .logo-eyebrow{font-size:9px;letter-spacing:4px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;}
-.logo-name{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:var(--text);letter-spacing:.5px;}
+.logo-name{font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:700;color:var(--text);letter-spacing:.5px;}
 .logo-sub{font-size:11px;color:var(--accent);margin-top:4px;font-weight:300;}
 nav{padding:18px 12px;flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border2) transparent;}
 .nav-section{font-size:9px;color:var(--text3);letter-spacing:3px;padding:0 10px;margin:14px 0 6px;}
-.nav-btn{display:flex;align-items:center;gap:11px;width:100%;padding:10px 14px;border-radius:8px;border:none;cursor:pointer;font-family:'Lato',sans-serif;font-size:13px;text-align:left;background:transparent;color:var(--text);transition:all .18s;margin-bottom:1px;}
+.nav-btn{display:flex;align-items:center;gap:11px;width:100%;padding:10px 14px;border-radius:8px;border:none;cursor:pointer;font-family:Arial,Helvetica,sans-serif;font-size:13px;text-align:left;background:transparent;color:var(--text);transition:all .18s;margin-bottom:1px;}
 .nav-btn:hover{background:var(--border);color:var(--text);}
 .nav-btn.active{background:var(--accent-soft);color:var(--accent);font-weight:700;}
 .nav-icon{font-size:14px;width:18px;text-align:center;}
@@ -48,7 +48,7 @@ nav{padding:18px 12px;flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-colo
 .urgente-pill{display:flex;align-items:center;gap:8px;background:var(--red-soft);border:1px solid #e8454533;border-radius:20px;padding:6px 12px;margin-bottom:10px;}
 /* ═══ TOUR GUIADO ═══════════════════════════════════════════ */
 #lex-tour-box{position:fixed;background:var(--surface);border:1.5px solid var(--accent);border-radius:16px;padding:22px 24px;max-width:320px;z-index:9001;box-shadow:0 8px 40px #0008;animation:fadeIn .25s ease;}
-#lex-tour-box h3{font-family:'Playfair Display',serif;font-size:16px;color:var(--text);margin:0 0 8px;}
+#lex-tour-box h3{font-family:Arial,Helvetica,sans-serif;font-size:16px;color:var(--text);margin:0 0 8px;}
 #lex-tour-box p{font-size:12px;color:var(--text2);margin:0 0 14px;line-height:1.7;}
 #lex-tour-box .tour-btns{display:flex;gap:8px;align-items:center;}
 #lex-tour-box .tour-step{font-size:10px;color:var(--text3);flex:1;}
@@ -56,7 +56,7 @@ nav{padding:18px 12px;flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-colo
 /* ═══ BOAS-VINDAS ════════════════════════════════════════════ */
 #lex-welcome{position:fixed;inset:0;background:linear-gradient(135deg,#07070f 60%,#0d0d20);z-index:8000;display:flex;align-items:center;justify-content:center;padding:24px;}
 #lex-welcome-box{background:var(--surface);border:1px solid var(--border2);border-radius:20px;padding:40px 36px;max-width:420px;width:100%;text-align:center;}
-#lex-welcome-box h1{font-family:'Playfair Display',serif;font-size:32px;font-weight:700;color:var(--text);margin:0 0 6px;}
+#lex-welcome-box h1{font-family:Arial,Helvetica,sans-serif;font-size:32px;font-weight:700;color:var(--text);margin:0 0 6px;}
 #lex-welcome-box .wlc-sub{font-size:13px;color:var(--accent);margin-bottom:24px;font-weight:300;}
 #lex-welcome-box .feat{text-align:left;background:var(--surface2);border-radius:12px;padding:16px 18px;margin-bottom:20px;}
 #lex-welcome-box .feat div{font-size:12px;color:var(--text2);padding:5px 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
@@ -75,13 +75,13 @@ nav{padding:18px 12px;flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-colo
 /* MAIN */
 #main{margin-left:240px;flex:1;display:flex;flex-direction:column;min-height:100dvh;}
 .topbar{padding:14px 32px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--bg);z-index:50;gap:12px;}
-.page-title{font-family:'Playfair Display',serif;font-size:17px;font-weight:600;color:var(--text);}
+.page-title{font-family:Arial,Helvetica,sans-serif;font-size:17px;font-weight:600;color:var(--text);}
 .topbar-right{display:flex;align-items:center;gap:8px;}
 .topbar-date{font-size:11px;color:var(--text3);white-space:nowrap;}
 
 /* BUSCA */
 .search-wrap{position:relative;}
-.search-input{background:var(--surface2);border:1px solid var(--border2);border-radius:24px;padding:8px 16px 8px 36px;color:var(--text);font-family:'Lato',sans-serif;font-size:13px;width:220px;outline:none;transition:all .2s;}
+.search-input{background:var(--surface2);border:1px solid var(--border2);border-radius:24px;padding:8px 16px 8px 36px;color:var(--text);font-family:Arial,Helvetica,sans-serif;font-size:13px;width:220px;outline:none;transition:all .2s;}
 .search-input:focus{border-color:var(--accent);width:280px;}
 .search-input::placeholder{color:var(--text3);}
 .search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:13px;pointer-events:none;}
@@ -94,15 +94,15 @@ nav{padding:18px 12px;flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-colo
 .si-det{font-size:11px;color:var(--text2);margin-top:2px;}
 
 /* BOTÕES GLOBAIS */
-.btn-novo{background:var(--accent);border:none;border-radius:8px;padding:9px 18px;color:#fff;font-family:'Lato',sans-serif;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .15s;}
+.btn-novo{background:var(--accent);border:none;border-radius:8px;padding:9px 18px;color:#fff;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .15s;}
 .btn-novo:hover{background:var(--purple);}
-.btn-primary{background:var(--accent);border:none;border-radius:8px;padding:10px 18px;color:#fff;font-family:'Lato',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;}
+.btn-primary{background:var(--accent);border:none;border-radius:8px;padding:10px 18px;color:#fff;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;}
 .btn-primary:hover{background:var(--purple);}
-.btn-outline{background:transparent;border:1px solid var(--border2);border-radius:8px;padding:10px 16px;color:var(--text2);font-family:'Lato',sans-serif;font-size:13px;cursor:pointer;transition:all .15s;}
+.btn-outline{background:transparent;border:1px solid var(--border2);border-radius:8px;padding:10px 16px;color:var(--text2);font-family:Arial,Helvetica,sans-serif;font-size:13px;cursor:pointer;transition:all .15s;}
 .btn-outline:hover{border-color:var(--accent);color:var(--text);}
-.btn-danger{background:transparent;border:1px solid #e8454533;border-radius:8px;padding:10px 16px;color:var(--red);font-family:'Lato',sans-serif;font-size:13px;cursor:pointer;transition:all .15s;}
+.btn-danger{background:transparent;border:1px solid #e8454533;border-radius:8px;padding:10px 16px;color:var(--red);font-family:Arial,Helvetica,sans-serif;font-size:13px;cursor:pointer;transition:all .15s;}
 .btn-danger:hover{background:var(--red-soft);}
-.btn-green{background:var(--green);border:none;border-radius:8px;padding:10px 18px;color:#000;font-family:'Lato',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;}
+.btn-green{background:var(--green);border:none;border-radius:8px;padding:10px 18px;color:#000;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;}
 .btn-row{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;}
 .cfg-card{background:var(--surface);border:1px solid var(--border2);border-radius:14px;padding:18px 20px;margin-top:14px;}
 .cfg-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;}
@@ -124,7 +124,7 @@ nav{padding:18px 12px;flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-colo
 
 /* FILTROS RÁPIDOS */
 .filtros-row{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;}
-.filtro-btn{padding:6px 14px;border-radius:20px;border:1px solid var(--border2);background:transparent;color:var(--text2);font-family:'Lato',sans-serif;font-size:11px;cursor:pointer;transition:all .15s;font-weight:600;letter-spacing:.5px;}
+.filtro-btn{padding:6px 14px;border-radius:20px;border:1px solid var(--border2);background:transparent;color:var(--text2);font-family:Arial,Helvetica,sans-serif;font-size:11px;cursor:pointer;transition:all .15s;font-weight:600;letter-spacing:.5px;}
 .filtro-btn:hover{border-color:var(--accent);color:var(--text);}
 .filtro-btn.ativo{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);}
 
@@ -151,7 +151,7 @@ nav{padding:18px 12px;flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-colo
 
 /* RESUMO DIÁRIO */
 .resumo-box{background:linear-gradient(135deg,#0a0f1f,#0d0d22);border:1px solid var(--accent)33;border-radius:12px;padding:18px 22px;margin-bottom:20px;}
-.resumo-title{font-family:'Playfair Display',serif;font-size:16px;font-weight:600;color:var(--text);margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.resumo-title{font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:600;color:var(--text);margin-bottom:14px;display:flex;align-items:center;gap:8px;}
 .resumo-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--text2);}
 .resumo-item:last-child{border-bottom:none;}
 
@@ -164,26 +164,26 @@ nav{padding:18px 12px;flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-colo
 @keyframes slideIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 .alerta-left{display:flex;align-items:center;gap:12px;}
-.alerta-nome{font-family:'Playfair Display',serif;font-size:14px;font-weight:600;color:var(--text);}
+.alerta-nome{font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:600;color:var(--text);}
 .alerta-msg{font-size:11px;color:var(--text2);margin-top:2px;}
-.alerta-dias{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;}
+.alerta-dias{font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:700;}
 
 /* NOTIFICAÇÃO MODAL */
 #notif-overlay{display:none;position:fixed;inset:0;background:#00000099;z-index:500;align-items:center;justify-content:center;}
 #notif-overlay.open{display:flex;}
 #notif-box{background:var(--surface);border:1px solid var(--red)44;border-radius:16px;width:90%;max-width:480px;padding:30px;max-height:80vh;overflow-y:auto;}
-.notif-title{font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:var(--red);margin-bottom:6px;}
+.notif-title{font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:700;color:var(--red);margin-bottom:6px;}
 .notif-sub{font-size:13px;color:var(--text2);font-weight:300;margin-bottom:20px;}
 .notif-item{background:var(--red-soft);border:1px solid var(--red)33;border-radius:10px;padding:14px 16px;margin-bottom:10px;cursor:pointer;}
 .notif-item.orange{background:var(--orange-soft);border-color:#f0832a33;}
-.notif-item-nome{font-family:'Playfair Display',serif;font-size:14px;font-weight:600;color:var(--text);}
+.notif-item-nome{font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:600;color:var(--text);}
 .notif-item-det{font-size:12px;color:var(--text2);margin-top:3px;font-weight:300;}
 
 /* STATS */
 .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;}
 .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;transition:border-color .15s;cursor:default;}
 .stat-label{font-size:10px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;}
-.stat-num{font-family:'Playfair Display',serif;font-size:28px;font-weight:700;line-height:1;}
+.stat-num{font-family:Arial,Helvetica,sans-serif;font-size:28px;font-weight:700;line-height:1;}
 .stat-sub{font-size:10px;color:var(--text3);margin-top:4px;}
 
 /* SEÇÃO */
@@ -195,7 +195,7 @@ nav{padding:18px 12px;flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-colo
 .proc-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 22px;margin-bottom:8px;cursor:pointer;border-left:3px solid transparent;transition:all .16s;}
 .proc-card:hover{background:var(--surface2);border-color:var(--border2);}
 .pc-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}
-.pc-nome{font-family:'Playfair Display',serif;font-size:15px;font-weight:600;color:var(--text);margin-bottom:3px;}
+.pc-nome{font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:600;color:var(--text);margin-bottom:3px;}
 .pc-partes{font-size:12px;color:var(--text2);font-weight:400;}
 .pc-right{text-align:right;flex-shrink:0;}
 .pc-tribunal{font-size:10px;color:var(--accent);letter-spacing:1px;margin-bottom:4px;}
@@ -207,9 +207,9 @@ nav{padding:18px 12px;flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-colo
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.6}}
 
 /* DETALHE */
-.back-btn{background:none;border:none;color:var(--accent);font-family:'Lato',sans-serif;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;margin-bottom:22px;padding:0;}
+.back-btn{background:none;border:none;color:var(--accent);font-family:Arial,Helvetica,sans-serif;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;margin-bottom:22px;padding:0;}
 .detalhe-header{padding-left:20px;margin-bottom:24px;}
-.detalhe-nome{font-family:'Playfair Display',serif;font-size:24px;font-weight:700;color:var(--text);margin-bottom:4px;}
+.detalhe-nome{font-family:Arial,Helvetica,sans-serif;font-size:24px;font-weight:700;color:var(--text);margin-bottom:4px;}
 .detalhe-partes{font-size:13px;color:var(--text2);font-weight:300;}
 .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
 .info-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px;}
@@ -241,7 +241,7 @@ nav{padding:18px 12px;flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-colo
 #chat-panel{position:fixed;right:0;top:57px;width:380px;height:calc(100dvh - 57px);background:var(--surface);border-left:1px solid var(--border2);border-top:1px solid var(--border2);display:none;flex-direction:column;z-index:250;box-shadow:-8px 4px 40px #00000044;transition:transform .25s ease;}
 #chat-panel.open{display:flex;}
 .chat-head{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,#0f0f25,#0d0d1a);}
-.chat-head-name{font-family:'Playfair Display',serif;font-size:15px;font-weight:600;}
+.chat-head-name{font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:600;}
 .chat-head-ctx{font-size:11px;color:var(--text3);margin-top:2px;font-weight:300;}
 .chat-close{background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;}
 #chat-msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;}
@@ -250,7 +250,7 @@ nav{padding:18px 12px;flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-colo
 .msg.user{background:var(--accent);color:#fff;align-self:flex-end;font-weight:400;}
 .msg.thinking{background:var(--surface2);color:var(--text3);font-style:italic;align-self:flex-start;}
 .chat-foot{padding:12px;padding-bottom:max(12px, env(safe-area-inset-bottom));border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0;}
-#chat-in{flex:1;background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:10px 13px;color:var(--text);font-family:'Lato',sans-serif;font-size:13px;resize:none;height:58px;}
+#chat-in{flex:1;background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:10px 13px;color:var(--text);font-family:Arial,Helvetica,sans-serif;font-size:13px;resize:none;height:58px;}
 #chat-in:focus{outline:none;border-color:var(--accent);}
 .chat-mic-btn{display:none;align-items:center;justify-content:center;gap:6px;min-width:74px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:0 10px;color:var(--text2);cursor:pointer;font-size:12px;transition:all .15s;white-space:nowrap;}
 .chat-mic-btn .mic-icon{font-size:16px;line-height:1;}
@@ -264,17 +264,17 @@ nav{padding:18px 12px;flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-colo
 .modal-overlay{display:none;position:fixed;inset:0;background:#00000099;z-index:300;align-items:center;justify-content:center;padding:16px;}
 .modal-overlay.open{display:flex;}
 .modal-box{background:var(--surface);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;padding:30px;}
-.modal-title{font-family:'Playfair Display',serif;font-size:20px;font-weight:600;margin-bottom:22px;color:var(--text);}
+.modal-title{font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:600;margin-bottom:22px;color:var(--text);}
 .fg{margin-bottom:14px;}
 .fl{font-size:10px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:5px;display:block;}
-.fi,.fs,.fta{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:10px 13px;color:var(--text);font-family:'Lato',sans-serif;font-size:13px;transition:border .15s;}
+.fi,.fs,.fta{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:10px 13px;color:var(--text);font-family:Arial,Helvetica,sans-serif;font-size:13px;transition:border .15s;}
 .fi:focus,.fs:focus,.fta:focus{outline:none;border-color:var(--accent);}
 .fs option{background:var(--surface);}
 .fta{min-height:80px;resize:vertical;}
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 .modal-btns{display:flex;gap:8px;margin-top:6px;}
-.btn-cancel{background:transparent;border:1px solid var(--border2);border-radius:8px;padding:11px 20px;color:var(--text2);font-family:'Lato',sans-serif;font-size:13px;cursor:pointer;}
-.btn-save{background:var(--accent);border:none;border-radius:8px;padding:11px 24px;color:#fff;font-family:'Lato',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;}
+.btn-cancel{background:transparent;border:1px solid var(--border2);border-radius:8px;padding:11px 20px;color:var(--text2);font-family:Arial,Helvetica,sans-serif;font-size:13px;cursor:pointer;}
+.btn-save{background:var(--accent);border:none;border-radius:8px;padding:11px 24px;color:#fff;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;}
 .btn-save:hover{background:var(--purple);}
 
 /* JURISPRUDÊNCIA */
@@ -285,16 +285,16 @@ nav{padding:18px 12px;flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-colo
 
 /* JUÍZES */
 .juiz-card{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--gold);border-radius:10px;padding:18px 22px;margin-bottom:10px;}
-.juiz-nome{font-family:'Playfair Display',serif;font-size:15px;font-weight:600;color:var(--text);}
+.juiz-nome{font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:600;color:var(--text);}
 .juiz-cargo{font-size:11px;color:var(--gold);margin-top:2px;}
 .juiz-notas{font-size:12px;color:var(--text2);margin-top:10px;line-height:1.7;font-weight:300;}
 
 /* PRAZOS */
 .prazo-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 22px;margin-bottom:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:16px;transition:all .15s;}
 .prazo-card:hover{background:var(--surface2);}
-.prazo-nome{font-family:'Playfair Display',serif;font-size:14px;font-weight:600;color:var(--text);margin-bottom:3px;}
+.prazo-nome{font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:600;color:var(--text);margin-bottom:3px;}
 .prazo-acao{font-size:12px;color:var(--text2);font-weight:300;}
-.prazo-num{font-family:'Playfair Display',serif;font-size:26px;font-weight:700;text-align:right;flex-shrink:0;}
+.prazo-num{font-family:Arial,Helvetica,sans-serif;font-size:26px;font-weight:700;text-align:right;flex-shrink:0;}
 .prazo-label{font-size:10px;color:var(--text3);text-align:right;margin-top:2px;}
 
 /* ESTATÍSTICAS */
@@ -305,12 +305,12 @@ nav{padding:18px 12px;flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-colo
 
 /* API SETUP */
 .api-setup{background:linear-gradient(135deg,#0a0a1f,#0d0d22);border:1px solid #4f6ef744;border-radius:10px;padding:16px 20px;margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
-.api-input{background:var(--bg);border:1px solid var(--border2);border-radius:7px;padding:8px 12px;color:var(--text);font-family:'Lato',sans-serif;font-size:12px;width:220px;}
+.api-input{background:var(--bg);border:1px solid var(--border2);border-radius:7px;padding:8px 12px;color:var(--text);font-family:Arial,Helvetica,sans-serif;font-size:12px;width:220px;}
 .api-input:focus{outline:none;border-color:var(--accent);}
-.api-btn{background:var(--accent);border:none;border-radius:7px;padding:8px 16px;color:#fff;font-family:'Lato',sans-serif;font-size:12px;font-weight:700;cursor:pointer;}
+.api-btn{background:var(--accent);border:none;border-radius:7px;padding:8px 16px;color:#fff;font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:700;cursor:pointer;}
 
 /* PETIÇÃO */
-.peticao-area{background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:20px;font-size:13px;color:var(--text);line-height:2;white-space:pre-wrap;font-family:'Lato',sans-serif;min-height:300px;font-weight:300;}
+.peticao-area{background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:20px;font-size:13px;color:var(--text);line-height:2;white-space:pre-wrap;font-family:Arial,Helvetica,sans-serif;min-height:300px;font-weight:300;}
 
 .peca-tabela th { background: #1a3a5c; color: white; }
 .peca-tabela tr:nth-child(even) { background: #f5f5f5; }
@@ -351,7 +351,7 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
 .pipeline-trigger-btn:hover{background:#244b73!important;border-color:#244b73!important;}
 .pipeline-modal-box{max-width:1040px!important;padding:22px!important;background:#f5f5f5!important;color:#1a1a1a!important;}
 .pipeline-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;}
-.pipeline-title{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:#1a3a5c;}
+.pipeline-title{font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:700;color:#1a3a5c;}
 .pipeline-sub{font-size:12px;color:#5d6670;}
 .pipeline-close{background:transparent;border:1px solid #cfd4da;border-radius:8px;padding:7px 11px;cursor:pointer;color:#1a3a5c;font-weight:700;}
 .pipeline-steps{display:grid;grid-template-columns:repeat(10,minmax(64px,1fr));gap:6px;align-items:start;margin-bottom:18px;}
@@ -366,7 +366,7 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
 .pipeline-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 .pipeline-card{background:#fff;border:1px solid #e1e5ea;border-radius:12px;padding:14px;box-shadow:0 4px 14px rgba(0,0,0,.05);}
 .pipeline-label{font-size:10px;color:#697684;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;font-weight:700;}
-.pipeline-textarea{width:100%;min-height:120px;resize:vertical;border:1px solid #ccd4de;border-radius:10px;padding:11px 12px;font-family:'Lato',sans-serif;font-size:13px;color:#22303d;background:#fff;}
+.pipeline-textarea{width:100%;min-height:120px;resize:vertical;border:1px solid #ccd4de;border-radius:10px;padding:11px 12px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#22303d;background:#fff;}
 .pipeline-textarea:focus{outline:none;border-color:#1a3a5c;box-shadow:0 0 0 2px rgba(26,58,92,.12);}
 .pipeline-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
 .pipeline-btn{border:none;border-radius:9px;padding:10px 14px;cursor:pointer;font-size:12px;font-weight:700;transition:all .18s ease;}
@@ -394,21 +394,21 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
 #tema-btn{
   background:var(--surface);border:1px solid var(--border2);
   border-radius:20px;padding:6px 12px;color:var(--text2);
-  font-family:'Lato',sans-serif;font-size:12px;cursor:pointer;
+  font-family:Arial,Helvetica,sans-serif;font-size:12px;cursor:pointer;
   transition:all .2s;white-space:nowrap;
 }
 #tema-btn:hover{border-color:var(--accent);color:var(--text);}
 /* MOBILE BOTTOM NAV */
 #mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);z-index:150;padding:8px 0 env(safe-area-inset-bottom);}
 .mob-nav-items{display:flex;justify-content:space-around;align-items:center;}
-.mob-nav-btn{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 12px;background:none;border:none;cursor:pointer;color:var(--text3);font-family:'Lato',sans-serif;font-size:10px;letter-spacing:.5px;transition:all .15s;min-width:60px;}
+.mob-nav-btn{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 12px;background:none;border:none;cursor:pointer;color:var(--text3);font-family:Arial,Helvetica,sans-serif;font-size:10px;letter-spacing:.5px;transition:all .15s;min-width:60px;}
 .mob-nav-btn.active{color:var(--accent);}
 .mob-nav-btn span:first-child{font-size:20px;}
 
 /* BACK BAR — aparece em páginas internas */
 #back-bar{display:none;background:var(--surface);border-bottom:1px solid var(--border);padding:10px 20px;position:sticky;top:57px;z-index:40;align-items:center;justify-content:space-between;}
 #back-bar.show{display:flex;}
-.back-bar-btn{background:none;border:none;color:var(--accent);font-family:'Lato',sans-serif;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;padding:4px 0;}
+.back-bar-btn{background:none;border:none;color:var(--accent);font-family:Arial,Helvetica,sans-serif;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;padding:4px 0;}
 .back-bar-title{font-size:13px;color:var(--text2);font-weight:300;}
 
 @media(max-width:768px){
@@ -459,7 +459,7 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
   <div style="width:100%;max-width:380px;padding:24px;">
     <div style="text-align:center;margin-bottom:32px;">
       <div style="font-size:10px;letter-spacing:4px;color:#555878;margin-bottom:8px;">SISTEMA JURÍDICO</div>
-      <div style="font-family:'Playfair Display',serif;font-size:36px;font-weight:700;color:#e8eaf6;">Lex</div>
+      <div style="font-family:Arial,Helvetica,sans-serif;font-size:36px;font-weight:700;color:#e8eaf6;">Lex</div>
       <div style="font-size:12px;color:#4f6ef7;margin-top:4px;font-weight:300;">Gestão Processual Integrada</div>
     </div>
     <div style="background:#0d0d1a;border:1px solid #1c1c30;border-radius:14px;padding:28px;">
@@ -467,12 +467,12 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
       <div style="margin-bottom:14px;display:none;" id="login-url-wrap">
         <label style="font-size:10px;color:#555878;letter-spacing:2px;display:block;margin-bottom:6px;">SERVIDOR</label>
         <input type="url" id="login-bot-url" placeholder="https://lex-juridico.onrender.com"
-          style="width:100%;background:#07070f;border:1px solid #26263d;border-radius:8px;padding:11px 13px;color:#e8eaf6;font-family:'Lato',sans-serif;font-size:13px;outline:none;"
+          style="width:100%;background:#07070f;border:1px solid #26263d;border-radius:8px;padding:11px 13px;color:#e8eaf6;font-family:Arial,Helvetica,sans-serif;font-size:13px;outline:none;"
           onkeydown="if(event.key==='Enter')fazerLogin()">
       </div>
       <div style="margin-bottom:14px;">
         <label style="font-size:10px;color:#555878;letter-spacing:2px;display:block;margin-bottom:6px;">PERFIL</label>
-        <select id="login-perfil" style="width:100%;background:#07070f;border:1px solid #26263d;border-radius:8px;padding:11px 13px;color:#e8eaf6;font-family:'Lato',sans-serif;font-size:13px;">
+        <select id="login-perfil" style="width:100%;background:#07070f;border:1px solid #26263d;border-radius:8px;padding:11px 13px;color:#e8eaf6;font-family:Arial,Helvetica,sans-serif;font-size:13px;">
           <option value="admin">Administrador</option>
           <option value="secretaria">Secretária</option>
         </select>
@@ -481,7 +481,7 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
         <label style="font-size:10px;color:#555878;letter-spacing:2px;display:block;margin-bottom:6px;">SENHA</label>
         <div style="position:relative;display:flex;align-items:center;">
           <input type="password" id="login-senha" placeholder="Digite sua senha"
-            style="width:100%;background:#07070f;border:1px solid #26263d;border-radius:8px;padding:11px 44px 11px 13px;color:#e8eaf6;font-family:'Lato',sans-serif;font-size:14px;letter-spacing:1px;outline:none;"
+            style="width:100%;background:#07070f;border:1px solid #26263d;border-radius:8px;padding:11px 44px 11px 13px;color:#e8eaf6;font-family:Arial,Helvetica,sans-serif;font-size:14px;letter-spacing:1px;outline:none;"
             onkeydown="if(event.key==='Enter')fazerLogin()">
           <button type="button"
             style="position:absolute;right:10px;background:none;border:none;cursor:pointer;font-size:20px;padding:4px;user-select:none;"
@@ -489,10 +489,10 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
             onclick="var i=document.getElementById('login-senha');var b=document.getElementById('olho-btn');if(i.type=='password'){i.type='text';b.textContent='🙈';}else{i.type='password';b.textContent='👁';}">👁</button>
         </div>
       </div>
-      <button id="btn-login" onclick="fazerLogin()" style="width:100%;background:#4f6ef7;border:none;border-radius:8px;padding:13px;color:#fff;font-family:'Lato',sans-serif;font-size:14px;font-weight:700;cursor:pointer;letter-spacing:.5px;">Entrar</button>
+      <button id="btn-login" onclick="fazerLogin()" style="width:100%;background:#4f6ef7;border:none;border-radius:8px;padding:13px;color:#fff;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;cursor:pointer;letter-spacing:.5px;">Entrar</button>
       <div id="login-erro" style="display:none;margin-top:12px;text-align:center;font-size:12px;color:#e84545;"></div>
       <div style="margin-top:16px;text-align:center;">
-        <button onclick="resetSenhasPadrao()" style="background:none;border:none;color:#555878;font-size:11px;cursor:pointer;font-family:'Lato',sans-serif;">Esqueceu a senha? Clique aqui</button>
+        <button onclick="resetSenhasPadrao()" style="background:none;border:none;color:#555878;font-size:11px;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Esqueceu a senha? Clique aqui</button>
       </div>
     </div>
     <div style="text-align:center;margin-top:16px;font-size:10px;color:#555878;">Lex v14.0 · Agente Autônomo · Uso exclusivo do escritório</div>
@@ -531,8 +531,8 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
     <div class="urgente-pill"><div class="pulse"></div><span id="urg-count" style="font-size:12px;color:var(--text2)">— urgentes</span></div>
     <div style="font-size:11px;color:var(--accent);margin-bottom:4px;" id="perfil-label"></div>
     <div class="oab" id="topbar-oab"></div>
-    <button onclick="exportarDados()" title="Baixar todos os dados do escrítório" style="margin-top:8px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:8px 12px;color:var(--text2);font-family:'Lato',sans-serif;font-size:12px;cursor:pointer;width:100%;font-weight:600;">⬇ Exportar Dados</button>
-    <button onclick="sair()" style="margin-top:6px;background:var(--red-soft);border:1px solid var(--red);border-radius:6px;padding:8px 12px;color:var(--red);font-family:'Lato',sans-serif;font-size:12px;cursor:pointer;width:100%;font-weight:700;">↩ Sair do Sistema</button>
+    <button onclick="exportarDados()" title="Baixar todos os dados do escrítório" style="margin-top:8px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:8px 12px;color:var(--text2);font-family:Arial,Helvetica,sans-serif;font-size:12px;cursor:pointer;width:100%;font-weight:600;">⬇ Exportar Dados</button>
+    <button onclick="sair()" style="margin-top:6px;background:var(--red-soft);border:1px solid var(--red);border-radius:6px;padding:8px 12px;color:var(--red);font-family:Arial,Helvetica,sans-serif;font-size:12px;cursor:pointer;width:100%;font-weight:700;">↩ Sair do Sistema</button>
   </div>
 </div>
 <div id="overlay" onclick="fecharSidebar()"></div>
@@ -553,7 +553,7 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
       <button class="btn-novo" style="background:var(--purple)" onclick="if(podeEditar())document.getElementById('pdf-upload-input').click();else alert('Sem permissão.')">📄 PDF</button>      <button class="btn-novo" style="background:var(--cyan);color:#00121a" onclick="abrirPlanilhaDividaModal()">Gerar Planilha de Divida</button>
 
       <button class="btn-novo" id="btn-chat-global" style="background:var(--gold);color:#000" onclick="toggleChatGlobal()">💬 Assessor</button>
-      <button title="Tour guiado" onclick="localStorage.removeItem('lex_tour_concluido_v1');iniciarTour();" style="background:none;border:1px solid var(--border2);border-radius:8px;padding:7px 11px;color:var(--text3);font-family:'Lato',sans-serif;font-size:12px;cursor:pointer;" id="tour-btn">❓</button>
+      <button title="Tour guiado" onclick="localStorage.removeItem('lex_tour_concluido_v1');iniciarTour();" style="background:none;border:1px solid var(--border2);border-radius:8px;padding:7px 11px;color:var(--text3);font-family:Arial,Helvetica,sans-serif;font-size:12px;cursor:pointer;" id="tour-btn">❓</button>
       <button id="tema-btn" onclick="alternarTema()">☀️ Dia</button>
       <input type="file" id="pdf-upload-input" accept=".pdf" style="display:none" onchange="abrirPdfParaCadastro(this)">
       <span id="lex-last-sync" style="font-size:10px;color:var(--text3);white-space:nowrap;"></span>
@@ -563,9 +563,9 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
   </div>
   <!-- BARRA DE VOLTAR/SAIR -->
   <div id="back-bar" style="display:none;background:var(--surface2);border-bottom:1px solid var(--border);padding:10px 24px;position:sticky;top:57px;z-index:40;align-items:center;justify-content:space-between;gap:12px;">
-    <button onclick="voltarPagina()" style="display:flex;align-items:center;gap:8px;background:var(--accent-soft);border:1px solid var(--accent);border-radius:8px;padding:9px 18px;color:var(--accent);font-family:'Lato',sans-serif;font-size:13px;cursor:pointer;font-weight:700;">← Voltar</button>
+    <button onclick="voltarPagina()" style="display:flex;align-items:center;gap:8px;background:var(--accent-soft);border:1px solid var(--accent);border-radius:8px;padding:9px 18px;color:var(--accent);font-family:Arial,Helvetica,sans-serif;font-size:13px;cursor:pointer;font-weight:700;">← Voltar</button>
     <span id="back-bar-label" style="font-size:12px;color:var(--text2);font-weight:400;flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
-    <button onclick="sair()" style="display:flex;align-items:center;gap:8px;background:var(--red-soft);border:1px solid var(--red);border-radius:8px;padding:9px 18px;color:var(--red);font-family:'Lato',sans-serif;font-size:13px;cursor:pointer;font-weight:700;">↩ Sair do Sistema</button>
+    <button onclick="sair()" style="display:flex;align-items:center;gap:8px;background:var(--red-soft);border:1px solid var(--red);border-radius:8px;padding:9px 18px;color:var(--red);font-family:Arial,Helvetica,sans-serif;font-size:13px;cursor:pointer;font-weight:700;">↩ Sair do Sistema</button>
   </div>
   <div class="content" id="content"></div>
 </div>
@@ -1835,7 +1835,7 @@ function varreduraInicial(){
           <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:3px">${p.icone} ${p.titulo}</div>
           <div style="font-size:11px;color:var(--text3)">${p.detalhe}</div>
         </div>
-        <button style="background:var(--accent-soft);border:1px solid var(--accent);border-radius:6px;padding:5px 10px;color:var(--accent);font-family:'Lato',sans-serif;font-size:11px;cursor:pointer;white-space:nowrap;flex-shrink:0">${p.acao} →</button>
+        <button style="background:var(--accent-soft);border:1px solid var(--accent);border-radius:6px;padding:5px 10px;color:var(--accent);font-family:Arial,Helvetica,sans-serif;font-size:11px;cursor:pointer;white-space:nowrap;flex-shrink:0">${p.acao} →</button>
       </div>
     </div>
   `).join('');
@@ -1843,7 +1843,7 @@ function varreduraInicial(){
   overlay.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:520px;max-height:85vh;overflow-y:auto;padding:26px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:var(--text)">🤖 Assessor LEX — Varredura</div>
+        <div style="font-family:Arial,Helvetica,sans-serif;font-size:18px;font-weight:700;color:var(--text)">🤖 Assessor LEX — Varredura</div>
         <button onclick="document.getElementById('varredura-overlay').remove()" 
           style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;padding:0 4px;line-height:1">✕</button>
       </div>
@@ -1851,11 +1851,11 @@ function varreduraInicial(){
       ${itensHtml}
       <div style="display:flex;gap:8px;margin-top:16px">
         <button onclick="document.getElementById('varredura-overlay').remove()"
-          style="flex:1;background:transparent;border:1px solid var(--border2);border-radius:8px;padding:10px;color:var(--text2);font-family:'Lato',sans-serif;font-size:13px;cursor:pointer">
+          style="flex:1;background:transparent;border:1px solid var(--border2);border-radius:8px;padding:10px;color:var(--text2);font-family:Arial,Helvetica,sans-serif;font-size:13px;cursor:pointer">
           Resolver depois
         </button>
         <button onclick="varreduraListarTudo()"
-          style="flex:1;background:var(--accent);border:none;border-radius:8px;padding:10px;color:#fff;font-family:'Lato',sans-serif;font-size:13px;font-weight:700;cursor:pointer">
+          style="flex:1;background:var(--accent);border:none;border-radius:8px;padding:10px;color:#fff;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;cursor:pointer">
           💬 Listar tudo com IA
         </button>
       </div>
@@ -2815,7 +2815,7 @@ function renderGestaoSenhas(){
     ${Object.entries(info).map(([p,label])=>`
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
         <div>
-          <div style="font-family:'Playfair Display',serif;font-size:15px;font-weight:600">${label}</div>
+          <div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:600">${label}</div>
           <div style="font-size:11px;color:var(--text3);margin-top:2px">Perfil: ${p} · ${p==='admin'?'Acesso total':'Visualiza + andamentos'}</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -2850,6 +2850,67 @@ function renderGestaoSenhas(){
       </div>
     </div>
 
+    <!-- SISTEMA DE COBRANÇA PIX — CLIENTES DO ESCRITÓRIO -->
+    <div style="background:var(--surface);border:1px solid #00c853aa;border-radius:14px;padding:20px 22px;margin-top:20px;">
+      <div style="font-size:10px;color:#00c853;letter-spacing:2px;margin-bottom:14px;">💰 COBRANÇA PIX — CLIENTES DO ESCRITÓRIO</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.7;">
+        Gere cobranças mensais via PIX para seus clientes. O Lex pode enviar automaticamente pelo WhatsApp.
+      </div>
+      
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:14px;">
+        <div style="font-size:11px;color:var(--text3);letter-spacing:1px;margin-bottom:10px;">DADOS PIX DO ESCRITÓRIO</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="fg"><label class="fl">Tipo de chave PIX</label>
+            <select class="fi" id="pix-tipo-chave" style="font-size:12px;">
+              <option value="cpf">CPF</option>
+              <option value="cnpj">CNPJ</option>
+              <option value="email">E-mail</option>
+              <option value="telefone">Telefone</option>
+              <option value="aleatoria">Chave aleatória</option>
+            </select>
+          </div>
+          <div class="fg"><label class="fl">Chave PIX</label><input class="fi" id="pix-chave" placeholder="Sua chave PIX" style="font-size:12px;"></div>
+          <div class="fg"><label class="fl">Nome do beneficiário</label><input class="fi" id="pix-beneficiario" placeholder="Nome que aparece no PIX" style="font-size:12px;"></div>
+          <div class="fg"><label class="fl">Cidade</label><input class="fi" id="pix-cidade" value="Brasilia" placeholder="Cidade" style="font-size:12px;"></div>
+        </div>
+        <button onclick="salvarDadosPix()" class="btn-primary" style="margin-top:10px;font-size:12px;padding:9px 18px;">💾 Salvar dados PIX</button>
+        <span id="pix-dados-status" style="margin-left:10px;font-size:11px;"></span>
+      </div>
+      
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:14px;">
+        <div style="font-size:11px;color:var(--text3);letter-spacing:1px;margin-bottom:10px;">GERAR COBRANÇA</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+          <div class="fg"><label class="fl">Cliente</label><input class="fi" id="pix-cliente-nome" placeholder="Nome do cliente" style="font-size:12px;"></div>
+          <div class="fg"><label class="fl">Valor (R$)</label><input class="fi" id="pix-valor" type="number" step="0.01" placeholder="150.00" style="font-size:12px;"></div>
+          <div class="fg"><label class="fl">Referência / Mês</label><input class="fi" id="pix-referencia" placeholder="Mensalidade Abril/2026" style="font-size:12px;"></div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
+          <button onclick="gerarCobrancaPix()" class="btn-primary" style="font-size:12px;padding:9px 18px;background:#00c853;">
+            💰 Gerar PIX Copia e Cola
+          </button>
+          <button onclick="gerarQrCodePix()" class="btn-outline" style="font-size:12px;padding:9px 18px;">
+            📱 Gerar QR Code
+          </button>
+          <button onclick="enviarCobrancaWhatsApp()" class="btn-outline" style="font-size:12px;padding:9px 18px;color:#00c853;border-color:#00c85344;">
+            📲 Enviar pelo WhatsApp
+          </button>
+        </div>
+      </div>
+      
+      <div id="pix-resultado" style="display:none;background:var(--bg);border:1px solid #00c85344;border-radius:10px;padding:16px;margin-bottom:14px;">
+        <div style="font-size:11px;color:#00c853;letter-spacing:1px;margin-bottom:8px;">✅ PIX GERADO</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:8px;" id="pix-info-gerado"></div>
+        <div style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:12px;font-family:monospace;font-size:11px;color:var(--accent);word-break:break-all;cursor:pointer;" id="pix-codigo" onclick="copiarPix()" title="Clique para copiar"></div>
+        <div style="text-align:center;margin-top:10px;" id="pix-qrcode-box"></div>
+        <button onclick="copiarPix()" class="btn-primary" style="margin-top:10px;font-size:12px;padding:9px 18px;background:#00c853;">📋 Copiar código PIX</button>
+      </div>
+      
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:16px;">
+        <div style="font-size:11px;color:var(--text3);letter-spacing:1px;margin-bottom:8px;">COBRANÇAS RECENTES</div>
+        <div id="pix-historico" style="font-size:12px;color:var(--text2);">Nenhuma cobrança gerada ainda.</div>
+      </div>
+    </div>
+
     <!-- V14 CHANGELOG -->
     <div style="background:var(--accent-soft);border:1px solid var(--accent)33;border-radius:12px;padding:16px 20px;margin-top:20px;">
       <div style="font-size:10px;color:var(--accent);letter-spacing:2px;font-weight:700;margin-bottom:10px;">🆕 NOVIDADES — LEX v14</div>
@@ -2881,6 +2942,158 @@ function salvarEscritorio(){
   if(oabEl) oabEl.textContent=(d.registro||'')+(d.endereco?' · '+d.endereco:'');
   toast('✓ Configurações salvas!','ok');
   renderGestaoSenhas();
+}
+
+// ── SISTEMA PIX — Geração de cobranças ──
+const _pixDados = JSON.parse(localStorage.getItem('lex_pix_dados')||'{}');
+const _pixHistorico = JSON.parse(localStorage.getItem('lex_pix_historico')||'[]');
+
+function salvarDadosPix(){
+  const d = {
+    tipo_chave: document.getElementById('pix-tipo-chave')?.value||'cpf',
+    chave: document.getElementById('pix-chave')?.value?.trim()||'',
+    beneficiario: document.getElementById('pix-beneficiario')?.value?.trim()||'',
+    cidade: document.getElementById('pix-cidade')?.value?.trim()||'Brasilia'
+  };
+  if(!d.chave||!d.beneficiario){toast('Preencha chave PIX e beneficiário','erro');return;}
+  Object.assign(_pixDados, d);
+  localStorage.setItem('lex_pix_dados', JSON.stringify(_pixDados));
+  const st = document.getElementById('pix-dados-status');
+  if(st){st.textContent='✓ Dados salvos!';st.style.color='var(--green)';setTimeout(()=>{st.textContent='';},3000);}
+  toast('✓ Dados PIX salvos!','ok');
+}
+
+function _gerarPixPayload(valor, referencia){
+  // EMV PIX estático (padrão Banco Central)
+  const chave = _pixDados.chave||'';
+  const nome = (_pixDados.beneficiario||'').toUpperCase().substring(0,25).normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const cidade = (_pixDados.cidade||'Brasilia').toUpperCase().substring(0,15).normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const valorStr = valor ? parseFloat(valor).toFixed(2) : '';
+  const descricao = (referencia||'').substring(0,25).normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  
+  function tlv(id,val){const l=val.length.toString().padStart(2,'0');return id+l+val;}
+  function crc16(str){
+    let crc=0xFFFF;
+    for(let i=0;i<str.length;i++){
+      crc^=str.charCodeAt(i)<<8;
+      for(let j=0;j<8;j++) crc=(crc&0x8000)?((crc<<1)^0x1021):(crc<<1);
+      crc&=0xFFFF;
+    }
+    return crc.toString(16).toUpperCase().padStart(4,'0');
+  }
+  
+  let gui = tlv('00','br.gov.bcb.pix');
+  let chaveTlv = tlv('01',chave);
+  let descTlv = descricao ? tlv('02',descricao) : '';
+  let merchantAccount = tlv('26', gui+chaveTlv+descTlv);
+  
+  let payload = '';
+  payload += tlv('00','01'); // formato
+  payload += merchantAccount;
+  payload += tlv('52','0000'); // MCC
+  payload += tlv('53','986'); // moeda BRL
+  if(valorStr && parseFloat(valorStr)>0) payload += tlv('54',valorStr);
+  payload += tlv('58','BR');
+  payload += tlv('59',nome);
+  payload += tlv('60',cidade);
+  payload += tlv('62', tlv('05','***')); // adicional
+  payload += '6304'; // CRC placeholder
+  
+  const crc = crc16(payload);
+  return payload + crc;
+}
+
+function gerarCobrancaPix(){
+  if(!_pixDados.chave){toast('Configure seus dados PIX primeiro','erro');return;}
+  const cliente = document.getElementById('pix-cliente-nome')?.value?.trim()||'';
+  const valor = document.getElementById('pix-valor')?.value||'';
+  const ref = document.getElementById('pix-referencia')?.value?.trim()||'';
+  if(!valor||parseFloat(valor)<=0){toast('Informe o valor da cobrança','erro');return;}
+  
+  const codigo = _gerarPixPayload(valor, ref);
+  
+  const box = document.getElementById('pix-resultado');
+  const info = document.getElementById('pix-info-gerado');
+  const cod = document.getElementById('pix-codigo');
+  if(box) box.style.display='block';
+  if(info) info.innerHTML='<strong>'+cliente+'</strong> — R$ '+parseFloat(valor).toFixed(2)+(ref?' — '+ref:'');
+  if(cod) cod.textContent=codigo;
+  
+  // Salva no histórico
+  const item = {cliente,valor:parseFloat(valor).toFixed(2),ref,data:new Date().toISOString(),codigo};
+  _pixHistorico.unshift(item);
+  if(_pixHistorico.length>50) _pixHistorico.length=50;
+  localStorage.setItem('lex_pix_historico',JSON.stringify(_pixHistorico));
+  _renderPixHistorico();
+  
+  toast('✓ PIX gerado! Clique para copiar.','ok');
+}
+
+function gerarQrCodePix(){
+  gerarCobrancaPix();
+  const codigo = document.getElementById('pix-codigo')?.textContent||'';
+  if(!codigo) return;
+  const qrBox = document.getElementById('pix-qrcode-box');
+  if(!qrBox) return;
+  // Usa API pública para QR Code (sem dependência)
+  const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data='+encodeURIComponent(codigo);
+  qrBox.innerHTML='<img src="'+qrUrl+'" alt="QR Code PIX" style="border-radius:8px;border:2px solid #00c853;">';
+}
+
+function copiarPix(){
+  const cod = document.getElementById('pix-codigo')?.textContent||'';
+  if(!cod) return;
+  navigator.clipboard.writeText(cod).then(()=>{toast('✓ Código PIX copiado!','ok');}).catch(()=>{
+    // Fallback
+    const ta=document.createElement('textarea');ta.value=cod;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
+    toast('✓ Código PIX copiado!','ok');
+  });
+}
+
+async function enviarCobrancaWhatsApp(){
+  const cliente = document.getElementById('pix-cliente-nome')?.value?.trim()||'';
+  const valor = document.getElementById('pix-valor')?.value||'';
+  const ref = document.getElementById('pix-referencia')?.value?.trim()||'';
+  const codigo = document.getElementById('pix-codigo')?.textContent||'';
+  if(!codigo){toast('Gere o PIX primeiro','erro');return;}
+  
+  const numero = prompt('Número WhatsApp do cliente (com DDD, ex: 61999991234):');
+  if(!numero) return;
+  const numLimpo = numero.replace(/\D/g,'');
+  const jid = (numLimpo.startsWith('55') ? numLimpo : '55'+numLimpo)+'@s.whatsapp.net';
+  
+  const msg = '💰 *Cobrança — '+(_pixDados.beneficiario||'Escritório')+'*\n\n'
+    +(cliente ? '👤 Cliente: '+cliente+'\n' : '')
+    +'💵 Valor: R$ '+parseFloat(valor).toFixed(2)+'\n'
+    +(ref ? '📋 Ref: '+ref+'\n' : '')
+    +'\n📲 *PIX Copia e Cola:*\n'+codigo
+    +'\n\nCopie o código acima e cole no app do seu banco para pagar. Qualquer dúvida é só chamar!';
+  
+  try{
+    const tk = getAuthToken()||'';
+    const r = await fetchComTimeout(SERVIDOR+'/api/mensagens/enviar',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},
+      body:JSON.stringify({canal:'whatsapp',destino:jid,texto:msg})
+    },15000);
+    if(r.ok){toast('✓ Cobrança enviada pelo WhatsApp!','ok');}
+    else{toast('Erro ao enviar — verifique conexão WhatsApp','erro');}
+  }catch(e){toast('Erro: '+e.message,'erro');}
+}
+
+function _renderPixHistorico(){
+  const box = document.getElementById('pix-historico');
+  if(!box) return;
+  const hist = JSON.parse(localStorage.getItem('lex_pix_historico')||'[]');
+  if(!hist.length){box.innerHTML='Nenhuma cobrança gerada ainda.';return;}
+  box.innerHTML = hist.slice(0,10).map(h => 
+    '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">'
+    +'<div><strong>'+h.cliente+'</strong> — '+(h.ref||'sem ref')+'</div>'
+    +'<div style="display:flex;gap:10px;align-items:center;">'
+    +'<span style="color:#00c853;font-weight:700;">R$ '+h.valor+'</span>'
+    +'<span style="font-size:10px;color:var(--text3);">'+new Date(h.data).toLocaleDateString('pt-BR')+'</span>'
+    +'</div></div>'
+  ).join('');
 }
 
 async function salvarWhatsappConfig(){
@@ -3461,7 +3674,7 @@ function renderProcessosFiltrado(filtro){
   let psFiltrados=filtro==='todos'?ps:filtro==='em_prep'?ps.filter(p=>p.status==='EM_PREP'):ps.filter(p=>p.status===filtro.toUpperCase());
   const filtrosHtml=`<div class="filtros-row">
     ${['todos','urgente','ativo','recursal','aguardando','em_prep'].map(s=>`<button class="filtro-btn ${filtroAtivo===s?'ativo':''}" onclick="renderProcessosFiltrado('${s}')">${s==='todos'?'Todos':s==='em_prep'?'Em Preparação':s.charAt(0).toUpperCase()+s.slice(1)}</button>`).join('')}
-    <input placeholder="🔍 Buscar grupo..." oninput="filtrarGrupoInline(this.value)" style="background:var(--surface2);border:1px solid var(--border2);border-radius:20px;padding:5px 14px;color:var(--text);font-family:'Lato',sans-serif;font-size:11px;outline:none;width:140px;">
+    <input placeholder="🔍 Buscar grupo..." oninput="filtrarGrupoInline(this.value)" style="background:var(--surface2);border:1px solid var(--border2);border-radius:20px;padding:5px 14px;color:var(--text);font-family:Arial,Helvetica,sans-serif;font-size:11px;outline:none;width:140px;">
   </div>`;
   let cardsHtml='';
   GRUPOS_LIST.forEach(g=>{
@@ -3559,7 +3772,7 @@ function renderCalMes(mes,ano){
   document.getElementById('content').innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
       <button class="btn-outline" style="padding:7px 14px" onclick="renderCalMes(${mes===0?11:mes-1},${mes===0?ano-1:ano})">← Anterior</button>
-      <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:600">${nomes[mes]} ${ano}</div>
+      <div style="font-family:Arial,Helvetica,sans-serif;font-size:18px;font-weight:600">${nomes[mes]} ${ano}</div>
       <button class="btn-outline" style="padding:7px 14px" onclick="renderCalMes(${mes===11?0:mes+1},${mes===11?ano+1:ano})">Próximo →</button>
     </div>
     <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
@@ -3610,7 +3823,7 @@ function calDia(dStr){
   ov.style.cssText='position:fixed;inset:0;background:#00000088;z-index:600;display:flex;align-items:center;justify-content:center;padding:14px';
   ov.innerHTML=`<div style="background:var(--surface);border:1px solid var(--border2);border-radius:14px;padding:20px;max-width:400px;width:100%;max-height:80vh;overflow-y:auto">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-      <div style="font-family:'Playfair Display',serif;font-size:16px;font-weight:600">📅 ${dataBR}</div>
+      <div style="font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:600">📅 ${dataBR}</div>
       <button onclick="document.getElementById('_calOv').remove()" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer">×</button>
     </div>
     ${evs.map(e=>`<div style="background:var(--surface2);border-left:3px solid ${e.cor};border-radius:8px;padding:10px 14px;margin-bottom:8px;cursor:${e.id?'pointer':'default'}" ${e.id?('onclick="document.getElementById(\'_calOv\').remove();abrirProc('+e.id+')"'):''}><div style="font-size:13px;font-weight:600">${e.nome}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${e.tipo}${e.obs?' — '+e.obs:''}</div></div>`).join('')}
@@ -3630,7 +3843,7 @@ function calNovo(dStr){
   const ov=document.createElement('div');ov.id='_calNovOv';
   ov.style.cssText='position:fixed;inset:0;background:#00000099;z-index:700;display:flex;align-items:center;justify-content:center;padding:14px';
   ov.innerHTML=`<div style="background:var(--surface);border:1px solid var(--border2);border-radius:14px;padding:22px;max-width:420px;width:100%">
-    <div style="font-family:'Playfair Display',serif;font-size:16px;font-weight:600;margin-bottom:16px">📅 Novo Prazo / Evento</div>
+    <div style="font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:600;margin-bottom:16px">📅 Novo Prazo / Evento</div>
     <div class="fg"><label class="fl">Tipo</label>
       <select class="fs" id="_ceTipo"><option value="prazo">⚖️ Prazo processual</option><option value="audiencia">🏛️ Audiência</option><option value="pericia">🔬 Perícia</option><option value="reuniao">🤝 Reunião</option><option value="outro">📌 Outro</option></select>
     </div>
@@ -3826,7 +4039,7 @@ function abrirProc(id){
     <div onclick="abrirGestorWeb(${p.id})" style="background:linear-gradient(135deg,#c9a961 0%,#a88840 50%,#c9a961 100%);border-radius:12px;padding:16px 22px;margin:14px 0;cursor:pointer;display:flex;align-items:center;gap:14px;box-shadow:0 4px 14px rgba(201,169,97,0.25);transition:transform .15s, box-shadow .15s" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 6px 20px rgba(201,169,97,0.4)'" onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 14px rgba(201,169,97,0.25)'">
       <div style="font-size:32px;line-height:1">🤖</div>
       <div style="flex:1;color:#1a1a1c">
-        <div style="font-family:'Playfair Display',serif;font-size:17px;font-weight:700;margin-bottom:2px">Conversar com o Gestor IA</div>
+        <div style="font-family:Arial,Helvetica,sans-serif;font-size:17px;font-weight:700;margin-bottom:2px">Conversar com o Gestor IA</div>
         <div style="font-size:12px;opacity:.85;font-weight:500">Conte o que foi feito, debata a estratégia e atualize o processo automaticamente — Opus 4.7</div>
       </div>
       <div style="color:#1a1a1c;font-size:22px;font-weight:700">›</div>
@@ -3836,14 +4049,14 @@ function abrirProc(id){
       ? `<div class="proxacao-box">
            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
              <div class="proxacao-label">⚡ Próxima Ação Imediata</div>
-             <button onclick="sugerirProximaAcao(${p.id})" style="background:var(--gold)22;border:1px solid var(--gold)44;border-radius:6px;padding:3px 10px;color:var(--gold);font-family:'Lato',sans-serif;font-size:10px;cursor:pointer;font-weight:700;">🤖 Sugerir nova</button>
+             <button onclick="sugerirProximaAcao(${p.id})" style="background:var(--gold)22;border:1px solid var(--gold)44;border-radius:6px;padding:3px 10px;color:var(--gold);font-family:Arial,Helvetica,sans-serif;font-size:10px;cursor:pointer;font-weight:700;">🤖 Sugerir nova</button>
            </div>
            <div class="proxacao-txt">${p.proxacao}</div>
            <div id="proxacao-sugestao-${p.id}"></div>
          </div>`
       : `<div style="background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;">
            <div style="font-size:13px;color:var(--text3);font-style:italic">Nenhuma próxima ação definida</div>
-           <button onclick="sugerirProximaAcao(${p.id})" style="background:var(--gold);border:none;border-radius:6px;padding:7px 14px;color:#000;font-family:'Lato',sans-serif;font-size:12px;cursor:pointer;font-weight:700;">🤖 Sugerir com IA</button>
+           <button onclick="sugerirProximaAcao(${p.id})" style="background:var(--gold);border:none;border-radius:6px;padding:7px 14px;color:#000;font-family:Arial,Helvetica,sans-serif;font-size:12px;cursor:pointer;font-weight:700;">🤖 Sugerir com IA</button>
          </div>
          <div id="proxacao-sugestao-${p.id}"></div>`
     }
@@ -3929,15 +4142,15 @@ function abrirProc(id){
     <div class="ia-box" id="ia-auto-${p.id}" style="padding:0;overflow:hidden;">
       <div style="display:flex;border-bottom:1px solid #4f6ef733;">
         <button onclick="abaAnalise(${p.id},'julgador',this)" id="aba-julgador-${p.id}"
-          style="flex:1;padding:12px 6px;background:var(--accent-soft);border:none;cursor:pointer;font-family:'Lato',sans-serif;font-size:11px;color:var(--accent);font-weight:700;letter-spacing:.5px;border-radius:0;">
+          style="flex:1;padding:12px 6px;background:var(--accent-soft);border:none;cursor:pointer;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:var(--accent);font-weight:700;letter-spacing:.5px;border-radius:0;">
           ⚖️ JULGADOR
         </button>
         <button onclick="abaAnalise(${p.id},'juris',this)" id="aba-juris-${p.id}"
-          style="flex:1;padding:12px 6px;background:transparent;border:none;border-left:1px solid #4f6ef733;cursor:pointer;font-family:'Lato',sans-serif;font-size:11px;color:var(--text3);font-weight:700;letter-spacing:.5px;">
+          style="flex:1;padding:12px 6px;background:transparent;border:none;border-left:1px solid #4f6ef733;cursor:pointer;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:var(--text3);font-weight:700;letter-spacing:.5px;">
           📚 JURISPRUDÊNCIA
         </button>
         <button onclick="abaAnalise(${p.id},'estrategia',this)" id="aba-estrategia-${p.id}"
-          style="flex:1;padding:12px 6px;background:transparent;border:none;border-left:1px solid #4f6ef733;cursor:pointer;font-family:'Lato',sans-serif;font-size:11px;color:var(--text3);font-weight:700;letter-spacing:.5px;">
+          style="flex:1;padding:12px 6px;background:transparent;border:none;border-left:1px solid #4f6ef733;cursor:pointer;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:var(--text3);font-weight:700;letter-spacing:.5px;">
           🎯 ESTRATÉGIA
         </button>
       </div>
@@ -4277,18 +4490,18 @@ function addAndamento(id){
   overlay.style.cssText='position:fixed;inset:0;background:#00000099;z-index:600;display:flex;align-items:center;justify-content:center;padding:16px';
   overlay.innerHTML=`
     <div style="background:var(--surface);border:1px solid var(--border2);border-radius:14px;width:100%;max-width:480px;padding:28px;">
-      <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:600;color:var(--text);margin-bottom:20px;">+ Novo Andamento</div>
+      <div style="font-family:Arial,Helvetica,sans-serif;font-size:18px;font-weight:600;color:var(--text);margin-bottom:20px;">+ Novo Andamento</div>
       <div style="margin-bottom:14px;">
         <label style="font-size:10px;color:var(--text3);letter-spacing:2px;display:block;margin-bottom:6px;">DATA</label>
-        <input id="and-data-inp" value="${new Date().toLocaleDateString('pt-BR')}" style="width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:10px 13px;color:var(--text);font-family:'Lato',sans-serif;font-size:13px;">
+        <input id="and-data-inp" value="${new Date().toLocaleDateString('pt-BR')}" style="width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:10px 13px;color:var(--text);font-family:Arial,Helvetica,sans-serif;font-size:13px;">
       </div>
       <div style="margin-bottom:20px;">
         <label style="font-size:10px;color:var(--text3);letter-spacing:2px;display:block;margin-bottom:6px;">DESCRIÇÃO DO ANDAMENTO</label>
-        <textarea id="and-txt-inp" placeholder="Descreva o andamento processual..." style="width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:10px 13px;color:var(--text);font-family:'Lato',sans-serif;font-size:13px;min-height:100px;resize:vertical;"></textarea>
+        <textarea id="and-txt-inp" placeholder="Descreva o andamento processual..." style="width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:10px 13px;color:var(--text);font-family:Arial,Helvetica,sans-serif;font-size:13px;min-height:100px;resize:vertical;"></textarea>
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end;">
-        <button onclick="this.closest('div[style*=fixed]').remove()" style="background:transparent;border:1px solid var(--border2);border-radius:8px;padding:10px 20px;color:var(--text2);font-family:'Lato',sans-serif;font-size:13px;cursor:pointer;">Cancelar</button>
-        <button onclick="confirmarAndamento(${id},this)" style="background:var(--accent);border:none;border-radius:8px;padding:10px 24px;color:#fff;font-family:'Lato',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">Salvar</button>
+        <button onclick="this.closest('div[style*=fixed]').remove()" style="background:transparent;border:1px solid var(--border2);border-radius:8px;padding:10px 20px;color:var(--text2);font-family:Arial,Helvetica,sans-serif;font-size:13px;cursor:pointer;">Cancelar</button>
+        <button onclick="confirmarAndamento(${id},this)" style="background:var(--accent);border:none;border-radius:8px;padding:10px 24px;color:#fff;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;cursor:pointer;">Salvar</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -4384,7 +4597,7 @@ function editarPrazoProc(procId){
   const ov=document.createElement('div');ov.id='_calNovOv';
   ov.style.cssText='position:fixed;inset:0;background:#00000099;z-index:700;display:flex;align-items:center;justify-content:center;padding:14px';
   ov.innerHTML=`<div style="background:var(--surface);border:1px solid var(--border2);border-radius:14px;padding:22px;max-width:380px;width:100%">
-    <div style="font-family:'Playfair Display',serif;font-size:15px;font-weight:600;margin-bottom:4px">⚖️ Prazo — ${p.nome.substring(0,36)}</div>
+    <div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:600;margin-bottom:4px">⚖️ Prazo — ${p.nome.substring(0,36)}</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:14px">${p.partes}</div>
     <div class="fg"><label class="fl">Data REAL do prazo (dd/mm/aaaa)</label><input class="fi" id="_epR" value="${p.prazoReal||p.prazo||''}" placeholder="15/04/2026"></div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px">O Lex define o alerta 3 dias antes automaticamente.</div>
@@ -4490,7 +4703,7 @@ function renderEstatisticas(){
       <div class="stat-card" style="border-top:2px solid var(--green)"><div class="stat-label">Ganhos</div><div class="stat-num" style="color:var(--green)">${ganhos}</div></div>
       <div class="stat-card" style="border-top:2px solid var(--red)"><div class="stat-label">Perdidos</div><div class="stat-num" style="color:var(--red)">${perdidos}</div></div>
     </div>
-    ${valorTotal?`<div class="desc-card" style="margin-bottom:20px"><div class="desc-label">Valor total das causas</div><div style="font-family:'Playfair Display',serif;font-size:28px;font-weight:700;color:var(--gold)">R$ ${valorTotal.toLocaleString('pt-BR')}</div></div>`:''}
+    ${valorTotal?`<div class="desc-card" style="margin-bottom:20px"><div class="desc-label">Valor total das causas</div><div style="font-family:Arial,Helvetica,sans-serif;font-size:28px;font-weight:700;color:var(--gold)">R$ ${valorTotal.toLocaleString('pt-BR')}</div></div>`:''}
 
     <!-- Dashboard por Tribunal V12 -->
     <div class="desc-card" style="margin-bottom:20px">
@@ -4543,7 +4756,7 @@ function renderEstatisticas(){
 
     <div class="desc-card" style="margin-top:14px;border-left:4px solid ${saldoRoi>=0?'var(--green)':'var(--red)'}">
       <div class="desc-label">ROI DO ESCRITÓRIO</div>
-      <div style="font-family:'Playfair Display',serif;font-size:30px;font-weight:700;color:${saldoRoi>=0?'var(--green)':'var(--red)'}">${_fmtBRL(saldoRoi)}</div>
+      <div style="font-family:Arial,Helvetica,sans-serif;font-size:30px;font-weight:700;color:${saldoRoi>=0?'var(--green)':'var(--red)'}">${_fmtBRL(saldoRoi)}</div>
       <div style="font-size:12px;color:var(--text2);margin-top:4px">Retorno: <strong style="color:${roiPct>=0?'var(--green)':'var(--red)'}">${roiPct.toFixed(1)}%</strong> · Ganhos: ${_fmtBRL(ganhoValor)} · Perdidos: ${_fmtBRL(perdaValor)}</div>
     </div>
 
@@ -4607,7 +4820,7 @@ function renderJuris(){
     <div style="background:linear-gradient(135deg,#10b98115,var(--surface));border:1px solid #10b98133;border-radius:16px;padding:16px 20px;margin-bottom:16px">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
         <div>
-          <div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:var(--text)">📚 Pesquisa de Jurisprudência</div>
+          <div style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:700;color:var(--text)">📚 Pesquisa de Jurisprudência</div>
           <div style="font-size:12px;color:var(--text3);margin-top:4px">Busca inteligente com IA · Análise de aplicabilidade · Estratégia baseada em precedentes reais</div>
         </div>
       </div>
@@ -4890,8 +5103,8 @@ async function gerarPeticaoInline(){
         <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Para gerar uma peça de qualidade, complete os dados faltantes:</div>
         <ul style="font-size:12px;padding-left:16px;margin:0 0 12px;">${listHTML}</ul>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button onclick="editarProc(${p.id})" style="background:var(--accent);border:none;border-radius:8px;padding:9px 16px;color:#fff;font-family:'Lato',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">✏ Completar dados do processo</button>
-          <button onclick="_gerarPeticaoForcado(${pid},'${tipo.replace(/'/g,"\\'")}','${instr.replace(/'/g,"\\'")}')" style="background:transparent;border:1px solid var(--border2);border-radius:8px;padding:9px 16px;color:var(--text2);font-family:'Lato',sans-serif;font-size:12px;cursor:pointer;">Gerar mesmo assim →</button>
+          <button onclick="editarProc(${p.id})" style="background:var(--accent);border:none;border-radius:8px;padding:9px 16px;color:#fff;font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:700;cursor:pointer;">✏ Completar dados do processo</button>
+          <button onclick="_gerarPeticaoForcado(${pid},'${tipo.replace(/'/g,"\\'")}','${instr.replace(/'/g,"\\'")}')" style="background:transparent;border:1px solid var(--border2);border-radius:8px;padding:9px 16px;color:var(--text2);font-family:Arial,Helvetica,sans-serif;font-size:12px;cursor:pointer;">Gerar mesmo assim →</button>
         </div>
       </div>`;
     return;
@@ -4990,7 +5203,7 @@ function renderJuizes(){
     <div style="background:linear-gradient(135deg,#6366f115,var(--surface));border:1px solid #6366f133;border-radius:16px;padding:16px 20px;margin-bottom:16px">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
         <div>
-          <div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:var(--text)">⚖️ Inteligência Judicial</div>
+          <div style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:700;color:var(--text)">⚖️ Inteligência Judicial</div>
           <div style="font-size:12px;color:var(--text3);margin-top:4px">${todosJuizes.length} magistrado${todosJuizes.length!==1?'s':''} mapeado${todosJuizes.length!==1?'s':''} · ${analisados.length} com perfil completo · ${juizesProc.length} extraído${juizesProc.length!==1?'s':''} de processos</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -5066,7 +5279,7 @@ function renderJuizes(){
             <div style="flex:1;min-width:140px">
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                 <span style="font-size:20px">${jz.cargo==='Des.'||jz.nome.includes('Des.')?'👨‍⚖️':jz.cargo==='Min.'||jz.nome.includes('Min.')?'🏛️':'⚖️'}</span>
-                <span style="font-family:'Playfair Display',serif;font-size:16px;font-weight:700;color:var(--text)">${jz.nome}</span>
+                <span style="font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;color:var(--text)">${jz.nome}</span>
                 ${jz.autoExtracted?'<span style="font-size:8px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--accent)15;color:var(--accent)">AUTO</span>':''}
                 ${temPerfil?'<span style="font-size:8px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--green)15;color:var(--green)">✓ PERFILADO</span>':'<span style="font-size:8px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--orange)15;color:var(--orange)">PENDENTE</span>'}
               </div>
@@ -5332,7 +5545,7 @@ function _juizVerPerfil(i){
     <div style="background:linear-gradient(135deg,#6366f120,var(--surface));padding:20px 24px;border-bottom:1px solid var(--border)">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div>
-          <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:var(--text)">⚖️ ${jz.nome}</div>
+          <div style="font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:700;color:var(--text)">⚖️ ${jz.nome}</div>
           <div style="font-size:12px;color:var(--text3);margin-top:4px">${jz.tribunal||'—'} ${jz.vara?'· '+jz.vara:''}</div>
           ${pf._gerado_em?`<div style="font-size:10px;color:var(--text3);margin-top:2px">Análise: ${pf._gerado_em} · Base: ${pf.base_analise||'—'} · Confiança: ${pf.nivel_confianca_perfil||'—'}</div>`:''}
         </div>
@@ -5421,7 +5634,7 @@ function addJuiz(){
   overlay.style.cssText='position:fixed;inset:0;background:#00000099;z-index:600;display:flex;align-items:center;justify-content:center;padding:16px';
   overlay.innerHTML=`
     <div style="background:var(--surface);border:1px solid var(--border2);border-radius:14px;width:100%;max-width:480px;padding:28px;">
-      <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:600;color:var(--text);margin-bottom:20px;">⚖️ Cadastrar Magistrado</div>
+      <div style="font-family:Arial,Helvetica,sans-serif;font-size:18px;font-weight:600;color:var(--text);margin-bottom:20px;">⚖️ Cadastrar Magistrado</div>
       ${['Nome do juiz / desembargador / ministro|juiz-nome','Tribunal (ex: TJMG, TRF-6)|juiz-trib','Vara / Câmara / Turma|juiz-vara'].map(f=>{const[l,id]=f.split('|');return`<div style="margin-bottom:12px;"><label style="font-size:10px;color:var(--text3);letter-spacing:2px;display:block;margin-bottom:5px;">${l.toUpperCase()}</label><input id="${id}" class="fi" style="width:100%"></div>`;}).join('')}
       <div style="margin-bottom:12px;"><label style="font-size:10px;color:var(--text3);letter-spacing:2px;display:block;margin-bottom:5px;">OBSERVAÇÕES SOBRE DECISÕES</label><textarea id="juiz-notas" class="fta" style="min-height:80px"></textarea></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;">
@@ -5585,7 +5798,7 @@ async function _renderPjeAsync(cfg) {
 
   document.getElementById('content').innerHTML = `
     <div style="max-width:640px">
-      <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:600;margin-bottom:6px">🔗 Integração PJe</div>
+      <div style="font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:600;margin-bottom:6px">🔗 Integração PJe</div>
       <div style="font-size:13px;color:var(--text2);margin-bottom:20px;font-weight:300">Cada computador se integra com seu próprio certificado. O LEX detecta automaticamente se o agente está rodando.</div>
 
       <!-- STATUS CARD -->
@@ -5970,7 +6183,7 @@ function renderPreparacao(){
     <div style="background:linear-gradient(135deg,var(--accent)15,var(--surface));border:1px solid var(--accent)33;border-radius:16px;padding:16px 20px;margin-bottom:16px">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
         <div>
-          <div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:var(--text)">📋 Em Preparação</div>
+          <div style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:700;color:var(--text)">📋 Em Preparação</div>
           <div style="font-size:12px;color:var(--text3);margin-top:4px">${preps.length===0?'Nenhum caso cadastrado — use + Novo Caso ou /novocaso no Telegram':'Gerenciando '+preps.length+' caso'+(preps.length!==1?'s':'')+' · Última atualização: '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -6067,7 +6280,7 @@ function renderPreparacao(){
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
             <div style="flex:1;min-width:140px">
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                <span style="font-family:'Playfair Display',serif;font-size:16px;font-weight:700;color:var(--text)">${p.nome||'Sem nome'}</span>
+                <span style="font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;color:var(--text)">${p.nome||'Sem nome'}</span>
                 <span style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;background:${sc}18;color:${sc}">${stLabel[p.status]||p.status||'—'}</span>
               </div>
               <div style="display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap">
@@ -6139,7 +6352,7 @@ async function abrirModalPrep(id){
   const ov=document.createElement('div');ov.id='_pMOv';
   ov.style.cssText='position:fixed;inset:0;background:#00000099;z-index:400;display:flex;align-items:flex-start;justify-content:center;padding:8px;overflow-y:auto';
   ov.innerHTML=`<div style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:560px;padding:20px;margin:auto">
-    <div style="font-family:'Playfair Display',serif;font-size:17px;font-weight:600;margin-bottom:14px">📋 ${isEd?'Editar — '+(caso?.nome||''):'Novo Caso em Preparação'}</div>
+    <div style="font-family:Arial,Helvetica,sans-serif;font-size:17px;font-weight:600;margin-bottom:14px">📋 ${isEd?'Editar — '+(caso?.nome||''):'Novo Caso em Preparação'}</div>
     <div style="font-size:10px;color:var(--text3);letter-spacing:2px;margin-bottom:6px">🤖 ANÁLISE DE DOCUMENTO (OPCIONAL)</div>
     <div style="border:2px dashed var(--border2);border-radius:10px;padding:14px;text-align:center;background:var(--surface2);position:relative;margin-bottom:6px">
       <input type="file" accept=".pdf,image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%" onchange="_pAnal(this.files[0])">
@@ -6406,7 +6619,7 @@ async function _pDet(id){
   let al='';if(dr!==null){if(dr<0)al=`<span style="color:var(--red)">⚠️ ${Math.abs(dr)}d atrasado</span>`;else if(dr===0)al='<span style="color:var(--red)">🚨 HOJE</span>';else if(dr<=3)al=`<span style="color:var(--orange)">⏰ ${dr}d</span>`;}
   const ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;background:#00000099;z-index:400;display:flex;align-items:center;justify-content:center;padding:12px';
   ov.innerHTML=`<div style="background:var(--surface);border-radius:14px;width:100%;max-width:520px;max-height:88vh;overflow-y:auto;padding:20px">
-    <div style="font-family:'Playfair Display',serif;font-size:17px;font-weight:700;margin-bottom:12px">${c.nome}</div>
+    <div style="font-family:Arial,Helvetica,sans-serif;font-size:17px;font-weight:700;margin-bottom:12px">${c.nome}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;margin-bottom:12px">
       <div><span style="color:var(--text3)">Tipo:</span><br><strong>${c.tipo||'—'}</strong></div><div><span style="color:var(--text3)">Área:</span><br><strong>${c.area||'—'}</strong></div>
       <div><span style="color:var(--text3)">Partes:</span><br><strong>${c.partes||'—'}</strong></div><div><span style="color:var(--text3)">Tribunal:</span><br><strong>${c.tribunal||'—'}</strong></div>
@@ -6474,7 +6687,7 @@ function renderAgentes(){
         <div style="display:flex;align-items:center;gap:14px">
           <div style="font-size:32px">${a.icone}</div>
           <div>
-            <div style="font-family:'Playfair Display',serif;font-size:16px;font-weight:600">${a.nome}</div>
+            <div style="font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:600">${a.nome}</div>
             <div style="font-size:12px;color:var(--text2);margin-top:2px">${a.descricao}</div>
             <div style="font-size:11px;color:var(--text3);margin-top:2px">Especialidade: ${a.especialidade}</div>
           </div>
@@ -6808,7 +7021,7 @@ function abrirAnalisarDecisao(procId){
   overlay.style.cssText='position:fixed;inset:0;background:#00000099;z-index:600;display:flex;align-items:center;justify-content:center;padding:16px';
   overlay.innerHTML=`
     <div style="background:var(--surface);border:1px solid var(--gold)44;border-radius:14px;width:100%;max-width:560px;max-height:85vh;display:flex;flex-direction:column;padding:24px;">
-      <div style="font-family:'Playfair Display',serif;font-size:16px;font-weight:600;color:var(--text);margin-bottom:4px;">⚖️ Analisar Decisão / Despacho</div>
+      <div style="font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:600;color:var(--text);margin-bottom:4px;">⚖️ Analisar Decisão / Despacho</div>
       <div style="font-size:12px;color:var(--text3);margin-bottom:14px;">Cole o texto da decisão, despacho, sentença ou acórdão</div>
       <select id="tipo-decisao" class="fs" style="margin-bottom:12px;">
         <option value="decisão">Decisão Interlocutória</option>
@@ -6886,7 +7099,7 @@ async function abrirGestorWeb(id) {
     <div style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:680px;max-height:90vh;display:flex;flex-direction:column">
       <div style="padding:14px 18px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center">
         <div>
-          <div style="font-family:'Playfair Display',serif;font-size:16px;font-weight:700;color:var(--gold)">🤖 Gestor IA — Opus 4.7</div>
+          <div style="font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;color:var(--gold)">🤖 Gestor IA — Opus 4.7</div>
           <div style="font-size:11px;color:var(--text3)">Contexto: <b style="color:var(--text)">${p.nome}</b> · ${p.status} · ${p.tribunal||'sem tribunal'}</div>
         </div>
         <button onclick="fecharGestorWeb()" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer">✕</button>
@@ -6903,7 +7116,7 @@ async function abrirGestorWeb(id) {
         <input type="text" id="gestor-input" placeholder="Ex: protocolei a petição de aceite da perícia grafotécnica hoje"
           style="flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;color:var(--text);font-family:inherit;font-size:13px"
           onkeydown="if(event.key==='Enter')enviarGestorWeb()"/>
-        <button onclick="enviarGestorWeb()" style="background:var(--accent);border:none;border-radius:8px;padding:10px 16px;color:#000;font-family:'Lato',sans-serif;font-weight:700;cursor:pointer">Enviar</button>
+        <button onclick="enviarGestorWeb()" style="background:var(--accent);border:none;border-radius:8px;padding:10px 16px;color:#000;font-family:Arial,Helvetica,sans-serif;font-weight:700;cursor:pointer">Enviar</button>
       </div>
     </div>
   `;
@@ -7541,11 +7754,11 @@ FRENTES: ${(p.frentes||[]).join(', ')||'não definidas'}
           <div style="font-size:13px;color:var(--text);font-weight:600;">${sugestao}</div>
           <div style="display:flex;gap:6px;margin-top:8px;">
             <button onclick="aplicarSugestaoProxAcao(${procId},'${sugestao.replace(/'/g,"\\'")}')"
-              style="background:var(--gold);border:none;border-radius:6px;padding:6px 12px;color:#000;font-family:'Lato',sans-serif;font-size:11px;font-weight:700;cursor:pointer;">
+              style="background:var(--gold);border:none;border-radius:6px;padding:6px 12px;color:#000;font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;cursor:pointer;">
               ✓ Aplicar
             </button>
             <button onclick="this.closest('div[style*=gold]').remove()"
-              style="background:transparent;border:1px solid var(--border2);border-radius:6px;padding:6px 12px;color:var(--text2);font-family:'Lato',sans-serif;font-size:11px;cursor:pointer;">
+              style="background:transparent;border:1px solid var(--border2);border-radius:6px;padding:6px 12px;color:var(--text2);font-family:Arial,Helvetica,sans-serif;font-size:11px;cursor:pointer;">
               Ignorar
             </button>
           </div>
@@ -7976,7 +8189,7 @@ function calcularEvolucaoDivida() {
     <div style="font-size:13px;line-height:1.7">
       <!-- CABEÇALHO PROFISSIONAL -->
       <div style="text-align:center;border-bottom:3px double #1a3a5c;padding-bottom:16px;margin-bottom:16px">
-        <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:#1a3a5c;letter-spacing:1px">PLANILHA DE EVOLUÇÃO DE DÉBITO</div>
+        <div style="font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:700;color:#1a3a5c;letter-spacing:1px">PLANILHA DE EVOLUÇÃO DE DÉBITO</div>
         <div style="font-size:11px;color:var(--text3);margin-top:4px">Cálculo Atualizado — ${INDICE_NOME[indiceCorrecao] || indiceCorrecao.toUpperCase()}</div>
         <div style="font-size:10px;color:var(--text3)">Elaborado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div>
       </div>
@@ -8267,7 +8480,7 @@ REGRAS:
     resultado.innerHTML += `
       <div style="border:2px solid var(--purple);border-radius:10px;padding:20px;margin-top:12px">
         <div style="text-align:center;margin-bottom:16px;border-bottom:2px double var(--purple);padding-bottom:12px">
-          <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:var(--purple)">PARECER TÉCNICO</div>
+          <div style="font-family:Arial,Helvetica,sans-serif;font-size:18px;font-weight:700;color:var(--purple)">PARECER TÉCNICO</div>
           <div style="font-size:10px;color:var(--text3)">Emitido em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div>
         </div>
         <div style="font-size:13px;line-height:1.8;color:var(--text)">${parecerHTML}</div>
@@ -8839,7 +9052,7 @@ function renderTelegram(){
   const cfg=getTgConfig();
   document.getElementById('content').innerHTML=`
     <div style="max-width:600px">
-      <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:600;margin-bottom:20px">✈️ Telegram Bot</div>
+      <div style="font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:600;margin-bottom:20px">✈️ Telegram Bot</div>
       
       <div class="desc-card" style="margin-bottom:16px">
         <div class="desc-label">CONFIGURAÇÃO DO BOT</div>
@@ -9288,8 +9501,8 @@ function pipelineVerPecaHistorico(id){
 <!-- MODAL PDF -->
 <div id="pdf-modal" style="display:none;position:fixed;inset:0;z-index:500;background:var(--bg);flex-direction:column;">
   <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--border2);flex-shrink:0;">
-    <button onclick="fecharPdfModal()" style="display:flex;align-items:center;gap:6px;background:var(--accent-soft);border:1px solid var(--accent);border-radius:8px;padding:8px 14px;color:var(--accent);font-family:'Lato',sans-serif;font-size:13px;cursor:pointer;font-weight:700;">&#8592; Voltar</button>
-    <div style="font-family:'Playfair Display',serif;font-size:15px;color:var(--text);font-weight:600;">Cadastrar via PDF</div>
+    <button onclick="fecharPdfModal()" style="display:flex;align-items:center;gap:6px;background:var(--accent-soft);border:1px solid var(--accent);border-radius:8px;padding:8px 14px;color:var(--accent);font-family:Arial,Helvetica,sans-serif;font-size:13px;cursor:pointer;font-weight:700;">&#8592; Voltar</button>
+    <div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:var(--text);font-weight:600;">Cadastrar via PDF</div>
   </div>
   <div style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;">
     <div style="max-width:600px;margin:0 auto;padding:20px 16px;">
