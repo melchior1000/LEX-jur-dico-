@@ -1551,17 +1551,23 @@ function atualizarUltimaSync(hora) {
 
 // Chama a IA pelo servidor (sem expor a chave no navegador)
 async function chamarServidor(endpoint, payload) {
-  // Render free tier adormece — tenta acorda automaticamente
+  console.log('[LEX] chamarServidor:', endpoint, payload);
+  const tk = getAuthToken ? getAuthToken() : null;
+  if(!tk) console.warn('[LEX] SEM TOKEN ao chamar', endpoint);
   const res = await fetchComTimeout(SERVIDOR + endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
-  }, 30000); // 30s para dar tempo ao Render acordar
+  }, 60000);
+  console.log('[LEX] resposta', endpoint, 'status:', res.status);
   if(!res.ok) {
-    const err = await res.json().catch(()=>({error:'Erro de conexão com o servidor'}));
+    const err = await res.json().catch(()=>({error:'Erro '+res.status}));
+    console.error('[LEX] ERRO', endpoint, err);
     throw new Error(err.error || 'Erro '+res.status);
   }
-  return await res.json();
+  const data = await res.json();
+  console.log('[LEX] sucesso', endpoint, Object.keys(data));
+  return data;
 }
 
 
@@ -4108,7 +4114,7 @@ function abrirProc(id){
       <div style="font-size:32px;line-height:1">🤖</div>
       <div style="flex:1;color:#1a1a1c">
         <div style="font-family:Arial,Helvetica,sans-serif;font-size:17px;font-weight:700;margin-bottom:2px">Conversar com o Gestor IA</div>
-        <div style="font-size:12px;opacity:.85;font-weight:500">Conte o que foi feito, debata a estratégia e atualize o processo automaticamente — Opus 4.7</div>
+        <div style="font-size:12px;opacity:.85;font-weight:500">Conte o que foi feito, debata a estratégia e atualize o processo automaticamente</div>
       </div>
       <div style="color:#1a1a1c;font-size:22px;font-weight:700">›</div>
     </div>
@@ -5049,7 +5055,7 @@ async function buscarJuris(){
   const trib=document.getElementById('jtrib')?.value||'';
   const periodo=document.getElementById('jperiodo')?.value||'';
   const el=document.getElementById('jres');
-  el.innerHTML='<div style="text-align:center;padding:30px"><div style="font-size:32px;margin-bottom:12px;animation:spin 1.5s linear infinite">🔍</div><div style="font-size:14px;font-weight:600;color:var(--text)">Pesquisando jurisprudência com Opus 4.7...</div><div style="font-size:11px;color:var(--text3);margin-top:6px">Consultando tribunais · Pode levar 20-40s</div></div>';
+  el.innerHTML='<div style="text-align:center;padding:30px"><div style="font-size:32px;margin-bottom:12px;animation:spin 1.5s linear infinite">🔍</div><div style="font-size:14px;font-weight:600;color:var(--text)">Pesquisando jurisprudência com IA...</div><div style="font-size:11px;color:var(--text3);margin-top:6px">Consultando tribunais · Pode levar 20-40s</div></div>';
 
   // Salvar no histórico
   if(q){
@@ -5060,7 +5066,7 @@ async function buscarJuris(){
 
   const proc=pid?getProcs().find(p=>p.id==pid):null;
   try {
-    // Endpoint novo do servidor: Opus 4.7 + web_search nativo pra buscar jurisprudência REAL
+    // Endpoint novo do servidor: IA + web_search nativo pra buscar jurisprudência REAL
     const api = (window.LEX_API_URL || 'https://lex-juridico.onrender.com') + '/api/jurisprudencia';
     const tk = getAuthToken() || '';
     const res = await fetch(api, {
@@ -7139,8 +7145,8 @@ function toggleChatGlobal(){
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// GESTOR WEB (v4.7.1) — modal de conversa inteligente com o processo
-// Chama /api/gestor/chat (Opus 4.7). Kleuber conversa em linguagem natural,
+// GESTOR WEB (v5.0) — modal de conversa inteligente com o processo
+// Chama /api/vivo/conversar. Kleuber conversa em linguagem natural,
 // Gestor propõe atualização estruturada, Kleuber confirma → aplica via
 // /api/processo/atualizar.
 // ═══════════════════════════════════════════════════════════════════════
@@ -7167,7 +7173,7 @@ async function abrirGestorWeb(id) {
     <div style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:680px;max-height:90vh;display:flex;flex-direction:column">
       <div style="padding:14px 18px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center">
         <div>
-          <div style="font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;color:var(--gold)">🤖 Gestor IA — Opus 4.7</div>
+          <div style="font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;color:var(--gold)">🤖 Gestor IA</div>
           <div style="font-size:11px;color:var(--text3)">Contexto: <b style="color:var(--text)">${p.nome}</b> · ${p.status} · ${p.tribunal||'sem tribunal'}</div>
         </div>
         <button onclick="fecharGestorWeb()" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer">✕</button>
@@ -7228,7 +7234,7 @@ async function enviarGestorWeb() {
   const pensando = document.createElement('div');
   pensando.id = 'gestor-pensando';
   pensando.style.cssText = 'font-size:12px;color:var(--text3);font-style:italic;padding:8px 14px';
-  pensando.textContent = '⏳ Gestor está pensando (Opus 4.7)...';
+  pensando.textContent = '⏳ Gestor IA está analisando...';
   msgs.appendChild(pensando);
   msgs.scrollTop = msgs.scrollHeight;
 
