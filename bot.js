@@ -3387,16 +3387,157 @@ async function _registrarRespostaAdvogadoWhats(mensagem) {
   for(const item of pendentes) {
     const jid = item?.cliente?.whatsapp_jid || null;
     if(jid) {
-      const msgCli = info.horario || info.data
-        ? ('O Dr. Kleuber retornou. Atendimento previsto para '+(info.data ? info.data+' ' : '')+(info.horario || 'horario informado')+'.')
-        : 'O Dr. Kleuber recebeu seu caso e retornara em breve.';
-      await envWhatsApp(msgCli, jid).catch(()=>{});
+      // ── MEDIAÇÃO INTELIGENTE: Lex aperfeiçoa a resposta do Kleuber ──
+      const clienteNome = item.cliente?.nome || 'cliente';
+      const processo = item.processo || null;
+      const historicoConversa = (item.conversa || []).slice(-5).join('\n');
+      
+      try {
+        const resMediacao = await _mediarRespostaKleuber(mensagem, clienteNome, processo, historicoConversa, jid);
+        
+        // Envia resposta aperfeiçoada pro cliente
+        if(resMediacao.msgCliente) {
+          await envWhatsApp(resMediacao.msgCliente, jid).catch(()=>{});
+          _registrarMsgCentral('whatsapp', 'saida', jid, 'Lex (mediação Kleuber)', resMediacao.msgCliente);
+        }
+        
+        // Envia resumo pro Kleuber: dúvidas do cliente + sugestões + possíveis orientações
+        if(resMediacao.resumoKleuber) {
+          await envTelegram(resMediacao.resumoKleuber, null, CHAT_ID).catch(()=>{});
+        }
+        
+        // Salva orientações possíveis pro handler de "autorizo"
+        if(resMediacao.orientacoesPossiveis) {
+          item.orientacoes_pendentes = resMediacao.orientacoesPossiveis;
+        }
+      } catch(e) {
+        // Fallback: envia resposta do Kleuber como está (nunca deixa o cliente sem resposta)
+        console.warn('[Lex] Mediação falhou, usando fallback:', e.message);
+        const msgFallback = info.horario || info.data
+          ? (clienteNome.split(' ')[0]+', o Kleuber retornou! '+(info.data ? 'Atendimento previsto pra '+info.data+' ' : '')+(info.horario ? 'às '+info.horario : '')+'. Te avisamos com antecedência, tá?')
+          : (clienteNome.split(' ')[0]+', falei com o Kleuber e ele já tá cuidando do seu caso! Qualquer novidade te aviso.');
+        await envWhatsApp(msgFallback, jid).catch(()=>{});
+        _registrarMsgCentral('whatsapp', 'saida', jid, 'Lex (fallback)', msgFallback);
+      }
+      
       try { await sbReq('PATCH', 'whatsapp_sessoes', { escalonado: false }, { numero: 'eq.'+_numeroPlanoWhats(jid) }, null); } catch(e) { console.warn('[Lex][bot] Erro silenciado:', (e && e.message) ? e.message : e); }
     }
     item.resolvido = true;
     item.resolvido_em = _agoraIso();
   }
   return { notificados: pendentes.length };
+}
+
+// ── MEDIAÇÃO INTELIGENTE: Lex pega resposta do Kleuber, aperfeiçoa, analisa dúvidas e sugere ──
+async function _mediarRespostaKleuber(respostaKleuber, clienteNome, processo, historicoConversa, jidCliente) {
+  const contextoProc = processo ? JSON.stringify({
+    numero: processo.numero || null,
+    nome: processo.nome || null,
+    area: processo.area || null,
+    status: processo.status || null,
+    prazo: processo.prazo || null,
+    proxacao: processo.proxacao || null,
+    reu: processo.reu || null,
+    valor: processo.valor || null
+  }) : '{}';
+  
+  // Busca sessão do cliente pra ter histórico completo
+  let historicoSessao = '';
+  try {
+    const sessao = await _carregarSessaoSecretarioWhatsApp(jidCliente, null);
+    if(sessao && sessao.historico && sessao.historico.length > 0) {
+      historicoSessao = sessao.historico.slice(-10).map(h => (h.role==='user' ? 'CLIENTE' : 'LEX') + ': ' + h.text).join('\n');
+    }
+  } catch(e) {}
+  
+  const system = [
+    'Você é o LEX, mediador inteligente entre Kleuber (CEO/analista jurídico) e o cliente do escritório Camargos Advocacia.',
+    'Kleuber mandou uma resposta pra repassar ao cliente. Seu trabalho:',
+    '',
+    '1. APERFEIÇOAR A RESPOSTA: Pegue a essência do que Kleuber escreveu e transforme em uma mensagem profissional, empática, humana, no tom WhatsApp (curta, sem lista, sem robô). Mantenha TODAS as informações que Kleuber passou — não corte nada, só melhore a forma.',
+    '2. ANALISAR DÚVIDAS: Baseado no histórico da conversa e no processo, identifique dúvidas que o cliente provavelmente ainda tem ou vai ter.',
+    '3. SUGERIR PRO KLEUBER: Se você perceber algo no processo que o Kleuber pode querer informar ao cliente (prazo, próximo passo, documento pendente), sugira.',
+    '4. ANALISAR INSISTÊNCIA: Se o cliente parece ansioso/insistente, avise o Kleuber do nível de urgência emocional.',
+    '5. ORIENTAÇÕES QUE VOCÊ PODE DAR: Se houver alguma orientação geral (prazo, documento necessário, próximo passo) que você pode dar sem precisar de autorização jurídica, sugira pro Kleuber e peça OK.',
+    '',
+    'Responda em JSON com exatamente estas chaves:',
+    '{"msgCliente": "mensagem aperfeiçoada pro cliente (tom WhatsApp humano, curta)", "resumoKleuber": "texto pro Kleuber no Telegram com: dúvidas do cliente, sugestões, nível de insistência, e se tem algo que Lex pode responder com autorização", "orientacoesPossiveis": "lista curta do que Lex pode orientar se Kleuber autorizar (ou null se nada)"}'
+  ].join('\n');
+  
+  const user = [
+    'RESPOSTA DO KLEUBER (pra aperfeiçoar e enviar ao cliente):',
+    String(respostaKleuber||''),
+    '',
+    'CLIENTE: ' + clienteNome,
+    'PROCESSO: ' + contextoProc,
+    '',
+    'HISTÓRICO DA CONVERSA:',
+    historicoSessao || historicoConversa || '(sem histórico)',
+    '',
+    'Gere o JSON de mediação.'
+  ].join('\n');
+  
+  const respIA = await _chamarAnthropicSecretario([{role:'user', content:user}], system, 'claude-sonnet-4-20250514');
+  
+  // Parse JSON da resposta
+  let parsed = {};
+  try {
+    const jsonMatch = respIA.match(/\{[\s\S]*\}/);
+    if(jsonMatch) parsed = JSON.parse(jsonMatch[0]);
+  } catch(e) {
+    // Se não conseguiu parsear, usa resposta como texto direto
+    parsed = { msgCliente: String(respIA||'').substring(0, 500), resumoKleuber: null };
+  }
+  
+  // Monta resumo pro Kleuber no Telegram
+  let resumoTG = '✅ *RESPOSTA ENVIADA AO CLIENTE*\n\n';
+  resumoTG += '👤 Cliente: ' + clienteNome + '\n';
+  if(processo?.numero) resumoTG += '📁 Processo: ' + processo.numero + '\n';
+  resumoTG += '\n📤 *O que você mandou:*\n' + String(respostaKleuber||'').substring(0, 200) + '\n';
+  resumoTG += '\n📨 *O que o Lex enviou (aperfeiçoado):*\n' + String(parsed.msgCliente||'').substring(0, 300) + '\n';
+  
+  if(parsed.resumoKleuber) {
+    resumoTG += '\n📋 *Análise do Lex:*\n' + String(parsed.resumoKleuber||'');
+  }
+  if(parsed.orientacoesPossiveis && parsed.orientacoesPossiveis !== 'null') {
+    resumoTG += '\n\n💡 *Posso orientar o cliente sobre:*\n' + String(parsed.orientacoesPossiveis) + '\n\n↪ _Responda "autorizo" se quiser que eu passe essas orientações pro cliente._';
+  }
+  
+  return {
+    msgCliente: parsed.msgCliente || null,
+    resumoKleuber: resumoTG,
+    orientacoesPossiveis: (parsed.orientacoesPossiveis && parsed.orientacoesPossiveis !== 'null') ? parsed.orientacoesPossiveis : null
+  };
+}
+
+// ── HANDLER: Kleuber autoriza orientações sugeridas pelo Lex ──
+async function _processarAutorizacaoLex(textoKleuber) {
+  const txt = _normTexto(String(textoKleuber||''));
+  if(!/\b(autorizo|pode|manda|envia|ok|sim|vai)\b/i.test(txt)) return false;
+  
+  // Verifica se tem escalonamento pendente com orientações sugeridas
+  const pendentes = _estadoSecretarioWhatsApp.escalonamentos_memoria.filter(x => x.resolvido && x.orientacoes_pendentes);
+  if(pendentes.length === 0) return false;
+  
+  for(const item of pendentes) {
+    const jid = item?.cliente?.whatsapp_jid || null;
+    if(jid && item.orientacoes_pendentes) {
+      const clienteNome = item.cliente?.nome || 'cliente';
+      // Gera resposta humanizada com as orientações
+      try {
+        const system = 'Você é o Lex, atendente do escritório Camargos Advocacia no WhatsApp. O Kleuber autorizou você a passar orientações pro cliente. Transforme as orientações em uma mensagem curta, humana, no tom WhatsApp. Chame o cliente pelo nome. Não use listas.';
+        const user = 'CLIENTE: '+clienteNome+'\nORIENTAÇÕES AUTORIZADAS: '+String(item.orientacoes_pendentes)+'\n\nMande a mensagem pro cliente.';
+        const msgOri = await _chamarAnthropicSecretario([{role:'user', content:user}], system, 'claude-sonnet-4-20250514');
+        await envWhatsApp(msgOri, jid).catch(()=>{});
+        _registrarMsgCentral('whatsapp', 'saida', jid, 'Lex (orientação autorizada)', msgOri);
+        await envTelegram('✅ Orientações enviadas pro ' + clienteNome.split(' ')[0] + '!', null, CHAT_ID).catch(()=>{});
+      } catch(e) {
+        await envTelegram('⚠️ Erro ao enviar orientações: ' + e.message, null, CHAT_ID).catch(()=>{});
+      }
+      item.orientacoes_pendentes = null;
+    }
+  }
+  return true;
 }
 
 async function _conversarWhatsAppCliente(numero, mensagem, sessao) {
@@ -7090,6 +7231,10 @@ async function adapterEvolution(body) {
         return;
       }
       if(txtAdv.trim()) {
+        // Verifica se Kleuber está autorizando orientações sugeridas pelo Lex
+        const foiAutorizacao = await _processarAutorizacaoLex(txtAdv).catch(()=>false);
+        if(foiAutorizacao) return;
+        
         await _registrarRespostaAdvogadoWhats(txtAdv).catch(()=>{});
       }
       return;
