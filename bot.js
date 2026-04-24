@@ -8950,13 +8950,24 @@ const server = http.createServer(async (req, res) => {
     try {
       const tk = getToken(req);
       if(!validarToken(tk)) { res.writeHead(401,corsHeaders(req)); res.end(JSON.stringify({error:'Não autenticado'})); return; }
+      if(!AK) {
+        console.error('[ERRO CRITICO] /api/analisar chamado mas ANTHROPIC_KEY nao esta definida - impossivel analisar PDFs. Defina ANTHROPIC_KEY no ambiente.');
+        res.writeHead(500,corsHeaders(req));
+        res.end(JSON.stringify({error:'ANTHROPIC_KEY nao configurada no servidor - contate o administrador', code:'NO_AK'}));
+        return;
+      }
       const b = await lerBody(req);
       if(!b.base64) { res.writeHead(400,corsHeaders(req)); res.end(JSON.stringify({error:'base64 obrigatório'})); return; }
       const buf = Buffer.from(b.base64,'base64');
       const isPdf = (b.mimeType||'').includes('pdf') || (b.nome||'').toLowerCase().endsWith('.pdf');
+      console.log('[analisar] Recebido:', b.nome||'(sem nome)', '('+(buf.length/1024).toFixed(1)+'KB, pdf='+isPdf+')');
       const analise = await _analisarDocEmChunks(buf, isPdf, b.nome||'documento', null, {});
+      console.log('[analisar] OK:', b.nome, '- cliente=', analise?.nome_cliente||'?', 'numero=', analise?.numero_processo||'?');
       res.writeHead(200,corsHeaders(req)); res.end(JSON.stringify(analise));
-    } catch(e) { res.writeHead(500,corsHeaders(req)); res.end(JSON.stringify({error:e.message})); }
+    } catch(e) {
+      console.error('[analisar] ERRO:', e.message||e);
+      res.writeHead(500,corsHeaders(req)); res.end(JSON.stringify({error:e.message}));
+    }
     return;
   }
 
@@ -10933,8 +10944,14 @@ server.listen(process.env.PORT||3000, async () => {
   if(SENHAS_WEB.admin?.length < 8) errosSeguranca.push('SENHA_ADMIN muito curta (min 8 caracteres)');
   
   // 3. Verificar ANTHROPIC_KEY
-  if(!process.env.ANTHROPIC_KEY) errosSeguranca.push('ANTHROPIC_KEY nao configurada');
-  else if(!process.env.ANTHROPIC_KEY.startsWith('sk-ant-')) errosSeguranca.push('ANTHROPIC_KEY formato invalido');
+  if(!process.env.ANTHROPIC_KEY) {
+    errosSeguranca.push('ANTHROPIC_KEY nao configurada');
+    console.error('[ERRO CRITICO] ANTHROPIC_KEY nao definida - agentes de analise de PDF e intake NAO funcionarao. Defina a variavel de ambiente ANTHROPIC_KEY=sk-ant-...');
+  }
+  else if(!process.env.ANTHROPIC_KEY.startsWith('sk-ant-')) {
+    errosSeguranca.push('ANTHROPIC_KEY formato invalido');
+    console.error('[ERRO CRITICO] ANTHROPIC_KEY com formato invalido - deve comecar com sk-ant-');
+  }
   
   // 4. Verificar Supabase
   if(!process.env.SUPABASE_URL) errosSeguranca.push('SUPABASE_URL nao configurada');

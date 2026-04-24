@@ -4225,21 +4225,139 @@ function renderProcessosAdministrativos(){
   document.getElementById('content').innerHTML = topo + (cardsHtml || '<div style="font-size:13px;color:var(--text3);padding:20px">Nenhum processo administrativo cadastrado.</div>');
 }
 
+// Checklist de documentos por area — usado pelo setor de Autuacao
+const _AUTUACAO_CHECKLIST = {
+  'Previdenciário': ['Procuração', 'RG/CPF', 'CNH ou doc. oficial', 'Comprovante de residência', 'CTPS', 'CNIS', 'Laudo médico', 'Indeferimento INSS/DER', 'Histórico de contribuições'],
+  'Trabalhista': ['Procuração', 'RG/CPF', 'CNH ou doc. oficial', 'Comprovante de residência', 'CTPS', 'Contrato de trabalho', 'Holerites (últimos 12 meses)', 'Extrato FGTS', 'TRCT (se demitido)'],
+  'Cível': ['Procuração', 'RG/CPF', 'CNH ou doc. oficial', 'Comprovante de residência', 'Contrato / doc. base', 'Comprovante do dano/fato', 'Testemunhas (rol)', 'Provas documentais'],
+  'Família': ['Procuração', 'RG/CPF das partes', 'Certidão casamento/nascimento', 'Comprovante de residência', 'Holerite / renda', 'Doc. dos filhos'],
+  'Tributário': ['Procuração', 'RG/CPF/CNPJ', 'Contrato social', 'Auto de infração / CDA', 'DARFs', 'Guias pagas', 'Escrituração fiscal'],
+  'Criminal': ['Procuração', 'RG/CPF', 'Auto de prisão / BO', 'Relação de testemunhas', 'Documentos do fato'],
+  'Administrativo': ['Procuração', 'RG/CPF', 'Comprovante de residência', 'Notificação / auto', 'Documentos do processo administrativo'],
+  'Outro': ['Procuração', 'RG/CPF', 'Comprovante de residência']
+};
+
+function _autuacaoDocsFaltantes(caso){
+  const area = caso.area || 'Outro';
+  const obrig = _AUTUACAO_CHECKLIST[area] || _AUTUACAO_CHECKLIST['Outro'];
+  // o faltando é o texto livre preenchido pelo usuario — extrai cada linha
+  const faltandoManual = (caso.faltando||'').split('\n').map(s=>s.trim()).filter(Boolean);
+  // Combina: tudo que a IA marcou como faltando + falta o que nao tem no caso.faltando completo
+  return Array.from(new Set([...obrig, ...faltandoManual]));
+}
+
+// Marca um doc como recebido no caso (remove da lista de faltantes)
+function _autuacaoMarcarDoc(casoId, docNome){
+  const cs = getPrep();
+  const i = cs.findIndex(c=>c.id===casoId);
+  if(i<0){ toast('Caso não encontrado','erro'); return; }
+  const c = cs[i];
+  const atual = (c.faltando||'').split('\n').map(s=>s.trim()).filter(Boolean);
+  const novos = atual.filter(d=>d.toLowerCase() !== docNome.toLowerCase());
+  c.faltando = novos.join('\n');
+  // Acrescenta no obs
+  const marca = '\n[AUTUACAO] Recebido: ' + docNome + ' em ' + new Date().toLocaleDateString('pt-BR');
+  c.obs = (c.obs||'') + marca;
+  cs[i] = c;
+  savePrep(cs);
+  renderAutuacao();
+  toast('✓ '+docNome+' marcado como recebido','ok');
+}
+
+function _autuacaoCobrarWhatsapp(casoId){
+  const cs = getPrep();
+  const c = cs.find(x=>x.id===casoId);
+  if(!c) return;
+  const faltas = (c.faltando||'').split('\n').map(s=>s.trim()).filter(Boolean);
+  if(!faltas.length){ toast('Sem documentos faltantes','ok'); return; }
+  const msg = `Oi ${c.nome}, aqui é do escritório Camargos Advocacia.\n\nPara protocolar seu caso (${c.tipo||c.area}), ainda faltam os seguintes documentos:\n\n${faltas.map((d,i)=>`${i+1}. ${d}`).join('\n')}\n\nPode nos enviar por aqui? Obrigado!`;
+  try {
+    navigator.clipboard.writeText(msg);
+    toast('✓ Texto de cobrança copiado (cole no WhatsApp)','ok');
+  } catch(_) {
+    alert('Cole no WhatsApp:\n\n'+msg);
+  }
+}
+
+// Finaliza autuacao -> distribui para o setor correto
+function _autuacaoFinalizar(casoId){
+  const cs = getPrep();
+  const c = cs.find(x=>x.id===casoId);
+  if(!c){ toast('Caso não encontrado','erro'); return; }
+  const faltas = (c.faltando||'').split('\n').map(s=>s.trim()).filter(Boolean);
+  if(faltas.length){
+    if(!confirm('Ainda faltam '+faltas.length+' documento(s):\n\n• '+faltas.join('\n• ')+'\n\nDistribuir mesmo assim?')) return;
+  }
+  // Abre o modal de distribuicao padrao
+  _pDistr(casoId);
+}
+
 function renderAutuacao(){
   const ps = getProcs();
-  const aut = ps.filter(p => _normalizarSetorProcLocal(p) === 'autuacao');
-  const porGrupo = {};
-  aut.forEach(p => {
-    const g = p.grupo || 'Outros';
-    if(!porGrupo[g]) porGrupo[g] = [];
-    porGrupo[g].push(p);
-  });
-  let cardsHtml = '';
-  Object.keys(porGrupo).sort().forEach(g => {
-    cardsHtml += `<div style="margin-bottom:4px"><div class="secao-titulo" style="color:var(--setor-autuacao)"><div style="width:8px;height:8px;border-radius:50%;background:var(--setor-autuacao);flex-shrink:0"></div>${g.toUpperCase()}<div class="secao-linha"></div><div class="secao-count">${porGrupo[g].length}</div></div>${porGrupo[g].map(p=>cardProc(p)).join('')}</div>`;
-  });
-  const topo = `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap"><div style="font-size:11px;color:var(--text3);letter-spacing:1px">SETOR DE AUTUAÇÃO (COBRANÇA A CADA 10 DIAS)</div><button class="btn-outline" style="padding:6px 12px;font-size:11px" onclick="ir('processos',_btnNavProcessosPrincipal())">Ver todos</button></div>`;
-  document.getElementById('content').innerHTML = topo + (cardsHtml || '<div style="font-size:13px;color:var(--text3);padding:20px">Nenhum processo em autuação.</div>');
+  const preps = getPrep();
+  // Casos EM_PREP (da prep) + processos ja em setor=autuacao
+  const prepAutuacao = preps.filter(c => /FASE:\s*AUTUACAO/i.test(c.obs||'') || c.status==='EM_PREP' || c.status==='URGENTE' || c.status==='PRONTO');
+  const procAutuacao = ps.filter(p => _normalizarSetorProcLocal(p) === 'autuacao');
+
+  const totalCobrancas = prepAutuacao.reduce((acc,c)=>acc + ((c.faltando||'').split('\n').filter(x=>x.trim()).length), 0);
+  const prontosParaDistribuir = prepAutuacao.filter(c=>!(c.faltando||'').trim()).length;
+
+  const cardPrepHtml = prepAutuacao.map(c => {
+    const faltas = (c.faltando||'').split('\n').map(s=>s.trim()).filter(Boolean);
+    const docsChecklist = _autuacaoDocsFaltantes(c);
+    const dr = diasRestantes(c.previsao);
+    let al = '';
+    if(dr!==null){ if(dr<0) al = `<span style="color:var(--red);font-weight:700">⚠ ${Math.abs(dr)}d atrasado</span>`; else if(dr<=3) al = `<span style="color:var(--orange);font-weight:700">⏰ ${dr}d</span>`; }
+    const pronto = faltas.length === 0;
+    const corFundo = pronto ? 'color-mix(in srgb, var(--green) 5%, var(--surface))' : 'var(--surface)';
+    const faltasHtml = faltas.length
+      ? `<div style="background:var(--orange-soft);border:1px solid color-mix(in srgb, var(--orange) 30%, transparent);border-radius:8px;padding:8px 10px;margin:8px 0">
+          <div style="font-size:10px;font-weight:700;color:var(--orange);margin-bottom:4px">⚠ COBRAR DO CLIENTE (${faltas.length}):</div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px">
+            ${faltas.map(f=>`<span onclick="_autuacaoMarcarDoc(${c.id},'${f.replace(/'/g,"\\'")}')" style="background:var(--surface);border:1px dashed var(--orange);border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer;color:var(--text2)" title="Clique para marcar como recebido">✕ ${f}</span>`).join('')}
+          </div>
+        </div>`
+      : `<div style="background:var(--green-soft);border:1px solid color-mix(in srgb, var(--green) 30%, transparent);border-radius:8px;padding:8px 10px;margin:8px 0;color:var(--green);font-size:11px;font-weight:700">✓ Todos os documentos recebidos — pronto para distribuir</div>`;
+    return `<div style="background:${corFundo};border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px">
+        <div style="flex:1">
+          <div style="font-weight:700;color:var(--text);font-size:13px">${c.nome||'(sem nome)'}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">${c.area||'—'} · ${c.tipo||'—'} ${c.tribunal?'· '+c.tribunal:''} ${al?'· '+al:''}</div>
+        </div>
+        <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:12px;background:${pronto?'var(--green)':'var(--orange)'}22;color:${pronto?'var(--green)':'var(--orange)'};white-space:nowrap">${pronto?'✓ PRONTO':'AUTUAÇÃO'}</span>
+      </div>
+      ${faltasHtml}
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+        <button onclick="_pDet(${c.id})" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-size:11px;cursor:pointer;color:var(--text2)">👁 Detalhes</button>
+        <button onclick="abrirModalPrep(${c.id})" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-size:11px;cursor:pointer;color:var(--text2)">✎ Editar</button>
+        ${faltas.length ? `<button onclick="_autuacaoCobrarWhatsapp(${c.id})" style="background:var(--orange);border:none;border-radius:6px;padding:6px 12px;font-size:11px;cursor:pointer;color:#fff;font-weight:700">📱 Cobrar WhatsApp</button>` : ''}
+        <button onclick="_autuacaoFinalizar(${c.id})" style="background:${pronto?'linear-gradient(135deg,var(--green),#059669)':'var(--surface2)'};border:${pronto?'none':'1px solid var(--border)'};border-radius:6px;padding:6px 12px;font-size:11px;cursor:pointer;color:${pronto?'#fff':'var(--text2)'};font-weight:700">📤 Distribuir</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  const cardProcHtml = procAutuacao.map(p => cardProc(p)).join('');
+
+  const topo = `<div style="background:linear-gradient(135deg,color-mix(in srgb, var(--setor-autuacao) 12%, transparent),var(--surface));border:1px solid color-mix(in srgb, var(--setor-autuacao) 30%, transparent);border-radius:16px;padding:16px 20px;margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+      <div>
+        <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;color:var(--setor-autuacao)">🗂 Setor de Autuação</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:3px">Cobra documentos faltantes e libera a distribuição para o setor correto</div>
+      </div>
+      <div style="display:flex;gap:8px;font-size:11px">
+        <div style="background:var(--surface2);padding:6px 12px;border-radius:8px;border:1px solid var(--border)"><b style="color:var(--setor-autuacao)">${prepAutuacao.length}</b> em autuação</div>
+        <div style="background:var(--surface2);padding:6px 12px;border-radius:8px;border:1px solid var(--border)"><b style="color:var(--orange)">${totalCobrancas}</b> docs pendentes</div>
+        <div style="background:var(--surface2);padding:6px 12px;border-radius:8px;border:1px solid var(--border)"><b style="color:var(--green)">${prontosParaDistribuir}</b> prontos</div>
+      </div>
+    </div>
+  </div>`;
+
+  const content = topo
+    + (prepAutuacao.length ? `<div style="font-size:11px;color:var(--text3);letter-spacing:1px;margin-bottom:8px">📋 CASOS EM AUTUAÇÃO (COBRANÇA DE DOCUMENTOS)</div>${cardPrepHtml}` : '')
+    + (procAutuacao.length ? `<div style="font-size:11px;color:var(--text3);letter-spacing:1px;margin:16px 0 8px">⚖ PROCESSOS NO SETOR</div>${cardProcHtml}` : '')
+    + ((!prepAutuacao.length && !procAutuacao.length) ? '<div style="font-size:13px;color:var(--text3);padding:20px;text-align:center">Nenhum caso em autuação. Novos casos aparecem aqui após cadastro em Em Preparação.</div>' : '');
+
+  document.getElementById('content').innerHTML = content;
 }
 
 function renderProcessosFiltrado(filtro){
@@ -7887,7 +8005,12 @@ async function _pAnal(file){
       }, (prog)=>{
         if(prog && prog.msg) setProg(prog.msg);
       });
-      if(dados && dados.error) dados = null;
+      if(dados && dados.error) {
+        const msg = dados.error || 'Falha ao analisar';
+        if(re){ re.style.display='block'; re.innerHTML='<span style="color:var(--red)">❌ '+msg+'</span>'; }
+        if(String(dados.code||'').includes('NO_AK')) toast('Servidor sem ANTHROPIC_KEY — avise o admin','erro');
+        dados = null;
+      }
     }catch(e){
       console.warn('[Lex] _pAnal falhou:', (e && e.message) ? e.message : e);
       if(re){ re.style.display='block'; re.innerHTML='<span style="color:var(--red)">⚠ '+(e.message||'Falha na analise')+'</span>'; }
@@ -7896,17 +8019,170 @@ async function _pAnal(file){
       dados={observacoes:'Analise nao disponivel — preencha manualmente'};
     }
     if(sp)sp.style.display='none';
-    const sv=(id,v)=>{const e=document.getElementById(id);if(e&&v&&!e.value)e.value=v;};
-    sv('pn',dados.nome_cliente||dados.partes?.split(/\svs\s|\sx\s/i)?.[0]?.trim());
-    sv('pt',dados.tipo_acao);sv('pp',dados.partes);sv('ptr',dados.tribunal);
-    if((dados.documentos_faltantes||[]).length){const e=document.getElementById('pfl');if(e&&!e.value)e.value=dados.documentos_faltantes.join('\n');}
-    if(re){re.style.display='block';re.innerHTML='✅ <strong>Análise concluída</strong><br>'+(dados.nome_cliente?`👤 ${dados.nome_cliente}<br>`:'')+( dados.tipo_acao?`⚖️ ${dados.tipo_acao}<br>`:'')+( dados.observacoes?`<span style="color:var(--text3);font-size:11px">${dados.observacoes}</span>`:'');}
+    // PREENCHE TODOS OS CAMPOS (auto-fill completo pedido pelo CEO)
+    _pPreencherCampos(dados);
+    if(re){
+      re.style.display='block';
+      re.innerHTML='✅ <strong>Análise concluída</strong><br>'
+        + (dados.nome_cliente?`👤 <b>Cliente:</b> ${dados.nome_cliente}<br>`:'')
+        + (dados.autor?`⚖️ <b>Autor:</b> ${dados.autor}<br>`:'')
+        + (dados.reu?`🛡️ <b>Réu:</b> ${dados.reu}<br>`:'')
+        + (dados.numero_processo?`🔢 <b>Nº:</b> ${dados.numero_processo}<br>`:'')
+        + (dados.vara?`🏛️ <b>Vara:</b> ${dados.vara}<br>`:'')
+        + (dados.comarca?`📍 <b>Comarca:</b> ${dados.comarca}<br>`:'')
+        + (dados.juiz_relator?`👨‍⚖️ <b>Juiz:</b> ${dados.juiz_relator}<br>`:'')
+        + (dados.orgao?`🏢 <b>Órgão:</b> ${dados.orgao}<br>`:'')
+        + (dados.tipo_acao?`📌 <b>Tipo:</b> ${dados.tipo_acao}<br>`:'')
+        + (dados.prazo?`⏰ <b>Prazo:</b> ${dados.prazo}<br>`:'')
+        + (dados.observacoes?`<span style="color:var(--text3);font-size:11px">${dados.observacoes}</span>`:'');
+    }
     // Guarda dados ultima analise p/ o agente Em Preparacao usar
     try { window._pUltimaAnalise = { nome: file.name, dados, ts: Date.now() }; } catch(_){}
     // Notifica o agente de intake (se a conversa estiver aberta)
     try { if(typeof _pIntakeAgenteAnalisou==='function') _pIntakeAgenteAnalisou(file.name, dados); } catch(_){}
+    // CONFIRMACAO: se identificou partes ou numero, abre modal "Encontrei X,Y,Z. Confirma?"
+    if(dados && (dados.nome_cliente || dados.autor || dados.numero_processo || dados.partes)){
+      _pConfirmarIntake(file.name, dados);
+    }
     toast('✓ Dados extraídos!','ok');
   }catch(e){if(sp)sp.style.display='none';if(re){re.style.display='block';re.innerHTML=`<span style="color:var(--red)">❌ ${e.message}</span>`;}}
+}
+
+// Preenche TODOS os campos do modal de preparacao com dados da extracao IA
+// Consome o JSON estruturado que /api/analisar devolve (analisarDoc em bot.js)
+function _pPreencherCampos(dados){
+  if(!dados) return;
+  const sv = (id, v) => { const e = document.getElementById(id); if(e && v!=null && String(v).trim() && !e.value) e.value = String(v).trim(); };
+  // Nome do cliente: prefer nome_cliente -> autor (cliente=autor na inicial) -> primeira das partes
+  const nomeCli = dados.nome_cliente
+    || dados.autor
+    || (dados.partes && String(dados.partes).split(/\svs\.?\s|\sx\s|\s×\s/i)[0]?.trim())
+    || (dados.requerente || '');
+  sv('pn', nomeCli);
+  sv('pt', dados.tipo_acao || dados.tipo || '');
+  const partesVal = dados.partes
+    || ((dados.autor && dados.reu) ? `${dados.autor} vs ${dados.reu}` : '')
+    || ((dados.requerente && dados.requerido) ? `${dados.requerente} vs ${dados.requerido}` : '');
+  sv('pp', partesVal);
+  // Tribunal: se administrativo, usa orgao; senao tribunal + vara/comarca
+  const tribVal = dados.tribunal || dados.orgao || '';
+  const varaComarca = [dados.vara, dados.comarca].filter(Boolean).join(' — ');
+  sv('ptr', tribVal + (tribVal && varaComarca ? ' — ' : '') + varaComarca);
+  // Area: mapeia para as opcoes do select do modal
+  const selArea = document.getElementById('pa');
+  if(selArea && dados.area){
+    const mapa = {
+      'Civel':'Cível','Cível':'Cível','Civil':'Cível',
+      'Trabalhista':'Trabalhista',
+      'Tributario':'Tributário','Tributário':'Tributário','Tributario Municipal':'Tributário','Tributário Municipal':'Tributário',
+      'Previdenciario':'Previdenciário','Previdenciário':'Previdenciário',
+      'Familia':'Família','Família':'Família',
+      'Criminal':'Criminal','Penal':'Criminal',
+      'Administrativo':'Administrativo',
+      'Consumidor':'Cível','Empresarial':'Cível',
+      'Execucao Federal':'Tributário','Execução Federal':'Tributário'
+    };
+    const alvo = mapa[dados.area] || 'Outro';
+    const opts = Array.from(selArea.options).map(o=>o.value||o.text);
+    if(opts.includes(alvo)) selArea.value = alvo;
+  }
+  // Documentos faltantes
+  const faltas = Array.isArray(dados.documentos_faltantes) ? dados.documentos_faltantes : (dados.documentos_faltantes ? [dados.documentos_faltantes] : []);
+  if(faltas.length){
+    const el = document.getElementById('pfl');
+    if(el && !el.value) el.value = faltas.join('\n');
+  }
+  // Status urgencia
+  const stSel = document.getElementById('pst');
+  if(stSel && (dados.status === 'URGENTE' || /urgente|critico/i.test(dados.urgencia||''))){
+    if(Array.from(stSel.options).some(o=>o.value==='URGENTE')) stSel.value = 'URGENTE';
+  }
+  // Obs: concatena cabecalho estruturado + resumo + proxima acao
+  const obs = document.getElementById('pob');
+  if(obs && !obs.value){
+    const bloco = [];
+    if(dados.numero_processo) bloco.push('Nº PROCESSO: ' + dados.numero_processo);
+    if(dados.vara) bloco.push('VARA: ' + dados.vara);
+    if(dados.comarca) bloco.push('COMARCA: ' + dados.comarca);
+    if(dados.juiz_relator) bloco.push('JUIZ/RELATOR: ' + dados.juiz_relator);
+    if(dados.orgao) bloco.push('ORGAO: ' + dados.orgao);
+    if(dados.instancia) bloco.push('INSTANCIA: ' + dados.instancia);
+    if(dados.tipo_processo) bloco.push('TIPO: ' + dados.tipo_processo);
+    if(dados.data_documento) bloco.push('DATA DO DOCUMENTO: ' + dados.data_documento);
+    if(dados.prazo) bloco.push('PRAZO: ' + dados.prazo);
+    if(dados.proxima_acao) bloco.push('PROXIMA ACAO: ' + dados.proxima_acao);
+    if(dados.resumo) bloco.push('\nRESUMO:\n' + dados.resumo);
+    else if(dados.descricao) bloco.push('\nDESCRICAO:\n' + dados.descricao);
+    if(dados.resposta_sugerida) bloco.push('\nPECA SUGERIDA: ' + dados.resposta_sugerida);
+    if(dados.jurisprudencia) bloco.push('\nJURISPRUDENCIA: ' + dados.jurisprudencia);
+    if(bloco.length) obs.value = bloco.join('\n');
+  }
+  // Valor
+  if(dados.valor){
+    const el = document.getElementById('pvl');
+    if(el && !el.value) el.value = String(dados.valor).replace(/[^0-9]/g,'');
+  }
+}
+
+// Modal de confirmacao do intake — CEO pediu: "Encontrei X,Y,Z. Confirma?"
+function _pConfirmarIntake(nomeArq, dados){
+  if(!dados) return;
+  // Evita duplicar modal
+  document.getElementById('_pIntakeConfirm')?.remove();
+  // Guarda no window para _pConfirmarEnviarAutuacao acessar
+  window._pIntakeDadosPend = { nomeArq, dados };
+  const linhas = [
+    ['👤 Cliente', dados.nome_cliente || dados.autor || '(não identificado)'],
+    ['⚖️ Autor', dados.autor || '—'],
+    ['🛡️ Réu', dados.reu || dados.requerido || '—'],
+    ['🔢 Nº Processo', dados.numero_processo || '(sem número — em preparação)'],
+    ['🏛️ Vara / Órgão', dados.vara || dados.orgao || '—'],
+    ['📍 Comarca', dados.comarca || '—'],
+    ['👨‍⚖️ Juiz', dados.juiz_relator || '—'],
+    ['📌 Tipo', dados.tipo_acao || dados.tipo || '—'],
+    ['📂 Área', dados.area || '—'],
+    ['⏰ Prazo', dados.prazo || '(sem prazo identificado)'],
+    ['🎯 Setor', (dados.setor_sugerido || (dados.tipo_processo==='administrativo'?'administrativo':'autuacao'))]
+  ];
+  const linhasHtml = linhas.map(([k,v])=>`<div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px"><div style="width:130px;color:var(--text3);flex-shrink:0">${k}</div><div style="flex:1;color:var(--text);font-weight:600;word-break:break-word">${String(v||'—').replace(/</g,'&lt;')}</div></div>`).join('');
+  const resumoCurto = (dados.resumo || dados.descricao || '').substring(0, 500);
+  const ov = document.createElement('div');
+  ov.id = '_pIntakeConfirm';
+  ov.style.cssText = 'position:fixed;inset:0;background:#000000aa;z-index:600;display:flex;align-items:center;justify-content:center;padding:12px';
+  ov.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;max-width:520px;width:100%;max-height:90vh;overflow-y:auto;padding:22px">
+    <div style="font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;margin-bottom:4px;color:var(--text)">🤖 Agente Intake — Confirmação</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:14px">Extraí os seguintes dados de <b>${(nomeArq||'arquivo').replace(/</g,'&lt;')}</b>. Confira antes de cadastrar.</div>
+    <div style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:12px">${linhasHtml}</div>
+    ${resumoCurto ? `<div style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:12px"><div style="font-size:10px;color:var(--text3);letter-spacing:1px;margin-bottom:4px">📝 RESUMO</div><div style="font-size:11px;line-height:1.5;color:var(--text2);white-space:pre-wrap">${resumoCurto.replace(/</g,'&lt;')}${(dados.resumo||dados.descricao||'').length>500?'...':''}</div></div>` : ''}
+    <div style="font-size:11px;color:var(--text3);margin-bottom:10px">⚠ Os campos do formulário já foram preenchidos. Você pode editar antes de salvar, ou confirmar que está tudo certo e enviar para o setor de Autuação (onde serão cobrados os documentos faltantes).</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-cancel" style="flex:1" onclick="document.getElementById('_pIntakeConfirm')?.remove()">✎ Revisar / Editar</button>
+      <button class="btn-save" style="flex:1;background:linear-gradient(135deg,var(--accent),#1557b0);border:none" onclick="_pConfirmarEnviarAutuacao()">✓ Confirmar → Autuação</button>
+    </div>
+  </div>`;
+  ov.addEventListener('click', e => { if(e.target===ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
+
+// Cadastra em preparacao com fase=autuacao e leva para o setor Autuacao
+async function _pConfirmarEnviarAutuacao(){
+  document.getElementById('_pIntakeConfirm')?.remove();
+  // Status EM_PREP (fase autuacao) antes de salvar
+  const stSel = document.getElementById('pst');
+  if(stSel && Array.from(stSel.options).some(o=>o.value==='EM_PREP')) stSel.value='EM_PREP';
+  // Marcador no obs p/ sinalizar fase de autuacao
+  const obs = document.getElementById('pob');
+  if(obs && !/FASE:\s*AUTUACAO/i.test(obs.value||'')) {
+    obs.value = (obs.value||'') + (obs.value ? '\n\n' : '') + 'FASE: AUTUACAO (aguardando documentos para distribuicao)';
+  }
+  try {
+    await _pSv(); // salva o caso em prep (fecha modal, re-renderiza)
+    toast('✓ Cadastrado em Autuação — cobre os documentos faltantes','ok');
+    // Transiciona para a aba Autuacao
+    setTimeout(()=>{ try { ir('autuacao', null); } catch(_){} }, 400);
+  } catch(e){
+    toast('Erro ao cadastrar: '+(e.message||e),'erro');
+  }
 }
 
 async function _pSv(){
