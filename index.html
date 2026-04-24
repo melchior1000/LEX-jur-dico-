@@ -3,7 +3,7 @@
 <head>
   <!-- LEX v2 - Build 2026-04-22 21:20 -->
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Lex — Sistema Jurídico v14</title>
 <!-- Fonte Arial nativa — mais legível, sem dependência externa -->
 <style>
@@ -45,7 +45,7 @@ body.noite{
 #sidebar{width:240px;min-height:100vh;height:100vh;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;z-index:100;transition:transform .28s cubic-bezier(.4,0,.2,1);overflow:hidden;backdrop-filter:blur(20px);}
 .logo-area{padding:28px 24px 22px;border-bottom:1px solid var(--border);background:linear-gradient(160deg,color-mix(in srgb, var(--accent) 3%, transparent),var(--surface));}
 .logo-eyebrow{font-size:9px;letter-spacing:4px;color:var(--accent);margin-bottom:6px;text-transform:uppercase;font-weight:600;}
-.logo-name{font-family:Arial,Helvetica,sans-serif;font-size:24px;font-weight:800;color:var(--text);letter-spacing:1px;background:linear-gradient(135deg,var(--text),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.logo-name{font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:800;color:var(--text);letter-spacing:1px;background:linear-gradient(135deg,var(--text),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
 .logo-sub{font-size:11px;color:var(--accent);margin-top:4px;font-weight:400;opacity:.8;}
 nav{padding:18px 12px;flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border2) transparent;}
 .nav-section{font-size:9px;color:var(--text3);letter-spacing:3px;padding:0 10px;margin:14px 0 6px;}
@@ -65,7 +65,7 @@ nav{padding:18px 12px;flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-colo
 /* ═══ BOAS-VINDAS ════════════════════════════════════════════ */
 #lex-welcome{position:fixed;inset:0;background:linear-gradient(135deg,#060610 40%,#0a0a20 70%,#0d1030);z-index:8000;display:flex;align-items:center;justify-content:center;padding:24px;}
 #lex-welcome-box{background:var(--surface);border:1px solid var(--border2);border-radius:24px;padding:44px 40px;max-width:440px;width:100%;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.5),0 0 80px color-mix(in srgb, var(--accent) 3%, transparent);}
-#lex-welcome-box h1{font-family:Arial,Helvetica,sans-serif;font-size:36px;font-weight:800;color:var(--text);margin:0 0 6px;background:linear-gradient(135deg,var(--text),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+#lex-welcome-box h1{font-family:Arial,Helvetica,sans-serif;font-size:18px;font-weight:800;color:var(--text);margin:0 0 6px;background:linear-gradient(135deg,var(--text),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
 #lex-welcome-box .wlc-sub{font-size:13px;color:var(--accent);margin-bottom:28px;font-weight:400;opacity:.8;}
 #lex-welcome-box .feat{text-align:left;background:var(--surface2);border-radius:12px;padding:16px 18px;margin-bottom:20px;}
 #lex-welcome-box .feat div{font-size:12px;color:var(--text2);padding:5px 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
@@ -79,7 +79,7 @@ nav{padding:18px 12px;flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-colo
 /* OVERLAY/HAMBURGUER */
 #overlay{display:none;position:fixed;inset:0;background:#00000088;z-index:99;}
 #overlay.show{display:block;}
-#hambtn{display:none;background:none;border:none;color:var(--text);font-size:24px;cursor:pointer;padding:2px 4px;}
+#hambtn{display:none;background:none;border:none;color:var(--text);font-size:14px;cursor:pointer;padding:2px 4px;}
 
 /* MAIN */
 #main{margin-left:240px;flex:1;display:flex;flex-direction:column;min-height:100dvh;max-width:calc(100vw - 240px);overflow-x:hidden;}
@@ -176,13 +176,13 @@ nav{padding:18px 12px;flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-colo
 .alerta-left{display:flex;align-items:center;gap:12px;}
 .alerta-nome{font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:600;color:var(--text);}
 .alerta-msg{font-size:11px;color:var(--text2);margin-top:2px;}
-.alerta-dias{font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:700;}
+.alerta-dias{font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;}
 
 /* NOTIFICAÇÃO MODAL */
 #notif-overlay{display:none;position:fixed;inset:0;background:#00000099;z-index:500;align-items:center;justify-content:center;}
 #notif-overlay.open{display:flex;}
 #notif-box{background:var(--surface);border:1px solid color-mix(in srgb, var(--red) 27%, transparent);border-radius:16px;width:90%;max-width:480px;padding:30px;max-height:80vh;overflow-y:auto;}
-.notif-title{font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:700;color:var(--red);margin-bottom:6px;}
+.notif-title{font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:var(--red);margin-bottom:6px;}
 .notif-sub{font-size:13px;color:var(--text2);font-weight:300;margin-bottom:20px;}
 .notif-item{background:var(--red-soft);border:1px solid color-mix(in srgb, var(--red) 20%, transparent);border-radius:10px;padding:14px 16px;margin-bottom:10px;cursor:pointer;}
 .notif-item.orange{background:var(--orange-soft);border-color:#f0832a33;}
@@ -194,7 +194,7 @@ nav{padding:18px 12px;flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-colo
 .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;transition:all .25s;cursor:default;box-shadow:var(--shadow-sm);}
 .stat-card:hover{border-color:color-mix(in srgb, var(--accent) 19%, transparent);box-shadow:var(--shadow-md);}
 .stat-label{font-size:10px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;font-weight:600;}
-.stat-num{font-family:Arial,Helvetica,sans-serif;font-size:28px;font-weight:800;line-height:1;}
+.stat-num{font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:800;line-height:1;}
 .stat-sub{font-size:10px;color:var(--text3);margin-top:4px;}
 
 /* SEÇÃO */
@@ -220,7 +220,7 @@ nav{padding:18px 12px;flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-colo
 /* DETALHE */
 .back-btn{background:none;border:none;color:var(--accent);font-family:Arial,Helvetica,sans-serif;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;margin-bottom:22px;padding:0;}
 .detalhe-header{padding-left:20px;margin-bottom:24px;}
-.detalhe-nome{font-family:Arial,Helvetica,sans-serif;font-size:24px;font-weight:700;color:var(--text);margin-bottom:4px;overflow-wrap:break-word;word-break:break-word;}
+.detalhe-nome{font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px;overflow-wrap:break-word;word-break:break-word;}
 .detalhe-partes{font-size:13px;color:var(--text2);font-weight:300;overflow-wrap:break-word;}
 .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
 .info-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px;overflow:hidden;word-break:break-word;}
@@ -254,7 +254,7 @@ nav{padding:18px 12px;flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-colo
 .chat-head{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,color-mix(in srgb, var(--accent) 3%, transparent),var(--surface));}
 .chat-head-name{font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;}
 .chat-head-ctx{font-size:11px;color:var(--text3);margin-top:2px;font-weight:400;}
-.chat-close{background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;}
+.chat-close{background:none;border:none;color:var(--text3);font-size:13px;cursor:pointer;}
 #chat-msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;}
 .msg{padding:12px 16px;border-radius:14px;font-size:13px;line-height:1.75;max-width:92%;font-weight:400;}
 .msg.ai{background:var(--surface2);border:1px solid var(--border);color:var(--text);align-self:flex-start;border-bottom-left-radius:4px;}
@@ -275,7 +275,7 @@ nav{padding:18px 12px;flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-colo
 .modal-overlay{display:none;position:fixed;inset:0;background:#00000088;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:300;align-items:center;justify-content:center;padding:16px;}
 .modal-overlay.open{display:flex;}
 .modal-box{background:var(--surface);border:1px solid var(--border2);border-radius:20px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;padding:32px;box-shadow:var(--shadow-lg);}
-.modal-title{font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:800;margin-bottom:24px;color:var(--text);}
+.modal-title{font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:800;margin-bottom:24px;color:var(--text);}
 .fg{margin-bottom:14px;}
 .fl{font-size:10px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:5px;display:block;}
 .fi,.fs,.fta{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:10px;padding:11px 14px;color:var(--text);font-family:Arial,Helvetica,sans-serif;font-size:13px;transition:all .2s;}
@@ -306,7 +306,7 @@ nav{padding:18px 12px;flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-colo
 .prazo-card:hover{background:var(--surface2);}
 .prazo-nome{font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:600;color:var(--text);margin-bottom:3px;}
 .prazo-acao{font-size:12px;color:var(--text2);font-weight:300;}
-.prazo-num{font-family:Arial,Helvetica,sans-serif;font-size:26px;font-weight:700;text-align:right;flex-shrink:0;}
+.prazo-num{font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;text-align:right;flex-shrink:0;}
 .prazo-label{font-size:10px;color:var(--text3);text-align:right;margin-top:2px;}
 
 /* ESTATÍSTICAS */
@@ -363,7 +363,7 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
 .pipeline-trigger-btn:hover{background:#244b73!important;border-color:#244b73!important;}
 .pipeline-modal-box{max-width:1040px!important;padding:22px!important;background:#f5f5f5!important;color:#1a1a1a!important;}
 .pipeline-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;}
-.pipeline-title{font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:700;color:#1a3a5c;}
+.pipeline-title{font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#1a3a5c;}
 .pipeline-sub{font-size:12px;color:#5d6670;}
 .pipeline-close{background:transparent;border:1px solid #cfd4da;border-radius:8px;padding:7px 11px;cursor:pointer;color:#1a3a5c;font-weight:700;}
 .pipeline-steps{display:grid;grid-template-columns:repeat(10,minmax(64px,1fr));gap:6px;align-items:start;margin-bottom:18px;}
@@ -415,7 +415,7 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
 .mob-nav-items{display:flex;justify-content:space-around;align-items:center;}
 .mob-nav-btn{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 12px;background:none;border:none;cursor:pointer;color:var(--text3);font-family:Arial,Helvetica,sans-serif;font-size:10px;letter-spacing:.5px;transition:all .15s;min-width:60px;}
 .mob-nav-btn.active{color:var(--accent);}
-.mob-nav-btn span:first-child{font-size:20px;}
+.mob-nav-btn span:first-child{font-size:13px;}
 
 /* BACK BAR — aparece em páginas internas */
 #back-bar{display:none;background:var(--surface);border-bottom:1px solid var(--border);padding:10px 20px;position:sticky;top:57px;z-index:40;align-items:center;justify-content:space-between;}
@@ -478,7 +478,7 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
   .pipeline-grid{grid-template-columns:1fr;}
   #pdf-pane-form{width:100%!important;border-left:none!important;border-top:1px solid var(--border);}
   #pdf-pane-viewer{min-height:250px;}
-  .stat-num{font-size:20px;}
+  .stat-num{font-size:13px;}
   .stats-row{grid-template-columns:repeat(2,1fr)!important;gap:6px!important;}
   /* Responsividade global mobile */
   table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;font-size:11px;}
@@ -501,119 +501,121 @@ body.dia .alerta-banner.orange{background:linear-gradient(135deg,#fff8f0,#fff0e8
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   COMPACT LAYOUT OVERRIDE v2 — reduz TUDO proporcionalmente
-   Resolve: zoom do sistema + fontes grandes + containers estourando
+   COMPACT LAYOUT OVERRIDE v3 — AGRESSIVO: 11px base, sidebar 180px
    ═══════════════════════════════════════════════════════════════════ */
-html{font-size:13px;}
+html{font-size:11px!important;}
 *,*::before,*::after{max-width:100%;box-sizing:border-box;}
 html,body{max-width:100vw!important;overflow-x:hidden!important;}
-body{font-size:13px!important;}
+body{font-size:12px!important;}
 img,video,iframe,canvas,svg{max-width:100%;height:auto;}
 pre,code{white-space:pre-wrap;word-break:break-word;}
 table{max-width:100%;}
 
 /* FONTES — reduzir todos os tamanhos "premium" exagerados */
-.logo-name{font-size:19px!important;letter-spacing:.5px!important;}
+.logo-name{font-size:16px!important;letter-spacing:.5px!important;}
 .logo-eyebrow{font-size:8px!important;}
-.logo-sub{font-size:10px!important;}
-.page-title{font-size:14px!important;font-weight:700!important;}
-.topbar-date{font-size:10px!important;}
-.nav-btn{font-size:12px!important;padding:8px 11px!important;}
-.nav-icon{font-size:13px!important;width:16px!important;}
-.nav-section{font-size:8px!important;margin:10px 0 4px!important;}
-.stat-num{font-size:22px!important;}
+.logo-sub{font-size:9px!important;}
+.page-title{font-size:13px!important;font-weight:700!important;}
+.topbar-date{font-size:9px!important;}
+.nav-btn{font-size:11px!important;padding:7px 10px!important;}
+.nav-icon{font-size:12px!important;width:15px!important;}
+.nav-section{font-size:8px!important;margin:8px 0 3px!important;}
+.stat-num{font-size:18px!important;}
 .stat-label{font-size:9px!important;}
-.stat-card{padding:12px 14px!important;}
-.detalhe-nome{font-size:18px!important;}
-.detalhe-partes{font-size:12px!important;}
-.modal-title{font-size:17px!important;margin-bottom:16px!important;}
-.modal-box{padding:20px!important;max-width:min(540px,calc(100vw - 24px))!important;border-radius:14px!important;}
-#lex-welcome-box{padding:28px 24px!important;max-width:min(420px,calc(100vw - 32px))!important;}
-#lex-welcome-box h1{font-size:26px!important;}
-#lex-welcome-box .wlc-sub{font-size:12px!important;margin-bottom:18px!important;}
-.pc-nome{font-size:13px!important;}
-.pc-partes{font-size:11px!important;}
-.proc-card{padding:12px 14px!important;margin-bottom:7px!important;border-radius:10px!important;}
-.alerta-nome{font-size:13px!important;}
-.alerta-dias{font-size:17px!important;}
-.alerta-banner{padding:10px 13px!important;border-radius:8px!important;}
-.resumo-title{font-size:13px!important;}
-.resumo-item{font-size:12px!important;padding:6px 0!important;}
-.resumo-box{padding:13px 16px!important;}
-.secao-titulo{font-size:9px!important;margin-top:16px!important;margin-bottom:9px!important;}
-.prazo-nome{font-size:13px!important;}
-.prazo-acao{font-size:11px!important;}
-.prazo-num{font-size:20px!important;}
-.prazo-card{padding:12px 16px!important;}
-.proxacao-txt{font-size:13px!important;}
-.proxacao-box{padding:10px 14px!important;}
-.juiz-nome{font-size:13px!important;}
-.juris-card{padding:12px 15px!important;}
-.info-card{padding:10px 13px!important;}
-.info-val{font-size:12px!important;}
-.desc-card{padding:13px 16px!important;}
-.desc-txt{font-size:12px!important;line-height:1.7!important;}
-.ia-box{padding:13px 16px!important;}
-.ia-txt{font-size:12px!important;}
-.and-txt{font-size:12px!important;}
-.honor-box,.cfg-card{padding:12px 15px!important;}
-.notif-title{font-size:17px!important;}
-.msg{font-size:12px!important;padding:10px 13px!important;border-radius:10px!important;}
-.chat-head-name{font-size:13px!important;}
+.stat-card{padding:10px 12px!important;}
+.detalhe-nome{font-size:16px!important;}
+.detalhe-partes{font-size:11px!important;}
+.modal-title{font-size:15px!important;margin-bottom:14px!important;}
+.modal-box{padding:18px!important;max-width:min(500px,calc(100vw - 24px))!important;border-radius:12px!important;}
+#lex-welcome-box{padding:22px 20px!important;max-width:min(380px,calc(100vw - 32px))!important;}
+#lex-welcome-box h1{font-size:13px!important;}
+#lex-welcome-box .wlc-sub{font-size:11px!important;margin-bottom:14px!important;}
+.pc-nome{font-size:12px!important;}
+.pc-partes{font-size:10px!important;}
+.proc-card{padding:10px 12px!important;margin-bottom:6px!important;border-radius:9px!important;}
+.alerta-nome{font-size:12px!important;}
+.alerta-dias{font-size:15px!important;}
+.alerta-banner{padding:9px 11px!important;border-radius:8px!important;}
+.resumo-title{font-size:12px!important;}
+.resumo-item{font-size:11px!important;padding:5px 0!important;}
+.resumo-box{padding:11px 14px!important;}
+.secao-titulo{font-size:9px!important;margin-top:14px!important;margin-bottom:8px!important;}
+.prazo-nome{font-size:12px!important;}
+.prazo-acao{font-size:10px!important;}
+.prazo-num{font-size:17px!important;}
+.prazo-card{padding:10px 14px!important;}
+.proxacao-txt{font-size:12px!important;}
+.proxacao-box{padding:9px 12px!important;}
+.juiz-nome{font-size:12px!important;}
+.juris-card{padding:10px 13px!important;}
+.info-card{padding:9px 11px!important;}
+.info-val{font-size:11px!important;}
+.desc-card{padding:11px 14px!important;}
+.desc-txt{font-size:11px!important;line-height:1.6!important;}
+.ia-box{padding:11px 14px!important;}
+.ia-txt{font-size:11px!important;}
+.and-txt{font-size:11px!important;}
+.honor-box,.cfg-card{padding:10px 13px!important;}
+.notif-title{font-size:15px!important;}
+.msg{font-size:11px!important;padding:9px 12px!important;border-radius:9px!important;}
+.chat-head-name{font-size:12px!important;}
 .btn-novo,.btn-primary,.btn-outline,.btn-danger,.btn-green,.btn-save,.btn-cancel{
-  font-size:12px!important;padding:8px 14px!important;border-radius:8px!important;
+  font-size:11px!important;padding:7px 12px!important;border-radius:7px!important;
 }
-.filtro-btn{font-size:10px!important;padding:5px 11px!important;}
-.fi,.fs,.fta{font-size:12px!important;padding:9px 12px!important;border-radius:8px!important;}
+.filtro-btn{font-size:10px!important;padding:4px 10px!important;}
+.fi,.fs,.fta{font-size:11px!important;padding:8px 11px!important;border-radius:7px!important;}
 .fl{font-size:9px!important;}
-.search-input{font-size:12px!important;padding:7px 14px 7px 32px!important;width:180px!important;}
-.search-input:focus{width:220px!important;}
-.content{padding:18px 20px!important;}
-.topbar{padding:10px 20px!important;}
+.search-input{font-size:11px!important;padding:6px 13px 6px 30px!important;width:160px!important;}
+.search-input:focus{width:200px!important;}
+.content{padding:14px 16px!important;}
+.topbar{padding:8px 16px!important;}
 
-/* SIDEBAR — compacta no desktop */
+/* SIDEBAR — compacta no desktop (180px conforme solicitado) */
 @media(min-width:769px){
-  #sidebar{width:210px!important;}
-  #main{margin-left:210px!important;max-width:calc(100vw - 210px)!important;}
-  .logo-area{padding:18px 18px 14px!important;}
-  nav{padding:12px 10px!important;}
-  .sidebar-bottom{padding:12px 18px 14px!important;}
+  #sidebar{width:180px!important;}
+  #main{margin-left:180px!important;max-width:calc(100vw - 180px)!important;}
+  .logo-area{padding:14px 14px 10px!important;}
+  nav{padding:10px 8px!important;}
+  .sidebar-bottom{padding:10px 14px 12px!important;}
 }
 
 /* DESKTOP PEQUENO/MÉDIO (notebook 1366x768 etc) — cabe sem estourar */
 @media(min-width:1025px) and (max-width:1366px){
-  #sidebar{width:200px!important;}
-  #main{margin-left:200px!important;max-width:calc(100vw - 200px)!important;}
-  .content{padding:14px 16px!important;max-width:100%!important;}
-  .topbar{padding:9px 16px!important;}
-  .stats-row{grid-template-columns:repeat(4,1fr)!important;gap:10px!important;}
-  .stat-num{font-size:19px!important;}
-  .stat-card{padding:10px 12px!important;}
-  .logo-area{padding:14px 14px 12px!important;}
-  .logo-name{font-size:17px!important;}
-  .page-title{font-size:13px!important;}
-  .nav-btn{font-size:11px!important;padding:7px 10px!important;}
-  .modal-box{max-width:min(520px,calc(100vw - 32px))!important;}
-  #lex-welcome-box{padding:24px 22px!important;max-width:min(400px,calc(100vw - 40px))!important;}
-  #lex-welcome-box h1{font-size:22px!important;}
+  #sidebar{width:180px!important;}
+  #main{margin-left:180px!important;max-width:calc(100vw - 180px)!important;}
+  .content{padding:12px 14px!important;max-width:100%!important;}
+  .topbar{padding:7px 14px!important;}
+  .stats-row{grid-template-columns:repeat(4,1fr)!important;gap:8px!important;}
+  .stat-num{font-size:16px!important;}
+  .stat-card{padding:9px 11px!important;}
+  .logo-area{padding:12px 12px 10px!important;}
+  .logo-name{font-size:15px!important;}
+  .page-title{font-size:12px!important;}
+  .nav-btn{font-size:10px!important;padding:6px 9px!important;}
+  .modal-box{max-width:min(480px,calc(100vw - 32px))!important;}
+  #lex-welcome-box{padding:20px 18px!important;max-width:min(360px,calc(100vw - 40px))!important;}
+  #lex-welcome-box h1{font-size:19px!important;}
 }
 
 /* DESKTOP GRANDE — limitar conteúdo central */
 @media(min-width:1367px){
-  .content{max-width:1180px!important;margin:0 auto!important;padding:18px 22px!important;}
+  .content{max-width:1160px!important;margin:0 auto!important;padding:16px 20px!important;}
   .stats-row{grid-template-columns:repeat(4,1fr)!important;}
 }
 
 /* CAP GLOBAL em font-sizes inline gigantes que vêm dos template literals JS.
-   Uso de seletores de atributo para alcançar divs inline gerados no runtime. */
+   Uso de seletores de atributo para alcançar divs inline gerados no runtime.
+   Cobre variações com e sem espaço após ':' */
 @media(min-width:769px){
-  [style*="font-size:36px"]{font-size:22px!important;}
-  [style*="font-size:32px"]{font-size:20px!important;}
-  [style*="font-size:30px"]{font-size:20px!important;}
-  [style*="font-size:28px"]{font-size:19px!important;}
-  [style*="font-size:26px"]{font-size:18px!important;}
-  [style*="font-size:24px"]{font-size:16px!important;}
-  [style*="font-size:22px"]{font-size:15px!important;}
+  [style*="font-size:18px"],[style*="font-size: 36px"]{font-size:18px!important;}
+  [style*="font-size:17px"],[style*="font-size: 32px"]{font-size:17px!important;}
+  [style*="font-size:16px"],[style*="font-size: 30px"]{font-size:16px!important;}
+  [style*="font-size:16px"],[style*="font-size: 28px"]{font-size:16px!important;}
+  [style*="font-size:15px"],[style*="font-size: 26px"]{font-size:15px!important;}
+  [style*="font-size:14px"],[style*="font-size: 24px"]{font-size:14px!important;}
+  [style*="font-size:13px"],[style*="font-size: 22px"]{font-size:13px!important;}
+  [style*="font-size:13px"],[style*="font-size: 20px"]{font-size:13px!important;}
+  [style*="font-size:18px"],[style*="font-size: 18px"]{font-size:12px!important;}
   /* Reduzir proporcionalmente containers inline com width fixo grande */
   [style*="width:400px"]{max-width:min(400px,calc(100vw - 32px))!important;}
   [style*="width:440px"]{max-width:min(440px,calc(100vw - 32px))!important;}
@@ -622,33 +624,37 @@ table{max-width:100%;}
   [style*="width:560px"]{max-width:min(560px,calc(100vw - 32px))!important;}
   [style*="width:640px"]{max-width:min(640px,calc(100vw - 32px))!important;}
   [style*="width:680px"]{max-width:min(680px,calc(100vw - 32px))!important;}
+  /* Padding inline gigante */
+  [style*="padding:28px"]{padding:16px!important;}
+  [style*="padding:32px"]{padding:18px!important;}
+  [style*="padding:44px"]{padding:20px!important;}
 }
 
 /* MOBILE — ultra compacto */
 @media(max-width:768px){
-  html{font-size:12px;}
-  body{font-size:12px!important;}
-  .content{padding:10px 8px!important;}
-  .topbar{padding:7px 9px!important;}
-  .page-title{font-size:13px!important;}
-  .stat-num{font-size:17px!important;}
-  .logo-name{font-size:16px!important;}
-  .modal-box{padding:14px!important;max-width:calc(100vw - 12px)!important;margin:6px!important;border-radius:10px!important;}
-  .modal-title{font-size:15px!important;}
-  #lex-welcome-box{padding:20px 16px!important;}
-  #lex-welcome-box h1{font-size:22px!important;}
+  html{font-size:11px!important;}
+  body{font-size:11px!important;}
+  .content{padding:8px 7px!important;}
+  .topbar{padding:6px 8px!important;}
+  .page-title{font-size:12px!important;}
+  .stat-num{font-size:15px!important;}
+  .logo-name{font-size:14px!important;}
+  .modal-box{padding:12px!important;max-width:calc(100vw - 10px)!important;margin:5px!important;border-radius:10px!important;}
+  .modal-title{font-size:13px!important;}
+  #lex-welcome-box{padding:18px 14px!important;}
+  #lex-welcome-box h1{font-size:19px!important;}
   .btn-novo,.btn-primary,.btn-outline,.btn-danger,.btn-green,.btn-save,.btn-cancel{
-    font-size:11px!important;padding:7px 11px!important;
+    font-size:10px!important;padding:6px 10px!important;
   }
-  .proc-card{padding:10px 12px!important;}
-  .pc-nome{font-size:12px!important;}
-  .alerta-dias{font-size:15px!important;}
-  .prazo-num{font-size:17px!important;}
-  .detalhe-nome{font-size:15px!important;}
+  .proc-card{padding:9px 11px!important;}
+  .pc-nome{font-size:11px!important;}
+  .alerta-dias{font-size:13px!important;}
+  .prazo-num{font-size:15px!important;}
+  .detalhe-nome{font-size:13px!important;}
   #chat-panel{width:100vw!important;max-width:100vw!important;}
-  .msg{max-width:94%!important;font-size:12px!important;}
-  .search-input{width:90px!important;font-size:11px!important;}
-  .search-input:focus{width:140px!important;}
+  .msg{max-width:94%!important;font-size:11px!important;}
+  .search-input{width:80px!important;font-size:10px!important;}
+  .search-input:focus{width:130px!important;}
 }
 
 /* ANTI-OVERFLOW — nada pode estourar a viewport */
@@ -675,7 +681,7 @@ table{max-width:100%;}
   <div style="width:100%;max-width:380px;padding:24px;">
     <div style="text-align:center;margin-bottom:32px;">
       <div style="font-size:10px;letter-spacing:4px;color:#555878;margin-bottom:8px;">SISTEMA JURÍDICO</div>
-      <div style="font-family:Arial,Helvetica,sans-serif;font-size:36px;font-weight:700;color:#e8eaf6;">Lex</div>
+      <div style="font-family:Arial,Helvetica,sans-serif;font-size:18px;font-weight:700;color:#e8eaf6;">Lex</div>
       <div style="font-size:12px;color:#4f6ef7;margin-top:4px;font-weight:300;">Gestão Processual Integrada</div>
     </div>
     <div style="background:#0d0d1a;border:1px solid #1c1c30;border-radius:14px;padding:28px;">
@@ -700,7 +706,7 @@ table{max-width:100%;}
             style="width:100%;background:#07070f;border:1px solid #26263d;border-radius:8px;padding:11px 44px 11px 13px;color:#e8eaf6;font-family:Arial,Helvetica,sans-serif;font-size:14px;letter-spacing:1px;outline:none;"
             onkeydown="if(event.key==='Enter')fazerLogin()">
           <button type="button"
-            style="position:absolute;right:10px;background:none;border:none;cursor:pointer;font-size:20px;padding:4px;user-select:none;"
+            style="position:absolute;right:10px;background:none;border:none;cursor:pointer;font-size:13px;padding:4px;user-select:none;"
             id="olho-btn"
             onclick="var i=document.getElementById('login-senha');var b=document.getElementById('olho-btn');if(i.type=='password'){i.type='text';b.textContent='🙈';}else{i.type='password';b.textContent='👁';}">👁</button>
         </div>
@@ -2113,7 +2119,7 @@ function varreduraInicial(){
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
         <div style="font-family:Arial,Helvetica,sans-serif;font-size:18px;font-weight:700;color:var(--text)">🤖 Assessor LEX — Varredura</div>
         <button onclick="document.getElementById('varredura-overlay').remove()" 
-          style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;padding:0 4px;line-height:1">✕</button>
+          style="background:none;border:none;color:var(--text3);font-size:13px;cursor:pointer;padding:0 4px;line-height:1">✕</button>
       </div>
       <div style="font-size:12px;color:var(--text3);margin-bottom:18px">${pendencias.length} item(ns) que precisam da sua atenção</div>
       ${itensHtml}
@@ -3979,27 +3985,27 @@ function renderPainel(){
       <div style="font-size:10px;color:var(--text3);letter-spacing:2px;font-weight:700;margin-bottom:12px">📁 ORGANIZAÇÃO POR SETOR</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:all .2s;border-top:3px solid var(--gold)" onclick="irFiltroSetor('judicial')">
-          <div style="font-size:22px;margin-bottom:6px">⚖️</div>
+          <div style="font-size:13px;margin-bottom:6px">⚖️</div>
           <div style="font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:1px">Judicial</div>
-          <div style="font-size:24px;font-weight:800;color:var(--text);margin-top:4px">${setorJudicial.length}</div>
+          <div style="font-size:14px;font-weight:800;color:var(--text);margin-top:4px">${setorJudicial.length}</div>
           <div style="font-size:10px;color:var(--text3)">processos</div>
         </div>
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:all .2s;border-top:3px solid var(--accent)" onclick="irFiltroSetor('administrativo')">
-          <div style="font-size:22px;margin-bottom:6px">🏛️</div>
+          <div style="font-size:13px;margin-bottom:6px">🏛️</div>
           <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1px">Administrativo</div>
-          <div style="font-size:24px;font-weight:800;color:var(--text);margin-top:4px">${setorAdmin.length}</div>
+          <div style="font-size:14px;font-weight:800;color:var(--text);margin-top:4px">${setorAdmin.length}</div>
           <div style="font-size:10px;color:var(--text3)">processos</div>
         </div>
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:all .2s;border-top:3px solid var(--purple)" onclick="irFiltroSetor('distribuido')">
-          <div style="font-size:22px;margin-bottom:6px">📤</div>
+          <div style="font-size:13px;margin-bottom:6px">📤</div>
           <div style="font-size:11px;font-weight:700;color:var(--purple);text-transform:uppercase;letter-spacing:1px">Distribuídos</div>
-          <div style="font-size:24px;font-weight:800;color:var(--text);margin-top:4px">${setorDistrib.length}</div>
+          <div style="font-size:14px;font-weight:800;color:var(--text);margin-top:4px">${setorDistrib.length}</div>
           <div style="font-size:10px;color:var(--text3)">aguardando</div>
         </div>
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:all .2s;border-top:3px solid var(--green)" onclick="irFiltroSetor('entregue')">
-          <div style="font-size:22px;margin-bottom:6px">✅</div>
+          <div style="font-size:13px;margin-bottom:6px">✅</div>
           <div style="font-size:11px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:1px">Entregues</div>
-          <div style="font-size:24px;font-weight:800;color:var(--text);margin-top:4px">${setorEntregue.length}</div>
+          <div style="font-size:14px;font-weight:800;color:var(--text);margin-top:4px">${setorEntregue.length}</div>
           <div style="font-size:10px;color:var(--text3)">concluídos</div>
         </div>
       </div>
@@ -4312,7 +4318,7 @@ function calDia(dStr){
   ov.innerHTML=`<div style="background:var(--surface);border:1px solid var(--border2);border-radius:14px;padding:20px;max-width:400px;width:100%;max-height:80vh;overflow-y:auto">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
       <div style="font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:600">📅 ${dataBR}</div>
-      <button onclick="document.getElementById('_calOv').remove()" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer">×</button>
+      <button onclick="document.getElementById('_calOv').remove()" style="background:none;border:none;color:var(--text3);font-size:13px;cursor:pointer">×</button>
     </div>
     ${evs.map(e=>`<div style="background:var(--surface2);border-left:3px solid ${e.cor};border-radius:8px;padding:10px 14px;margin-bottom:8px;cursor:${e.id?'pointer':'default'}" ${e.id?('onclick="document.getElementById(\'_calOv\').remove();abrirProc('+e.id+')"'):''}><div style="font-size:13px;font-weight:600">${e.nome}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${e.tipo}${e.obs?' — '+e.obs:''}</div></div>`).join('')}
     <button class="btn-primary" style="width:100%;margin-top:10px" onclick="document.getElementById('_calOv').remove();calNovo('${dStr}')">+ Adicionar neste dia</button>
@@ -4525,12 +4531,12 @@ function abrirProc(id){
     </div>
 
     <div onclick="abrirGestorWeb(${p.id})" style="background:linear-gradient(135deg,#c9a961 0%,#a88840 50%,#c9a961 100%);border-radius:12px;padding:16px 22px;margin:14px 0;cursor:pointer;display:flex;align-items:center;gap:14px;box-shadow:0 4px 14px rgba(201,169,97,0.25);transition:transform .15s, box-shadow .15s" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 6px 20px rgba(201,169,97,0.4)'" onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 14px rgba(201,169,97,0.25)'">
-      <div style="font-size:32px;line-height:1">🤖</div>
+      <div style="font-size:17px;line-height:1">🤖</div>
       <div style="flex:1;color:#1a1a1c">
         <div style="font-family:Arial,Helvetica,sans-serif;font-size:17px;font-weight:700;margin-bottom:2px">Conversar com o Gestor IA</div>
         <div style="font-size:12px;opacity:.85;font-weight:500">Conte o que foi feito, debata a estratégia e atualize o processo automaticamente</div>
       </div>
-      <div style="color:#1a1a1c;font-size:22px;font-weight:700">›</div>
+      <div style="color:#1a1a1c;font-size:13px;font-weight:700">›</div>
     </div>
 
     ${p.proxacao
@@ -4601,7 +4607,7 @@ function abrirProc(id){
         <div style="flex:1;min-width:160px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;">
           <div style="font-size:9px;color:var(--text3);letter-spacing:2px;margin-bottom:6px;">SAÚDE DO PROCESSO</div>
           <div style="display:flex;align-items:center;gap:10px;">
-            <div style="font-size:24px;">${icon}</div>
+            <div style="font-size:14px;">${icon}</div>
             <div>
               <div style="font-size:16px;font-weight:700;color:${cor};">${score}% — ${label}</div>
               <div style="font-size:10px;color:var(--text3);margin-top:2px;">
@@ -5273,7 +5279,7 @@ function renderEstatisticas(){
       <div class="stat-card" style="border-top:2px solid var(--green)"><div class="stat-label">Ganhos</div><div class="stat-num" style="color:var(--green)">${ganhos}</div></div>
       <div class="stat-card" style="border-top:2px solid var(--red)"><div class="stat-label">Perdidos</div><div class="stat-num" style="color:var(--red)">${perdidos}</div></div>
     </div>
-    ${valorTotal?`<div class="desc-card" style="margin-bottom:20px"><div class="desc-label">Valor total das causas</div><div style="font-family:Arial,Helvetica,sans-serif;font-size:28px;font-weight:700;color:var(--gold)">R$ ${valorTotal.toLocaleString('pt-BR')}</div></div>`:''}
+    ${valorTotal?`<div class="desc-card" style="margin-bottom:20px"><div class="desc-label">Valor total das causas</div><div style="font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;color:var(--gold)">R$ ${valorTotal.toLocaleString('pt-BR')}</div></div>`:''}
 
     <!-- Dashboard por Tribunal V12 -->
     <div class="desc-card" style="margin-bottom:20px">
@@ -5326,7 +5332,7 @@ function renderEstatisticas(){
 
     <div class="desc-card" style="margin-top:14px;border-left:4px solid ${saldoRoi>=0?'var(--green)':'var(--red)'}">
       <div class="desc-label">ROI DO ESCRITÓRIO</div>
-      <div style="font-family:Arial,Helvetica,sans-serif;font-size:30px;font-weight:700;color:${saldoRoi>=0?'var(--green)':'var(--red)'}">${_fmtBRL(saldoRoi)}</div>
+      <div style="font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;color:${saldoRoi>=0?'var(--green)':'var(--red)'}">${_fmtBRL(saldoRoi)}</div>
       <div style="font-size:12px;color:var(--text2);margin-top:4px">Retorno: <strong style="color:${roiPct>=0?'var(--green)':'var(--red)'}">${roiPct.toFixed(1)}%</strong> · Ganhos: ${_fmtBRL(ganhoValor)} · Perdidos: ${_fmtBRL(perdaValor)}</div>
     </div>
 
@@ -5390,7 +5396,7 @@ function renderJuris(){
     <div style="background:linear-gradient(135deg,#10b98115,var(--surface));border:1px solid #10b98133;border-radius:16px;padding:16px 20px;margin-bottom:16px">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
         <div>
-          <div style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:700;color:var(--text)">📚 Pesquisa de Jurisprudência</div>
+          <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:var(--text)">📚 Pesquisa de Jurisprudência</div>
           <div style="font-size:12px;color:var(--text3);margin-top:4px">Busca inteligente com IA · Análise de aplicabilidade · Estratégia baseada em precedentes reais</div>
         </div>
       </div>
@@ -5551,7 +5557,7 @@ async function buscarJuris(){
   const trib=document.getElementById('jtrib')?.value||'';
   const periodo=document.getElementById('jperiodo')?.value||'';
   const el=document.getElementById('jres');
-  el.innerHTML='<div style="text-align:center;padding:30px"><div style="font-size:32px;margin-bottom:12px;animation:spin 1.5s linear infinite">🔍</div><div style="font-size:14px;font-weight:600;color:var(--text)">Pesquisando jurisprudência com IA...</div><div style="font-size:11px;color:var(--text3);margin-top:6px">Consultando tribunais · Pode levar 20-40s</div></div>';
+  el.innerHTML='<div style="text-align:center;padding:30px"><div style="font-size:17px;margin-bottom:12px;animation:spin 1.5s linear infinite">🔍</div><div style="font-size:14px;font-weight:600;color:var(--text)">Pesquisando jurisprudência com IA...</div><div style="font-size:11px;color:var(--text3);margin-top:6px">Consultando tribunais · Pode levar 20-40s</div></div>';
 
   // Salvar no histórico
   if(q){
@@ -5606,7 +5612,7 @@ async function buscarJuris(){
       <!-- ANÁLISE CONSOLIDADA -->
       <div style="background:linear-gradient(135deg,${sentidoColor}08,var(--surface));border:1px solid ${sentidoColor}44;border-radius:14px;padding:16px 18px;margin-bottom:16px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <span style="font-size:20px">${sentidoIcone}</span>
+          <span style="font-size:13px">${sentidoIcone}</span>
           <div>
             <div style="font-size:14px;font-weight:700;color:${sentidoColor}">Sentido predominante: ${d.sentido_predominante||'?'}</div>
             <div style="font-size:10px;color:var(--text3)">${(d.precedentes||[]).length} precedente(s) encontrado(s)${trib?' · Filtro: '+trib:''}${periodo?' · Período: '+periodo+' ano(s)':''}</div>
@@ -5773,7 +5779,7 @@ function renderJuizes(){
     <div style="background:linear-gradient(135deg,#6366f115,var(--surface));border:1px solid #6366f133;border-radius:16px;padding:16px 20px;margin-bottom:16px">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
         <div>
-          <div style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:700;color:var(--text)">⚖️ Inteligência Judicial</div>
+          <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:var(--text)">⚖️ Inteligência Judicial</div>
           <div style="font-size:12px;color:var(--text3);margin-top:4px">${todosJuizes.length} magistrado${todosJuizes.length!==1?'s':''} mapeado${todosJuizes.length!==1?'s':''} · ${analisados.length} com perfil completo · ${juizesProc.length} extraído${juizesProc.length!==1?'s':''} de processos</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -5789,25 +5795,25 @@ function renderJuizes(){
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;position:relative;overflow:hidden">
         <div style="position:absolute;top:-6px;right:-6px;font-size:40px;opacity:0.06">⚖️</div>
         <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Total</div>
-        <div style="font-size:28px;font-weight:800;color:#6366f1;margin-top:2px">${todosJuizes.length}</div>
+        <div style="font-size:16px;font-weight:800;color:#6366f1;margin-top:2px">${todosJuizes.length}</div>
         <div style="font-size:9px;color:var(--text3)">magistrados</div>
       </div>
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;position:relative;overflow:hidden">
         <div style="position:absolute;top:-6px;right:-6px;font-size:40px;opacity:0.06">🤖</div>
         <div style="font-size:10px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:1px">Analisados</div>
-        <div style="font-size:28px;font-weight:800;color:var(--green);margin-top:2px">${analisados.length}</div>
+        <div style="font-size:16px;font-weight:800;color:var(--green);margin-top:2px">${analisados.length}</div>
         <div style="font-size:9px;color:var(--text3)">perfil completo</div>
       </div>
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;position:relative;overflow:hidden">
         <div style="position:absolute;top:-6px;right:-6px;font-size:40px;opacity:0.06">📄</div>
         <div style="font-size:10px;font-weight:600;color:var(--orange);text-transform:uppercase;letter-spacing:1px">Auto-Extraídos</div>
-        <div style="font-size:28px;font-weight:800;color:var(--orange);margin-top:2px">${juizesProc.length}</div>
+        <div style="font-size:16px;font-weight:800;color:var(--orange);margin-top:2px">${juizesProc.length}</div>
         <div style="font-size:9px;color:var(--text3)">de processos</div>
       </div>
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;position:relative;overflow:hidden">
         <div style="position:absolute;top:-6px;right:-6px;font-size:40px;opacity:0.06">⏳</div>
         <div style="font-size:10px;font-weight:600;color:var(--red);text-transform:uppercase;letter-spacing:1px">Pendentes</div>
-        <div style="font-size:28px;font-weight:800;color:var(--red);margin-top:2px">${pendentes.length}</div>
+        <div style="font-size:16px;font-weight:800;color:var(--red);margin-top:2px">${pendentes.length}</div>
         <div style="font-size:9px;color:var(--text3)">sem análise</div>
       </div>
     </div>
@@ -5848,7 +5854,7 @@ function renderJuizes(){
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
             <div style="flex:1;min-width:140px">
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                <span style="font-size:20px">${jz.cargo==='Des.'||jz.nome.includes('Des.')?'👨‍⚖️':jz.cargo==='Min.'||jz.nome.includes('Min.')?'🏛️':'⚖️'}</span>
+                <span style="font-size:13px">${jz.cargo==='Des.'||jz.nome.includes('Des.')?'👨‍⚖️':jz.cargo==='Min.'||jz.nome.includes('Min.')?'🏛️':'⚖️'}</span>
                 <span style="font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;color:var(--text)">${jz.nome}</span>
                 ${jz.autoExtracted?'<span style="font-size:8px;font-weight:700;padding:2px 7px;border-radius:10px;background:color-mix(in srgb, var(--accent) 8%, transparent);color:var(--accent)">AUTO</span>':''}
                 ${temPerfil?'<span style="font-size:8px;font-weight:700;padding:2px 7px;border-radius:10px;background:color-mix(in srgb, var(--green) 8%, transparent);color:var(--green)">✓ PERFILADO</span>':'<span style="font-size:8px;font-weight:700;padding:2px 7px;border-radius:10px;background:color-mix(in srgb, var(--orange) 8%, transparent);color:var(--orange)">PENDENTE</span>'}
@@ -5906,7 +5912,7 @@ function renderJuizes(){
 
     <!-- DICA -->
     <div style="margin-top:20px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-      <div style="font-size:28px">🧠</div>
+      <div style="font-size:16px">🧠</div>
       <div style="flex:1;min-width:140px">
         <div style="font-size:12px;font-weight:700;color:var(--text)">Inteligência Automatizada</div>
         <div style="font-size:11px;color:var(--text3);margin-top:2px;line-height:1.5">Quando um processo é importado, o Lex extrai o juiz/relator automaticamente. Ao analisar, cruza com decisões conhecidas, jurisprudência e padrão decisório para montar o perfil completo.</div>
@@ -6065,7 +6071,7 @@ async function _juizAnalisar(i){
   }
   const jz=j[i];
   const el=document.getElementById('janalise-'+i);
-  if(el) el.innerHTML='<div style="padding:14px 18px;text-align:center;font-size:12px;color:var(--accent)"><div style="font-size:24px;margin-bottom:8px;animation:spin 1s linear infinite">🔄</div>Analisando perfil decisório de <strong>'+jz.nome+'</strong>...<br><span style="font-size:10px;color:var(--text3)">Cruzando jurisprudência, decisões e padrões...</span></div>';
+  if(el) el.innerHTML='<div style="padding:14px 18px;text-align:center;font-size:12px;color:var(--accent)"><div style="font-size:14px;margin-bottom:8px;animation:spin 1s linear infinite">🔄</div>Analisando perfil decisório de <strong>'+jz.nome+'</strong>...<br><span style="font-size:10px;color:var(--text3)">Cruzando jurisprudência, decisões e padrões...</span></div>';
   
   try {
     const r=await fetchComTimeout(BASE+'/api/perfil-juiz',{
@@ -6115,11 +6121,11 @@ function _juizVerPerfil(i){
     <div style="background:linear-gradient(135deg,#6366f120,var(--surface));padding:20px 24px;border-bottom:1px solid var(--border)">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div>
-          <div style="font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:700;color:var(--text)">⚖️ ${jz.nome}</div>
+          <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:var(--text)">⚖️ ${jz.nome}</div>
           <div style="font-size:12px;color:var(--text3);margin-top:4px">${jz.tribunal||'—'} ${jz.vara?'· '+jz.vara:''}</div>
           ${pf._gerado_em?`<div style="font-size:10px;color:var(--text3);margin-top:2px">Análise: ${pf._gerado_em} · Base: ${pf.base_analise||'—'} · Confiança: ${pf.nivel_confianca_perfil||'—'}</div>`:''}
         </div>
-        <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3)">✕</button>
+        <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;font-size:13px;cursor:pointer;color:var(--text3)">✕</button>
       </div>
     </div>
     <div style="padding:20px 24px;max-height:70vh;overflow-y:auto">
@@ -6368,7 +6374,7 @@ async function _renderPjeAsync(cfg) {
 
   document.getElementById('content').innerHTML = `
     <div style="max-width:640px">
-      <div style="font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:600;margin-bottom:6px">🔗 Integração PJe</div>
+      <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:600;margin-bottom:6px">🔗 Integração PJe</div>
       <div style="font-size:13px;color:var(--text2);margin-bottom:20px;font-weight:300">Cada computador se integra com seu próprio certificado. O LEX detecta automaticamente se o agente está rodando.</div>
 
       <!-- STATUS CARD -->
@@ -6753,7 +6759,7 @@ function renderPreparacao(){
     <div style="background:linear-gradient(135deg,color-mix(in srgb, var(--accent) 8%, transparent),var(--surface));border:1px solid color-mix(in srgb, var(--accent) 20%, transparent);border-radius:16px;padding:16px 20px;margin-bottom:16px">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
         <div>
-          <div style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:700;color:var(--text)">📋 Em Preparação</div>
+          <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:var(--text)">📋 Em Preparação</div>
           <div style="font-size:12px;color:var(--text3);margin-top:4px">${preps.length===0?'Nenhum caso cadastrado — use + Novo Caso ou /novocaso no Telegram':'Gerenciando '+preps.length+' caso'+(preps.length!==1?'s':'')+' · Última atualização: '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -6772,31 +6778,31 @@ function renderPreparacao(){
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;position:relative;overflow:hidden">
         <div style="position:absolute;top:-8px;right:-8px;font-size:48px;opacity:0.06">📁</div>
         <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Total</div>
-        <div style="font-size:32px;font-weight:800;color:var(--accent);margin-top:4px;line-height:1">${preps.length}</div>
+        <div style="font-size:17px;font-weight:800;color:var(--accent);margin-top:4px;line-height:1">${preps.length}</div>
         <div style="font-size:10px;color:var(--text3);margin-top:4px">caso${preps.length!==1?'s':''} cadastrado${preps.length!==1?'s':''}</div>
       </div>
       <div style="background:var(--surface);border:1px solid ${urg?'color-mix(in srgb, var(--red) 27%, transparent)':'var(--border)'};border-radius:14px;padding:16px 18px;position:relative;overflow:hidden;${urg?'animation:pulse 2s infinite':''}">
         <div style="position:absolute;top:-8px;right:-8px;font-size:48px;opacity:0.06">🚨</div>
         <div style="font-size:11px;font-weight:600;color:var(--red);text-transform:uppercase;letter-spacing:1px">Urgentes</div>
-        <div style="font-size:32px;font-weight:800;color:var(--red);margin-top:4px;line-height:1">${urg}</div>
+        <div style="font-size:17px;font-weight:800;color:var(--red);margin-top:4px;line-height:1">${urg}</div>
         <div style="font-size:10px;color:var(--text3);margin-top:4px">${urg?'atenção imediata!':'tudo sob controle'}</div>
       </div>
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;position:relative;overflow:hidden">
         <div style="position:absolute;top:-8px;right:-8px;font-size:48px;opacity:0.06">⏳</div>
         <div style="font-size:11px;font-weight:600;color:var(--orange);text-transform:uppercase;letter-spacing:1px">Em Preparo</div>
-        <div style="font-size:32px;font-weight:800;color:var(--orange);margin-top:4px;line-height:1">${emPrep}</div>
+        <div style="font-size:17px;font-weight:800;color:var(--orange);margin-top:4px;line-height:1">${emPrep}</div>
         <div style="font-size:10px;color:var(--text3);margin-top:4px">aguardando docs</div>
       </div>
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;position:relative;overflow:hidden">
         <div style="position:absolute;top:-8px;right:-8px;font-size:48px;opacity:0.06">✅</div>
         <div style="font-size:11px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:1px">Prontos</div>
-        <div style="font-size:32px;font-weight:800;color:var(--green);margin-top:4px;line-height:1">${prt}</div>
+        <div style="font-size:17px;font-weight:800;color:var(--green);margin-top:4px;line-height:1">${prt}</div>
         <div style="font-size:10px;color:var(--text3);margin-top:4px">${prt?'para protocolar':'nenhum pronto'}</div>
       </div>
       ${aguard?`<div style="background:var(--surface);border:1px solid var(--yellow,#eab308)44;border-radius:14px;padding:16px 18px;position:relative;overflow:hidden">
         <div style="position:absolute;top:-8px;right:-8px;font-size:48px;opacity:0.06">🔔</div>
         <div style="font-size:11px;font-weight:600;color:var(--yellow,#eab308);text-transform:uppercase;letter-spacing:1px">Aprovação</div>
-        <div style="font-size:32px;font-weight:800;color:var(--yellow,#eab308);margin-top:4px;line-height:1">${aguard}</div>
+        <div style="font-size:17px;font-weight:800;color:var(--yellow,#eab308);margin-top:4px;line-height:1">${aguard}</div>
         <div style="font-size:10px;color:var(--text3);margin-top:4px">aguardando CEO</div>
       </div>`:''}
     </div>
@@ -6891,7 +6897,7 @@ function renderPreparacao(){
 
     <!-- DICA TELEGRAM/WHATSAPP -->
     <div style="margin-top:20px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-      <div style="font-size:28px">💡</div>
+      <div style="font-size:16px">💡</div>
       <div style="flex:1;min-width:140px">
         <div style="font-size:12px;font-weight:700;color:var(--text)">Cadastro rápido por Telegram ou WhatsApp</div>
         <div style="font-size:11px;color:var(--text3);margin-top:2px;line-height:1.5">Envie <code style="background:color-mix(in srgb, var(--accent) 13%, transparent);color:var(--accent);padding:1px 6px;border-radius:4px;font-size:10px">/novocaso</code> → tire fotos dos documentos → descreva o caso → o agente cadastra automaticamente!</div>
@@ -7251,17 +7257,17 @@ async function _pDistr(id){
         <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:6px">Setor de destino</label>
         <div style="display:flex;gap:8px;flex-wrap:wrap" id="_distrSetorBtns">
           <button class="_dSBtn" data-setor="administrativo" style="flex:1;min-width:100px;padding:14px;border-radius:12px;border:2px solid ${setorSugerido==='administrativo'?'var(--accent)':'var(--border)'};background:${setorSugerido==='administrativo'?'color-mix(in srgb, var(--accent) 7%, transparent)':'var(--surface)'};cursor:pointer;text-align:center;transition:all .15s" onclick="_dSelSetor(this,'administrativo')">
-            <div style="font-size:20px">🏛️</div>
+            <div style="font-size:13px">🏛️</div>
             <div style="font-size:12px;font-weight:700;color:var(--text);margin-top:4px">Administrativo</div>
             <div style="font-size:10px;color:var(--text3)">DRJ, CARF, Prefeitura</div>
           </button>
           <button class="_dSBtn" data-setor="judicial" style="flex:1;min-width:100px;padding:14px;border-radius:12px;border:2px solid ${setorSugerido==='judicial'?'var(--accent)':'var(--border)'};background:${setorSugerido==='judicial'?'color-mix(in srgb, var(--accent) 7%, transparent)':'var(--surface)'};cursor:pointer;text-align:center;transition:all .15s" onclick="_dSelSetor(this,'judicial')">
-            <div style="font-size:20px">⚖️</div>
+            <div style="font-size:13px">⚖️</div>
             <div style="font-size:12px;font-weight:700;color:var(--text);margin-top:4px">Judicial</div>
             <div style="font-size:10px;color:var(--text3)">TJ, TRF, STJ, STF</div>
           </button>
           <button class="_dSBtn" data-setor="entregue" style="flex:1;min-width:100px;padding:14px;border-radius:12px;border:2px solid var(--border);background:var(--surface);cursor:pointer;text-align:center;transition:all .15s" onclick="_dSelSetor(this,'entregue')">
-            <div style="font-size:20px">✅</div>
+            <div style="font-size:13px">✅</div>
             <div style="font-size:12px;font-weight:700;color:var(--text);margin-top:4px">Entregue</div>
             <div style="font-size:10px;color:var(--text3)">Concluído ao cliente</div>
           </button>
@@ -7350,7 +7356,7 @@ async function _pDet(id){
     ${contextoHtml}
     ${c.faltando?`<div style="background:var(--orange-soft);border:1px solid color-mix(in srgb, var(--orange) 20%, transparent);border-radius:10px;padding:12px;margin-bottom:12px;font-size:12px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;font-weight:700;color:var(--orange)">⚠ Documentos pendentes</div><div style="white-space:pre-wrap;line-height:1.6">${c.faltando}</div></div>`:'<div style="color:var(--green);font-size:12px;margin-bottom:12px;display:flex;align-items:center;gap:6px;font-weight:600">✅ Sem documentos pendentes</div>'}
     <div style="font-size:10px;color:var(--text3);letter-spacing:2px;margin-bottom:8px">DOCUMENTOS ANEXADOS (${docs.length})</div>
-    ${docs.length?`<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">${docs.map(d=>`<div style="text-align:center;width:66px">${d.base64?.startsWith('data:image')?`<img src="${d.base64}" style="width:66px;height:66px;object-fit:cover;border-radius:8px;border:1px solid var(--border)">`:`<div style="width:66px;height:66px;background:var(--surface2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px;border:1px solid var(--border)">📄</div>`}<div style="font-size:9px;color:var(--text3);margin-top:2px">${(_PSL.find(s=>s.id===d.slot)||{l:d.slot}).l}</div></div>`).join('')}</div>`:'<div style="font-size:12px;color:var(--text3);margin-bottom:14px">Nenhum documento anexado.</div>'}
+    ${docs.length?`<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">${docs.map(d=>`<div style="text-align:center;width:66px">${d.base64?.startsWith('data:image')?`<img src="${d.base64}" style="width:66px;height:66px;object-fit:cover;border-radius:8px;border:1px solid var(--border)">`:`<div style="width:66px;height:66px;background:var(--surface2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;border:1px solid var(--border)">📄</div>`}<div style="font-size:9px;color:var(--text3);margin-top:2px">${(_PSL.find(s=>s.id===d.slot)||{l:d.slot}).l}</div></div>`).join('')}</div>`:'<div style="font-size:12px;color:var(--text3);margin-bottom:14px">Nenhum documento anexado.</div>'}
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn-cancel" onclick="this.closest('div[style*=fixed]').remove()">← Voltar</button>
       <button class="btn-primary" onclick="this.closest('div[style*=fixed]').remove();abrirModalPrep(${id})">✎ Editar</button>
@@ -7406,7 +7412,7 @@ function renderAgentes(){
     ${agentes.map(a=>`
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
         <div style="display:flex;align-items:center;gap:14px">
-          <div style="font-size:32px">${a.icone}</div>
+          <div style="font-size:17px">${a.icone}</div>
           <div>
             <div style="font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:600">${a.nome}</div>
             <div style="font-size:12px;color:var(--text2);margin-top:2px">${a.descricao}</div>
@@ -7823,7 +7829,7 @@ async function abrirGestorWeb(id) {
           <div style="font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;color:var(--gold)">🤖 Gestor IA</div>
           <div style="font-size:11px;color:var(--text3)">Contexto: <b style="color:var(--text)">${p.nome}</b> · ${p.status} · ${p.tribunal||'sem tribunal'}</div>
         </div>
-        <button onclick="fecharGestorWeb()" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer">✕</button>
+        <button onclick="fecharGestorWeb()" style="background:none;border:none;color:var(--text3);font-size:13px;cursor:pointer">✕</button>
       </div>
       <div id="gestor-msgs" style="flex:1;overflow-y:auto;padding:16px;min-height:280px;max-height:50vh">
         <div style="background:var(--surface2);border-left:3px solid var(--gold);padding:12px 14px;border-radius:8px;font-size:13px;color:var(--text2);line-height:1.5">
@@ -9178,7 +9184,7 @@ function calcularEvolucaoDivida() {
     <div style="font-size:13px;line-height:1.7">
       <!-- CABEÇALHO PROFISSIONAL -->
       <div style="text-align:center;border-bottom:3px double #1a3a5c;padding-bottom:16px;margin-bottom:16px">
-        <div style="font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:700;color:#1a3a5c;letter-spacing:1px">PLANILHA DE EVOLUÇÃO DE DÉBITO</div>
+        <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#1a3a5c;letter-spacing:1px">PLANILHA DE EVOLUÇÃO DE DÉBITO</div>
         <div style="font-size:11px;color:var(--text3);margin-top:4px">Cálculo Atualizado — ${INDICE_NOME[indiceCorrecao] || indiceCorrecao.toUpperCase()}</div>
         <div style="font-size:10px;color:var(--text3)">Elaborado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div>
       </div>
@@ -9241,7 +9247,7 @@ function calcularEvolucaoDivida() {
             <div style="font-weight:800;font-size:16px">💵 TOTAL CONSOLIDADO (F + G + H)</div>
             <div style="font-size:10px;opacity:.7;margin-top:2px">Atualizado até ${dataAt.toLocaleDateString('pt-BR')}</div>
           </div>
-          <div style="font-size:28px;font-weight:900;letter-spacing:-1px">${formatarMoedaBR(total)}</div>
+          <div style="font-size:16px;font-weight:900;letter-spacing:-1px">${formatarMoedaBR(total)}</div>
         </div>
       </div>
       
@@ -10227,7 +10233,7 @@ function renderTelegram(){
   const cfg=getTgConfig();
   document.getElementById('content').innerHTML=`
     <div style="max-width:600px">
-      <div style="font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:600;margin-bottom:20px">✈️ Telegram Bot</div>
+      <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:600;margin-bottom:20px">✈️ Telegram Bot</div>
       
       <div class="desc-card" style="margin-bottom:16px">
         <div class="desc-label">CONFIGURAÇÃO DO BOT</div>
