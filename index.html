@@ -3824,6 +3824,7 @@ function renderPainel(){
           <div style="width:8px;height:8px;border-radius:50%;background:var(--red);flex-shrink:0"></div>
           <div style="flex:1"><strong style="color:var(--text)">${p.nome}</strong> — ${p.proxacao||'Verificar próxima ação'}</div>
           ${p.prazo?`<span style="font-size:11px;color:var(--orange);font-weight:700">${diasRestantes(p.prazo)}d</span>`:''}
+          <button onclick="event.stopPropagation();marcarAtivoDoBanner(${p.id},'${_nmEsc}')" title="Marcar como ATIVO (tirar de urgente)" style="background:linear-gradient(135deg,#1a73e8,#0d5bc4);border:1px solid #4a9cff55;border-radius:6px;padding:4px 10px;color:#fff;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.5px;box-shadow:0 2px 6px #1a73e840;flex-shrink:0;transition:transform .15s,box-shadow .15s" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 10px #1a73e866'" onmouseout="this.style.transform='none';this.style.boxShadow='0 2px 6px #1a73e840'">✓ Marcar ATIVO</button>
           <button onclick="event.stopPropagation();excluirProcDoBanner(${p.id},'${_nmEsc}')" title="Excluir processo" style="background:linear-gradient(135deg,#e84545,#c81e1e);border:1px solid #ff5b5b55;border-radius:6px;padding:4px 10px;color:#fff;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.5px;box-shadow:0 2px 6px #e8454540;flex-shrink:0;transition:transform .15s,box-shadow .15s" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 10px #e8454566'" onmouseout="this.style.transform='none';this.style.boxShadow='0 2px 6px #e8454540'">🗑 Excluir</button>
         </div>`;}).join('')}
       ${urgList.length===0?'<div style="font-size:13px;color:var(--text3)">Nenhum processo urgente no momento.</div>':''}
@@ -4963,6 +4964,35 @@ function salvarProc(){
   renderProcessos(); ir('processos',document.querySelector('.nav-btn[onclick*="processos"]'));
 }
 function excluirProc(id){if(!confirm('Excluir este processo permanentemente?'))return;saveProcs(getProcs().filter(p=>p.id!==id));atualizarUrgentes();ir('processos',document.querySelector('.nav-btn[onclick*="processos"]'));}
+// Marcar ATIVO a partir do banner de urgentes (painel) — SEM confirmação (ação rápida)
+// Usa cicloStatus('set', status:'ATIVO') que já: muda status, atualizado_em=hoje, dias_parado=0,
+// saveProcs (→ sincronizarComBot → PATCH Supabase via /api/sincronizar) e re-renderiza painel.
+function marcarAtivoDoBanner(id, nome){
+  try{
+    const ps = getProcs();
+    const p = ps.find(x => String(x.id) === String(id));
+    if(!p){ if(typeof toast==='function') toast('Processo não encontrado','erro'); return; }
+    const _nm = String(p.nome||nome||'processo');
+    // cicloStatus cuida de status + atualizado_em + dias_parado + saveProcs + render
+    if(typeof cicloStatus==='function'){
+      cicloStatus(id, 'set', {status:'ATIVO'});
+    } else {
+      // fallback defensivo (não deve ocorrer)
+      const hoje = new Date().toISOString().slice(0,10);
+      p.status='ATIVO'; p.atualizado_em=hoje; p.ultima_atualizacao=hoje; p.dias_parado=0; p.diasParado=0;
+      saveProcs(ps);
+      if(typeof atualizarUrgentes==='function') atualizarUrgentes();
+      if(typeof renderPainel==='function') renderPainel();
+    }
+    // Se não houver mais urgentes, remove o banner do Motor SSE se visível
+    const restaUrg = getProcs().some(x => String(x.status||'').toUpperCase()==='URGENTE');
+    if(!restaUrg){ const _b=document.getElementById('_lexMotorBanner'); if(_b) _b.remove(); }
+    if(typeof toast==='function') toast('✓ '+_nm+' → ATIVO','ok');
+  }catch(e){
+    console.error('[Lex] marcarAtivoDoBanner erro:', e);
+    if(typeof toast==='function') toast('Erro: '+(e&&e.message||e),'erro');
+  }
+}
 // Excluir processo a partir do banner de urgentes (painel) — re-renderiza painel + banner
 function excluirProcDoBanner(id, nome){
   const _nm = (nome||'este processo').toString().replace(/\\'/g,"'");
