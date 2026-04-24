@@ -3718,10 +3718,49 @@ function renderPainel(){
     {l:'Aguardando',c:'var(--orange)',f:ps.filter(p=>p.status==='AGUARDANDO')},
   ].filter(g=>g.f.length);
 
+  // Setores — organização por "pastas"
+  const setorJudicial=ps.filter(p=>p.setor==='judicial'&&p.status!=='EM_PREP');
+  const setorAdmin=ps.filter(p=>p.setor==='administrativo'&&p.status!=='EM_PREP');
+  const setorPrep=ps.filter(p=>p.setor==='autuacao'||p.status==='EM_PREP');
+  const setorEntregue=ps.filter(p=>p.status==='ENTREGUE'||p.status==='CONCLUIDO');
+  const setorDistrib=ps.filter(p=>p.status==='DISTRIBUIDO');
+
+  const setoresHtml=`
+    <div style="margin-bottom:20px">
+      <div style="font-size:10px;color:var(--text3);letter-spacing:2px;font-weight:700;margin-bottom:12px">📁 ORGANIZAÇÃO POR SETOR</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:all .2s;border-top:3px solid var(--gold)" onclick="irFiltroSetor('judicial')">
+          <div style="font-size:22px;margin-bottom:6px">⚖️</div>
+          <div style="font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:1px">Judicial</div>
+          <div style="font-size:24px;font-weight:800;color:var(--text);margin-top:4px">${setorJudicial.length}</div>
+          <div style="font-size:10px;color:var(--text3)">processos</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:all .2s;border-top:3px solid var(--accent)" onclick="irFiltroSetor('administrativo')">
+          <div style="font-size:22px;margin-bottom:6px">🏛️</div>
+          <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1px">Administrativo</div>
+          <div style="font-size:24px;font-weight:800;color:var(--text);margin-top:4px">${setorAdmin.length}</div>
+          <div style="font-size:10px;color:var(--text3)">processos</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:all .2s;border-top:3px solid var(--purple)" onclick="irFiltroSetor('distribuido')">
+          <div style="font-size:22px;margin-bottom:6px">📤</div>
+          <div style="font-size:11px;font-weight:700;color:var(--purple);text-transform:uppercase;letter-spacing:1px">Distribuídos</div>
+          <div style="font-size:24px;font-weight:800;color:var(--text);margin-top:4px">${setorDistrib.length}</div>
+          <div style="font-size:10px;color:var(--text3)">aguardando</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:all .2s;border-top:3px solid var(--green)" onclick="irFiltroSetor('entregue')">
+          <div style="font-size:22px;margin-bottom:6px">✅</div>
+          <div style="font-size:11px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:1px">Entregues</div>
+          <div style="font-size:24px;font-weight:800;color:var(--text);margin-top:4px">${setorEntregue.length}</div>
+          <div style="font-size:10px;color:var(--text3)">concluídos</div>
+        </div>
+      </div>
+    </div>`;
+
   document.getElementById('content').innerHTML=`
     ${alertasHtml}
     ${paradosBanner}
     ${resumoHtml}
+    ${setoresHtml}
     <div class="stats-row">
       <div class="stat-card" style="border-top:2px solid var(--accent)"><div class="stat-label">Total</div><div class="stat-num" style="color:var(--accent)">${ps.length}</div><div class="stat-sub">processos</div></div>
       <div class="stat-card" style="border-top:2px solid var(--red)"><div class="stat-label">Urgentes</div><div class="stat-num" style="color:var(--red)">${urgentes}</div><div class="stat-sub">atenção imediata</div></div>
@@ -3831,9 +3870,18 @@ function renderAutuacao(){
 function renderProcessosFiltrado(filtro){
   filtroAtivo=filtro;
   const ps=getProcs();
-  let psFiltrados=filtro==='todos'?ps:filtro==='em_prep'?ps.filter(p=>p.status==='EM_PREP'):ps.filter(p=>p.status===filtro.toUpperCase());
+  // Suporta filtro por status OU por setor
+  let psFiltrados;
+  if(filtro==='todos') psFiltrados=ps;
+  else if(filtro==='em_prep') psFiltrados=ps.filter(p=>p.status==='EM_PREP'||p.setor==='autuacao');
+  else if(filtro==='setor_judicial') psFiltrados=ps.filter(p=>p.setor==='judicial'&&p.status!=='EM_PREP');
+  else if(filtro==='setor_admin') psFiltrados=ps.filter(p=>p.setor==='administrativo'&&p.status!=='EM_PREP');
+  else if(filtro==='setor_entregue') psFiltrados=ps.filter(p=>p.status==='ENTREGUE'||p.status==='CONCLUIDO');
+  else psFiltrados=ps.filter(p=>p.status===filtro.toUpperCase());
   const filtrosHtml=`<div class="filtros-row">
     ${['todos','urgente','ativo','distribuido','recursal','aguardando','em_prep','entregue','concluido'].map(s=>`<button class="filtro-btn ${filtroAtivo===s?'ativo':''}" onclick="renderProcessosFiltrado('${s}')">${{'todos':'Todos','urgente':'Urgente','ativo':'Ativo','distribuido':'Distribuído','recursal':'Recursal','aguardando':'Aguardando','em_prep':'Em Preparação','entregue':'Entregue','concluido':'Concluído'}[s]||s}</button>`).join('')}
+    <span style="width:1px;height:20px;background:var(--border2);margin:0 4px"></span>
+    ${['setor_judicial','setor_admin','setor_entregue'].map(s=>`<button class="filtro-btn ${filtroAtivo===s?'ativo':''}" onclick="renderProcessosFiltrado('${s}')" style="font-size:10px">${{'setor_judicial':'⚖️ Judicial','setor_admin':'🏛️ Admin','setor_entregue':'✅ Entregue'}[s]}</button>`).join('')}
     <input placeholder="🔍 Buscar grupo..." oninput="filtrarGrupoInline(this.value)" style="background:var(--surface2);border:1px solid var(--border2);border-radius:20px;padding:5px 14px;color:var(--text);font-family:Arial,Helvetica,sans-serif;font-size:11px;outline:none;width:140px;">
   </div>`;
   let cardsHtml='';
@@ -8211,39 +8259,52 @@ function _lexMostrarSugestao(procId, dados, proc){
   document.body.appendChild(ov);
 }
 
+// Navegar para processos filtrado por setor (chamado do painel)
+function irFiltroSetor(setor){
+  const map={'judicial':'setor_judicial','administrativo':'setor_admin','entregue':'setor_entregue','distribuido':'distribuido'};
+  ir('processos',document.querySelector('.nav-btn[onclick*="processos"]'));
+  setTimeout(()=>renderProcessosFiltrado(map[setor]||'todos'),100);
+}
+
 function _lexAplicarSugestao(procId, dados){
   document.getElementById('_lexSugOv')?.remove();
   const ps=getProcs();
   const idx=ps.findIndex(x=>x.id===procId||x.id==procId);
   if(idx<0) return;
   
+  const setorLabels={'judicial':'Judicial','administrativo':'Administrativo','autuacao':'Preparação'};
+  const setorAnterior = ps[idx].setor;
+  const statusAnterior = ps[idx].status;
   let mudancas=[];
-  if(dados.mudar_setor && dados.setor_sugerido){
+  
+  if(dados.mudar_setor && dados.setor_sugerido && dados.setor_sugerido !== setorAnterior){
     ps[idx].setor=dados.setor_sugerido;
-    mudancas.push('Setor → '+dados.setor_sugerido);
+    mudancas.push('📁 Movido: '+(setorLabels[setorAnterior]||setorAnterior)+' → '+(setorLabels[dados.setor_sugerido]||dados.setor_sugerido));
   }
-  if(dados.mudar_status && dados.status_sugerido){
+  if(dados.mudar_status && dados.status_sugerido && dados.status_sugerido !== statusAnterior){
     ps[idx].status=dados.status_sugerido;
-    mudancas.push('Status → '+dados.status_sugerido);
+    mudancas.push('🔄 Status: '+statusAnterior+' → '+dados.status_sugerido);
   }
   if(dados.proxima_acao){
     ps[idx].proxacao=dados.proxima_acao;
-    mudancas.push('Próx. ação atualizada');
+    mudancas.push('📋 Próx. ação: '+dados.proxima_acao);
   }
   
-  // Registrar no andamento que o Lex sugeriu
+  // Registrar movimentação completa no andamento
   if(mudancas.length){
     if(!ps[idx].andamentos) ps[idx].andamentos=[];
     ps[idx].andamentos.unshift({
       data:new Date().toLocaleDateString('pt-BR'),
-      txt:'🤖 Lex analisou e aplicou: '+mudancas.join(' | ')
+      txt:'🤖 LEX MOVIMENTAÇÃO:\n'+mudancas.join('\n')+(dados.motivo_setor && dados.mudar_setor ? '\nMotivo: '+dados.motivo_setor : '')
     });
+    ps[idx].atualizado_em = new Date().toISOString().slice(0,10);
+    ps[idx].dias_parado = 0;
   }
   
   saveProcs(ps);
   atualizarUrgentes();
   renderPainel();renderProcessos();
-  toast('✓ Lex aplicou as sugestões!','ok');
+  toast('✓ Lex movimentou o processo!','ok');
   
   // Re-abrir processo se estava aberto
   const detModal=document.querySelector('div[style*="position: fixed"][style*="z-index"]');
