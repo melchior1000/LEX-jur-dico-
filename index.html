@@ -4734,6 +4734,71 @@ function calFiltrar(q,mes,ano){
 
 function mudarMes(mes,ano){renderCalMes(mes,ano);}
 const _prognosticoCache = {};
+
+// ═══════════════ CACHE PERSISTENTE 24h (ECONOMIA API) ═══════════════
+// Para 1000+ processos: cache por processo+hashDoEstado com TTL 24h no localStorage.
+// Se nada mudou (mesmo hash), reusa resultado. Se mudou, invalida automaticamente.
+const _CACHE_IA_TTL = 24 * 60 * 60 * 1000; // 24h
+const _CACHE_IA_KEY = 'lex_cache_ia_v1';
+function _cacheIA_load(){
+  try { return JSON.parse(localStorage.getItem(_CACHE_IA_KEY)||'{}'); } catch(_) { return {}; }
+}
+function _cacheIA_save(obj){
+  try {
+    const keys = Object.keys(obj);
+    if(keys.length > 200){
+      const sorted = keys.sort((a,b)=>((obj[a]&&obj[a].ts)||0)-((obj[b]&&obj[b].ts)||0));
+      sorted.slice(0, keys.length-200).forEach(k=>delete obj[k]);
+    }
+    localStorage.setItem(_CACHE_IA_KEY, JSON.stringify(obj));
+  } catch(_){}
+}
+function _procHashEstado(p){
+  const ands = (p.andamentos||[]).length;
+  const ult = (p.andamentos||[])[0];
+  const ultTxt = ult ? String(ult.txt||'').substring(0,60) : '';
+  return [p.id||'', p.status||'', p.setor||'', p.prazo||'', ands, ultTxt, p.proxacao||'', p.atualizado_em||''].join('|');
+}
+function _cacheIA_get(tipo, p){
+  const store = _cacheIA_load();
+  const key = tipo+':'+(p.id||'');
+  const hit = store[key];
+  if(!hit) return null;
+  if(Date.now() - (hit.ts||0) > _CACHE_IA_TTL) { delete store[key]; _cacheIA_save(store); return null; }
+  if(hit.hash !== _procHashEstado(p)) { delete store[key]; _cacheIA_save(store); return null; }
+  return hit.data;
+}
+function _cacheIA_set(tipo, p, data){
+  const store = _cacheIA_load();
+  const key = tipo+':'+(p.id||'');
+  store[key] = { ts: Date.now(), hash: _procHashEstado(p), data };
+  _cacheIA_save(store);
+}
+function _restaurarCacheAnaliseProc(p){
+  if(!p||!p.id) return;
+  const cached = _cacheIA_get('analise', p);
+  if(!cached) return;
+  _analiseCache[p.id] = cached;
+  setTimeout(()=>{
+    const container = document.getElementById('ia-content-'+p.id);
+    if(container && cached.julgador){
+      container.innerHTML = '<div class="ia-txt">'+String(cached.julgador).replace(/\n/g,'<br>')+'</div><div style="font-size:10px;color:var(--text3);margin-top:8px;font-style:italic">📦 Cache 24h (nenhuma IA consumida).</div>';
+    }
+  }, 0);
+}
+function _restaurarCachePrognostico(p){
+  if(!p||!p.id) return;
+  const cached = _cacheIA_get('prognostico', p);
+  if(!cached) return;
+  _prognosticoCache[p.id] = cached;
+  setTimeout(()=>{
+    const alvo = document.getElementById('prognostico-'+p.id);
+    if(alvo && typeof renderCardPrognostico==='function'){
+      alvo.innerHTML = renderCardPrognostico(p, cached) + '<div style="font-size:10px;color:var(--text3);margin-top:4px;font-style:italic;text-align:center">📦 Cache 24h (nenhuma IA consumida).</div>';
+    }
+  }, 0);
+}
+
 function _escHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));}
 function _fmtBRL(v){const n=Number(v)||0;return 'R$ '+n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function _corProbabilidade(prob){if(prob<30)return 'var(--red)';if(prob<=60)return 'var(--gold)';return 'var(--green)';}
@@ -4833,6 +4898,8 @@ async function carregarPrognosticoProcesso(p, forcar){
     const d = await r.json();
     const payload = d && d.prognostico ? d.prognostico : d;
     _prognosticoCache[p.id] = payload || {};
+    // [ECONOMIA API] Persistir cache 24h
+    try { _cacheIA_set('prognostico', p, _prognosticoCache[p.id]); } catch(_){}
     alvo.innerHTML = renderCardPrognostico(p, _prognosticoCache[p.id]);
   }catch(e){
     const fallback = {
@@ -4911,6 +4978,7 @@ function abrirProc(id){
       <button class="btn-outline" onclick="verNoPje(${p.id})">🔗 Ver no PJe</button>
       <button class="btn-outline" onclick="imprimirProcesso(${p.id})">🖨 Relatório</button>
       <button class="btn-outline" onclick="abrirAnalisarDecisao(${p.id})" style="color:var(--gold)">⚖️ Analisar Decisão</button>
+      <button class="btn-outline" onclick="consultarLexManual(${p.id})" style="color:var(--accent)" title="Consulta IA sob demanda — orientação setor/status/próxima ação">🧠 Consultar Lex</button>
       <button class="btn-danger" onclick="excluirProc(${p.id})" ${!podeExcluir()?'style="opacity:.4;cursor:not-allowed" title="Sem permissão"':''} ${!podeExcluir()?'disabled':''}>✕ Excluir</button>
     </div>
     ${(()=>{
@@ -4978,7 +5046,13 @@ function abrirProc(id){
         }
       </div>`;
     })()}
-    <div id="prognostico-${p.id}"></div>
+    <div id="prognostico-${p.id}">
+      <div class="desc-card" style="margin-bottom:14px;text-align:center">
+        <div class="desc-label">PROGNÓSTICO DO PROCESSO</div>
+        <button onclick="carregarPrognosticoProcesso(procAtivo,true)" style="background:var(--accent);border:none;border-radius:8px;padding:9px 18px;color:#fff;font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:700;cursor:pointer;margin-top:6px;">🎯 Calcular Prognóstico (IA)</button>
+        <div style="font-size:10px;color:var(--text3);margin-top:6px;font-style:italic">Clique para calcular via IA. Cache 24h.</div>
+      </div>
+    </div>
     <div class="ia-box" id="ia-auto-${p.id}" style="padding:0;overflow:hidden;">
       <div style="display:flex;border-bottom:1px solid #4f6ef733;">
         <button onclick="abaAnalise(${p.id},'julgador',this)" id="aba-julgador-${p.id}"
@@ -4995,7 +5069,10 @@ function abrirProc(id){
         </button>
       </div>
       <div id="ia-content-${p.id}" style="padding:18px 22px;">
-        <div class="ia-txt" style="color:var(--text3);font-style:italic">⏳ Carregando análise do julgador...</div>
+        <div class="ia-txt" style="color:var(--text3);text-align:center;padding:8px 0;">
+          <button onclick="abaAnalise(${p.id},'julgador',document.getElementById('aba-julgador-${p.id}'))" style="background:var(--accent);border:none;border-radius:8px;padding:10px 20px;color:#fff;font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:700;cursor:pointer;">🤖 Consultar IA — Analisar Julgador</button>
+          <div style="font-size:10px;color:var(--text3);margin-top:8px;font-style:italic">Clique para gerar análise (consome IA). Cache 24h.</div>
+        </div>
       </div>
     </div>
     <div class="info-grid">
@@ -5044,8 +5121,11 @@ function abrirProc(id){
       </div>
     </div>
   `;
-  gerarAnaliseAuto(p);
-  carregarPrognosticoProcesso(p);
+  // [ECONOMIA API] Removidas chamadas autom\u00e1ticas gerarAnaliseAuto + carregarPrognosticoProcesso
+  // Agora o usuario clica nos botoes "Consultar IA" e "Calcular Prognostico" quando precisar.
+  // Se ja existe cache valido (24h), aplica automaticamente sem chamar API.
+  try { _restaurarCacheAnaliseProc(p); } catch(_){}
+  try { _restaurarCachePrognostico(p); } catch(_){}
 }
 
 // ═══════════════ ARQUIVOS ═══════════════
@@ -5309,6 +5389,8 @@ C) Ações concretas para aumentar as chances de êxito`;
     const resp = await chamarIA([{role:'user',content:prompt}], sys, 1200);
     if(!_analiseCache[procId]) _analiseCache[procId]={};
     _analiseCache[procId][aba] = resp||'Análise não disponível.';
+    // [ECONOMIA API] Persistir em cache 24h — se processo nao mudar, reusa.
+    try { _cacheIA_set('analise', p, _analiseCache[procId]); } catch(_){}
     const container2 = document.getElementById('ia-content-'+procId);
     if(container2) container2.innerHTML='<div class="ia-txt">'+(_analiseCache[procId][aba]).replace(/\n/g,'<br>')+'</div>';
   } catch(e){
@@ -8354,9 +8436,74 @@ function _pPreencherCampos(dados){
 //   C) SEM_NUMERO: caso novo                                     -> AUTUACAO
 // Retorna: { pronto:bool, motivo:str, setorSugerido:'judicial'|'administrativo', faltam:[str] }
 // ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
+// ANTI-ALUCINACAO UI: renderiza o bloco de EVIDENCIAS que mostra ao usuario
+// DE ONDE no PDF o agente extraiu cada dado. Se nao tem evidencia, marca em
+// vermelho. Essencial para o usuario validar antes de cadastrar.
+// ═══════════════════════════════════════════════════════════════════════════
+function _pRenderizarEvidencias(dados){
+  if(!dados) return '';
+  const ev = (dados.evidencias && typeof dados.evidencias==='object') ? dados.evidencias : {};
+  const conf = (dados.confiancas && typeof dados.confiancas==='object') ? dados.confiancas : {};
+  const autor = dados.autor || {};
+  const reu = dados.reu || {};
+  const proc = dados.processo || {};
+  const dem = dados.demanda || {};
+  // Lista: [label, valor, chave_evidencia]
+  const items = [
+    ['👤 Autor (nome)', autor.nome || dados.nome_cliente, 'autor_nome'],
+    ['🔢 CPF Autor', autor.cpf, 'autor_cpf'],
+    ['🪪 RG Autor', autor.rg, 'autor_rg'],
+    ['🏠 Endereço Autor', autor.endereco, 'autor_endereco'],
+    ['⚖️ Adv. Autor', autor.advogado ? (autor.advogado+(autor.oab?' '+autor.oab:'')) : '', 'autor_advogado'],
+    ['🛡️ Réu (nome)', reu.nome || dados.requerido, 'reu_nome'],
+    ['🔢 CPF/CNPJ Réu', reu.cpf_cnpj, 'reu_cpf_cnpj'],
+    ['🏠 Endereço Réu', reu.endereco, 'reu_endereco'],
+    ['🛡️ Adv. Réu', reu.advogado ? (reu.advogado+(reu.oab?' '+reu.oab:'')) : '', 'reu_advogado'],
+    ['📋 Nº Processo', proc.numero || dados.numero_processo, 'numero_processo'],
+    ['🏛️ Vara', proc.vara || dados.vara, 'vara'],
+    ['📍 Comarca', proc.comarca || dados.comarca, 'comarca'],
+    ['👨‍⚖️ Juiz', proc.juiz || dados.juiz_relator, 'juiz'],
+    ['🏢 Órgão', proc.orgao || dados.orgao, 'orgao'],
+    ['💰 Valor', proc.valor_causa || dados.valor, 'valor_causa'],
+    ['📌 Tipo Ação', dem.tipo || dados.tipo_acao, 'tipo_acao']
+  ].filter(([,v])=>v && String(v).trim());
+  if(!items.length) return '';
+  const linhas = items.map(([lbl,val,k])=>{
+    const cit = ev[k];
+    const c = conf[k];
+    const badge = c==='alta' ? '<span style="display:inline-block;padding:1px 6px;border-radius:8px;background:#dcfce7;color:#166534;font-size:9px;font-weight:700;margin-left:6px">ALTA</span>'
+               : c==='media' ? '<span style="display:inline-block;padding:1px 6px;border-radius:8px;background:#fef3c7;color:#854d0e;font-size:9px;font-weight:700;margin-left:6px">MÉDIA</span>'
+               : c==='baixa' ? '<span style="display:inline-block;padding:1px 6px;border-radius:8px;background:#fee2e2;color:#7f1d1d;font-size:9px;font-weight:700;margin-left:6px">BAIXA</span>'
+               : '';
+    if(cit && String(cit).trim().length>4){
+      const citClean = String(cit).substring(0,200).replace(/</g,'&lt;');
+      return `<div style="padding:6px 0;border-bottom:1px dashed var(--border);font-size:11px">
+        <div style="color:var(--text);font-weight:600">${lbl}: <span style="color:var(--text2);font-weight:500">${String(val).substring(0,80).replace(/</g,'&lt;')}</span>${badge}</div>
+        <div style="color:var(--text3);font-size:10px;margin-top:2px;font-style:italic">📖 Citação PDF: "${citClean}${String(cit).length>200?'...':''}"</div>
+      </div>`;
+    } else {
+      // Sem evidencia = potencial alucinacao
+      return `<div style="padding:6px 0;border-bottom:1px dashed var(--border);font-size:11px;background:#fef2f2;padding-left:6px;margin-left:-6px;border-radius:4px">
+        <div style="color:#7f1d1d;font-weight:600">${lbl}: <span style="color:#991b1b">${String(val).substring(0,80).replace(/</g,'&lt;')}</span>${badge}</div>
+        <div style="color:#dc2626;font-size:10px;margin-top:2px">⚠ SEM CITAÇÃO do PDF — verifique manualmente, pode ser alucinação.</div>
+      </div>`;
+    }
+  }).join('');
+  return `<details style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:12px"><summary style="cursor:pointer;font-size:11px;font-weight:700;color:var(--text);letter-spacing:.5px">📖 EVIDÊNCIAS — de onde cada dado foi extraído (clique para expandir)</summary><div style="margin-top:8px">${linhas}</div></details>`;
+}
+
 function _pDiagnosticarProntidao(dados){
   const out = { pronto:false, motivo:'', setorSugerido:'judicial', faltam:[] };
   if(!dados) { out.motivo='sem dados'; return out; }
+  // BLOQUEIO ANTI-ALUCINACAO: se servidor detectou campos sem evidencia OU
+  // confianca baixa, NAO considera pronto - forca revisao manual pelo usuario.
+  if(Array.isArray(dados.alertas_alucinacao) && dados.alertas_alucinacao.length){
+    out.motivo='alertas de alucinacao ativos - revisar manualmente'; return out;
+  }
+  if(String(dados.confianca_extracao||'').toLowerCase() === 'baixa'){
+    out.motivo='confianca da extracao baixa - revisar manualmente'; return out;
+  }
   // 1) Tem numero CNJ/PA?
   const num = String(dados.numero_processo || (dados.processo && dados.processo.numero) || '').trim();
   if(!num){ out.motivo='sem numero de processo'; return out; }
@@ -8420,6 +8567,11 @@ function _pConfirmarIntakeProcessoPronto(nomeArq, dados, diag){
   const outroIcon = outroSetor==='judicial' ? '⚖️' : '🏛️';
   const sugIcon = setorSugerido==='judicial' ? '⚖️' : '🏛️';
   const sugGrad = setorSugerido==='judicial' ? '#1a73e8,#1557b0' : '#9333ea,#6b21a8';
+  // Anti-alucinacao: se o servidor zerou algum campo por falta de evidencia, avisa
+  const alertas2 = Array.isArray(dados.alertas_alucinacao) ? dados.alertas_alucinacao : [];
+  const alertaPrBloco = alertas2.length
+    ? '<div style="background:#fee2e2;border:1px solid #dc2626;border-radius:10px;padding:10px 14px;margin:10px 0 12px;font-size:11px;color:#7f1d1d;line-height:1.5"><b style="color:#dc2626">⚠ ATENÇÃO — possível alucinação:</b><ul style="margin:6px 0 0 16px;padding:0">'+alertas2.slice(0,6).map(function(a){return '<li>'+String(a).replace(/</g,'&lt;')+'</li>';}).join('')+'</ul><div style="margin-top:6px;font-weight:600">Recomendo NÃO distribuir direto — envie para Autuação para validação.</div></div>'
+    : '';
   const ov = document.createElement('div');
   ov.id = '_pIntakeConfirm';
   ov.style.cssText = 'position:fixed;inset:0;background:#000000aa;z-index:600;display:flex;align-items:center;justify-content:center;padding:12px';
@@ -8433,7 +8585,9 @@ function _pConfirmarIntakeProcessoPronto(nomeArq, dados, diag){
     +'<b>Sugestão do agente:</b> enviar direto para o setor <b>'+setorLabel+'</b> (baseado em '+(dados.area||dados.area_direito||'área detectada')+').'
     +'</div>'
     +'<div style="font-size:11px;color:var(--text3);margin-bottom:8px">Arquivo: <b>'+(nomeArq||'arquivo').replace(/</g,'&lt;')+'</b></div>'
+    +alertaPrBloco
     +'<div style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:12px">'+linhasHtml+'</div>'
+    +_pRenderizarEvidencias(dados)
     +(resumoCurto ? '<div style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:12px"><div style="font-size:10px;color:var(--text3);letter-spacing:1px;margin-bottom:4px">📝 RESUMO DO CASO</div><div style="font-size:11px;line-height:1.5;color:var(--text2);white-space:pre-wrap">'+resumoCurto.replace(/</g,'&lt;')+((dados.resumo||'').length>600?'...':'')+'</div></div>' : '')
     +faltamHtml
     +'<div style="font-size:11px;color:var(--text3);margin-bottom:10px">Escolha o destino — o resumo completo (fatos, pedidos, partes, defesa) vai junto:</div>'
@@ -8625,6 +8779,18 @@ function _pConfirmarIntake(nomeArq, dados){
   ];
   const linhasHtml = linhas.map(([k,v])=>`<div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px"><div style="width:130px;color:var(--text3);flex-shrink:0">${k}</div><div style="flex:1;color:var(--text);font-weight:600;word-break:break-word">${String(v||'—').replace(/</g,'&lt;')}</div></div>`).join('');
 
+  // ═══ ANTI-ALUCINACAO: bloco de EVIDENCIAS ═══
+  // Mostra de onde no PDF cada dado foi extraido. Se um campo foi preenchido
+  // sem citacao literal do PDF, alertamos o usuario que pode ser alucinacao.
+  const evBloco = _pRenderizarEvidencias(dados);
+  // Alertas_alucinacao vindos do servidor (campos zerados por falta de evidencia)
+  const alertas = Array.isArray(dados.alertas_alucinacao) ? dados.alertas_alucinacao : [];
+  const alertaHtml = alertas.length
+    ? `<div style="background:#fee2e2;border:1px solid #dc2626;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:11px;color:#7f1d1d;line-height:1.5"><b style="color:#dc2626">⚠ ATENÇÃO — possível alucinação detectada:</b><ul style="margin:6px 0 0 16px;padding:0">${alertas.slice(0,6).map(a=>`<li>${String(a).replace(/</g,'&lt;')}</li>`).join('')}</ul><div style="margin-top:6px;font-weight:600">Recomendo revisar MANUALMENTE antes de confirmar.</div></div>`
+    : '';
+  const confExtr = String(dados.confianca_extracao||'').toLowerCase();
+  const confHtml = confExtr ? `<div style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700;margin-bottom:8px;background:${confExtr==='alta'?'#dcfce7':confExtr==='media'?'#fef3c7':'#fee2e2'};color:${confExtr==='alta'?'#166534':confExtr==='media'?'#854d0e':'#7f1d1d'}">Confiança: ${confExtr.toUpperCase()}</div>` : '';
+
   // Blocos extras (pedidos, defesa, docs) - so se houver
   const pedidos = (demObj && Array.isArray(demObj.pedidos)) ? demObj.pedidos : [];
   const defesa  = (demObj && Array.isArray(demObj.defesa_reu)) ? demObj.defesa_reu : [];
@@ -8643,8 +8809,11 @@ function _pConfirmarIntake(nomeArq, dados){
   ov.style.cssText = 'position:fixed;inset:0;background:#000000aa;z-index:600;display:flex;align-items:center;justify-content:center;padding:12px';
   ov.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto;padding:22px">
     <div style="font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;margin-bottom:4px;color:var(--text)">🤖 Agente Intake — Confirmação</div>
-    <div style="font-size:11px;color:var(--text3);margin-bottom:14px">Extraí os seguintes dados de <b>${(nomeArq||'arquivo').replace(/</g,'&lt;')}</b>. Confira antes de cadastrar.</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Extraí os seguintes dados de <b>${(nomeArq||'arquivo').replace(/</g,'&lt;')}</b>. <b style="color:var(--orange,#f59e0b)">Confira ANTES de cadastrar</b> — dados errados comprometem todo o trabalho.</div>
+    ${confHtml}
+    ${alertaHtml}
     <div style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:12px">${linhasHtml}</div>
+    ${evBloco}
     ${blocoExtra}
     ${resumoCurto ? `<div style="background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:12px"><div style="font-size:10px;color:var(--text3);letter-spacing:1px;margin-bottom:4px">📝 RESUMO DO CASO (sobe para os setores)</div><div style="font-size:11px;line-height:1.5;color:var(--text2);white-space:pre-wrap">${resumoCurto.replace(/</g,'&lt;')}${totalResumo>800?'...':''}</div></div>` : ''}
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px">⚠ Os campos do formulário já foram preenchidos. Você pode editar antes de salvar, ou confirmar que está tudo certo e enviar para o setor de Autuação (onde serão cobrados os documentos faltantes).</div>
@@ -10274,6 +10443,20 @@ function registrarAcaoSalvar(procId,acao){
 // [ECONOMIA API] DESATIVADO por padrão — cada chamada consome tokens Opus.
 // Ative via Config > Avancado ou localStorage.setItem('lex_consciencia_auto','1')
 // Quando desativado, so roda se chamado com forcarManual=true (usuario pediu).
+//
+// BOTAO MANUAL: consultarLexManual(procId) — usuario clica em "🧠 Consultar Lex"
+// na tela de detalhes do processo. 1 chamada IA sob demanda.
+async function consultarLexManual(procId){
+  if(!procId) return;
+  const ps = getProcs();
+  const p = ps.find(x=>x.id===procId||x.id==procId);
+  if(!p) { if(typeof toast==='function') toast('Processo nao encontrado','erro'); return; }
+  const ultimoAnd = (p.andamentos||[])[0];
+  const ctxAcao = ultimoAnd ? (ultimoAnd.txt||'') : 'Consulta manual: analise a situacao atual do processo e oriente proximos passos.';
+  if(typeof toast==='function') toast('🧠 Consultando Lex... (1 chamada IA)','info');
+  await lexConsciencia(procId, ctxAcao, 'Consulta manual', true);
+}
+
 async function lexConsciencia(procId, textoAndamento, tipoAcao, forcarManual){
   if(!procId) return;
   // [ECONOMIA API] Bloqueia chamadas automaticas — so roda se usuario pediu ou flag ativa
