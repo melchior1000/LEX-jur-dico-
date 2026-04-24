@@ -7694,11 +7694,23 @@ async function aplicarPropostaGestor() {
       // FIX: comparar como string pra não quebrar em id número vs string
       const idx = ps.findIndex(x => String(x.id) === String(d.processo.id));
       if(idx !== -1) {
-        // Preserva o id original (mesmo tipo) pra não bagunçar referências
-        const idOriginal = ps[idx].id;
-        ps[idx] = Object.assign({}, d.processo, { id: idOriginal });
+        // MERGE: atualiza campos do servidor SEM perder campos locais que o backend não tem
+        const local = ps[idx];
+        const idOriginal = local.id;
+        // Campos que o backend envia e devem sobrescrever o local
+        const camposServidor = ['status','setor','tipo','proxacao','proxima_acao','prazo','prazoReal',
+          'dias_parado','diasParado','atualizado_em','ultima_atualizacao','andamentos','descricao',
+          'integracao_parecer','nome','partes','area','tribunal','numero','valor'];
+        for(const campo of camposServidor){
+          if(d.processo[campo] !== undefined) local[campo] = d.processo[campo];
+        }
+        local.id = idOriginal;
+        ps[idx] = local;
+        console.log('[LEX] Processo atualizado localmente — status:', local.status, 'setor:', local.setor);
         if(typeof saveProcs === 'function') saveProcs(ps);
         else localStorage.setItem('lex_procs', JSON.stringify(ps));
+      } else {
+        console.warn('[LEX] Processo não encontrado no localStorage! id:', d.processo.id);
       }
     }
 

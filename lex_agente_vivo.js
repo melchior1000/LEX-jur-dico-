@@ -37,7 +37,7 @@ const MAX_HISTORICO        = 20;       // msgs máximas no histórico
 const MAX_TOOL_LOOPS       = 3;        // max loops de tool_result
 const ANTHROPIC_TIMEOUT_MS = 180000;   // 3 min (Opus é lento)
 const MAX_RETRIES          = 2;        // retries para 429/5xx/timeout
-const STATUS_VALIDOS       = ['URGENTE','ATIVO','MONITORAR','AGUARDANDO','VENCIDO','CONCLUIDO'];
+const STATUS_VALIDOS       = ['URGENTE','ATIVO','DISTRIBUIDO','MONITORAR','AGUARDANDO','VENCIDO','CONCLUIDO','ENTREGUE'];
 const PRAZO_REGEX          = /^\d{4}-\d{2}-\d{2}$/;
 
 // =====================================================================
