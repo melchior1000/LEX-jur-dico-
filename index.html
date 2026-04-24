@@ -748,6 +748,7 @@ table{max-width:100%;}
     <button class="nav-btn" onclick="ir('mensagens',this)"><span class="nav-icon">💬</span> Central Mensagens</button>
     <button class="nav-btn" onclick="ir('agenda',this)"><span class="nav-icon">📇</span> Agenda / Contatos</button>
     <button class="nav-btn" onclick="ir('preparacao',this)"><span class="nav-icon">📋</span> Em Preparação</button>
+    <button class="nav-btn" onclick="ir('pericia',this)"><span class="nav-icon">🔬</span> Setor de Perícia</button>
     <button class="nav-btn" onclick="ir('agentes',this)"><span class="nav-icon">🤖</span> Agentes IA</button>
     <button class="nav-btn" id="btn-pje" onclick="ir('pje',this)"><span class="nav-icon">🔗</span> PJe <span id="_pjeDot" style="font-size:9px;color:var(--red-soft)">○</span></button>
   </nav>
@@ -2290,12 +2291,21 @@ function manterServidorAcordado(){
 }
 
 // Fallback: se servidor offline, usa chave local
+// [FIX_SETOR_PREP] Em vez de silenciar erros do servidor (retorno "offline" generico),
+// diagnostica a causa real (401 token expirado, 500 erro interno, rede, etc) e
+// expoe no console + retorna mensagem clara para o frontend renderizar.
 async function chamarIA(messages, system, maxTokens) {
+  let ultimoErroServidor = null;
   // Tentativa 1: servidor Render
   try {
     const r = await chamarServidor('/api/chat', {messages, system, maxTokens: maxTokens||1500});
-    if(r && r.text) return r.text;
-  } catch(e) { console.warn('[chat] fallback para chave local:', e?.message || e); }
+    const texto = r && (r.text || r.resposta);
+    if(texto) return texto;
+    ultimoErroServidor = new Error('resposta vazia do servidor');
+  } catch(e) {
+    ultimoErroServidor = e;
+    console.warn('[chat] servidor falhou:', e?.message || e);
+  }
 
   // Tentativa 2: chave API local (configurada pelo usuário)
   const key = getKey();
@@ -2319,12 +2329,20 @@ async function chamarIA(messages, system, maxTokens) {
       if(d.error) throw new Error(d.error.message);
       return d.content?.[0]?.text || '';
     } catch(e) {
-      return '⚠️ Erro de conexão: ' + (e.message||'verifique sua chave API e conexão.');
+      const motivoSrv = ultimoErroServidor ? (ultimoErroServidor.message||ultimoErroServidor) : 'indisponivel';
+      return '⚠️ Erro de conexao: '+(e.message||'verifique sua chave API')+' | servidor: '+motivoSrv;
     }
   }
 
-  // Sem servidor e sem chave
-  return '⚠️ Assessor IA indisponível. O servidor está offline e não há chave API configurada. Configure em: Menu → Gestão de Senhas → Chave API Anthropic.';
+  // Sem servidor e sem chave: da diagnostico real em vez de "offline" generico
+  const motivoSrv = ultimoErroServidor ? (ultimoErroServidor.message || String(ultimoErroServidor)) : 'sem resposta';
+  if(String(motivoSrv).includes('401') || String(motivoSrv).toLowerCase().includes('autentic')) {
+    return '⚠️ Sessao expirada. Faca login novamente (menu Sair > entrar). Detalhe: '+motivoSrv;
+  }
+  if(String(motivoSrv).toLowerCase().includes('anthropic_key')) {
+    return '⚠️ Servidor sem ANTHROPIC_KEY configurada. Avise o admin. Detalhe: '+motivoSrv;
+  }
+  return '⚠️ Assessor IA indisponivel. Servidor respondeu: "'+motivoSrv+'". Se o problema persistir, configure a chave API local em Menu > Gestao de Senhas > Chave API Anthropic.';
 }
 // Chave API deve ser configurada pelo usuário no sistema — nunca embutida no código
 const COR={'Cível':'#1ab8d8','Criminal':'#e84545','Ambiental':'#2ec97e','Trabalhista':'#4f6ef7','Tributário':'#9b6ef7','Tributário Municipal':'#9b6ef7','Execução Federal':'#f0832a','Previdenciário':'#c9a84c','Família':'#e879a8'};
@@ -3984,9 +4002,9 @@ function ir(p,btn){
   pag=p; procAtivo=null; fecharSidebar(); esconderBackBar();
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   if(btn) btn.classList.add('active');
-  const t={painel:'Painel Geral',processos:'Processos',autuacao:'Autuação',processos_admin:'Processo Administrativo',prazos:'Prazos',calendario:'Calendário',estatisticas:'Estatísticas',juris:'Jurisprudência',peticao:'Gerador de Peça',juizes:'Perfil de Juízes',senhas:'Gestão de Senhas',telegram:'Telegram Bot',mensagens:'Central de Mensagens',agenda:'Agenda / Contatos',preparacao:'Em Preparação',agentes:'Agentes IA',pje:'Integração PJe'};
+  const t={painel:'Painel Geral',processos:'Processos',autuacao:'Autuação',processos_admin:'Processo Administrativo',prazos:'Prazos',calendario:'Calendário',estatisticas:'Estatísticas',juris:'Jurisprudência',peticao:'Gerador de Peça',juizes:'Perfil de Juízes',senhas:'Gestão de Senhas',telegram:'Telegram Bot',mensagens:'Central de Mensagens',agenda:'Agenda / Contatos',preparacao:'Em Preparação',agentes:'Agentes IA',pje:'Integração PJe',pericia:'Setor de Perícia'};
   document.getElementById('page-title').textContent=t[p]||p;
-  ({painel:renderPainel,processos:renderProcessos,autuacao:renderAutuacao,processos_admin:renderProcessosAdministrativos,prazos:renderPrazos,calendario:renderCalendario,estatisticas:renderEstatisticas,juris:renderJuris,peticao:renderPeticao,juizes:renderJuizes,senhas:renderGestaoSenhas,telegram:renderTelegram,mensagens:renderCentralMensagens,agenda:renderAgenda,preparacao:renderPreparacao,agentes:renderAgentes,pje:renderPje})[p]?.();
+  ({painel:renderPainel,processos:renderProcessos,autuacao:renderAutuacao,processos_admin:renderProcessosAdministrativos,prazos:renderPrazos,calendario:renderCalendario,estatisticas:renderEstatisticas,juris:renderJuris,peticao:renderPeticao,juizes:renderJuizes,senhas:renderGestaoSenhas,telegram:renderTelegram,mensagens:renderCentralMensagens,agenda:renderAgenda,preparacao:renderPreparacao,agentes:renderAgentes,pje:renderPje,pericia:renderPericia})[p]?.();
 }
 
 // ═══════════════ BUSCA ═══════════════
@@ -7516,52 +7534,78 @@ async function _pIntakeSend() {
   } catch(_){}
   
   try {
-    const system = `Você é o Agente de Intake ELITE do escritório Camargos Advocacia — o melhor cadastrador jurídico do Brasil.
-O advogado Kleuber ou a secretária está descrevendo um caso de cliente. Sua missão:
+    // [SETOR_PREP v2] Dois modos: (A) PROCESSO EM ANDAMENTO — doc anexado tem cabecalho
+    // com partes/vara/juiz/CNJ, preenche cadastro automaticamente e NAO pede RG nem
+    // comprovante. (B) CLIENTE NOVO sem doc — conversa pedindo dados pessoais, tipo
+    // de demanda (judicial/administrativo), provas/docs que comprovem fatos/danos.
+    const temDocAnexado = !!(window._pUltimaAnalise && (Date.now() - window._pUltimaAnalise.ts) < 300000);
+    const system = `Voce e o Agente do Setor EM PREPARACAO do escritorio Camargos Advocacia — o melhor cadastrador juridico do Brasil.
 
-1. INTERPRETAR a descrição com inteligência máxima — entenda a REAL demanda do cliente
-2. CLASSIFICAR a área do direito pelo CONTEÚDO (não por palavras soltas):
-   - Receita Federal, CARF, auto de infração = TRIBUTÁRIO
-   - INSS, BPC, aposentadoria, auxílio = PREVIDENCIÁRIO
-   - CLT, rescisão, horas extras = TRABALHISTA
-   - Contrato, indenização, consumidor = CÍVEL
-   - Divórcio, guarda, pensão = FAMÍLIA
-   - Crime, BO, denúncia = CRIMINAL
-   - PAD, licitação, servidor público = ADMINISTRATIVO
-3. GERAR ORIENTAÇÃO OPERACIONAL — instruções claras para qualquer funcionário saber EXATAMENTE o que fazer ao pegar o processo
-4. LISTAR documentos que FALTAM para protocolar (checklist completo da área)
-5. SUGERIR DESTINO — para onde este caso deve ir apos cadastro:
-   - "cadastro"       = novo cliente/caso em preparacao (ainda nao e processo)
-   - "processo_novo"  = processo judicial NOVO a ser ajuizado (precisa preparacao para protocolo)
-   - "administrativo" = processo administrativo (DRJ, CARF, Prefeitura, orgao nao-judicial)
-   - "judicial"       = processo judicial EM ANDAMENTO (ja existe numero CNJ ou sera protocolado imediatamente)
+MODO ATUAL: ${temDocAnexado ? 'PROCESSO EM ANDAMENTO (doc anexado com cabecalho)' : 'CLIENTE NOVO (sem doc inicial)'}.
 
-Se um documento foi anexado, USE as informacoes extraidas dele para preencher os campos.
+${temDocAnexado ? `REGRA CRITICA — MODO PROCESSO EM ANDAMENTO:
+- O documento anexado e uma peticao inicial, contestacao, notificacao ou similar.
+- Os dados das partes JA ESTAO NO CABECALHO do doc — use os dados extraidos.
+- NAO PECA RG, CPF, comprovante de residencia ao cliente — ja esta tudo qualificado nos autos.
+- Preencha cadastro com nome_cliente, partes, tribunal, vara, juiz, numero_processo do doc.
+- Faca analise COMPLETA: relatorios, fatos, pedidos, provas juntadas, proximos passos.
+- destino_sugerido: 'judicial' se CNJ existe, 'administrativo' se orgao/PA, 'cadastro' so se incompleto.` : `REGRA CRITICA — MODO CLIENTE NOVO:
+- Cliente ainda nao tem processo. Voce vai cadastrar do zero.
+- CONVERSE pedindo, de forma humana e organizada:
+  1. Nome completo, CPF, endereco, estado civil, profissao.
+  2. Que tipo de demanda: JUDICIAL (ira ao tribunal) ou ADMINISTRATIVO (orgao publico)?
+  3. Narrativa dos fatos que originaram a demanda.
+  4. PROVAS e DOCUMENTOS que comprovem os fatos e os danos alegados.
+- Va cadastrando no Lex ate ficar tudo pronto (campos nome/area/resumo/orientacao).
+- Quando pronto, remeta para o setor competente (judicial, administrativo, pericia).
+- destino_sugerido: 'cadastro' enquanto faltam dados, depois 'processo_novo' ou 'administrativo'.`}
+
+Sua missao em TODO MODO:
+1. INTERPRETAR com inteligencia maxima — entenda a REAL demanda
+2. CLASSIFICAR a area pelo CONTEUDO:
+   - Receita Federal, CARF, auto de infracao = TRIBUTARIO
+   - INSS, BPC, aposentadoria = PREVIDENCIARIO
+   - CLT, rescisao = TRABALHISTA
+   - Contrato, indenizacao, consumidor = CIVEL
+   - Divorcio, guarda = FAMILIA
+   - Crime, BO = CRIMINAL
+   - PAD, licitacao, servidor publico = ADMINISTRATIVO
+3. GERAR ORIENTACAO OPERACIONAL clara — instrucoes para qualquer funcionario executar
+4. LISTAR documentos que FALTAM (checklist da area)
+5. SUGERIR DESTINO: cadastro | processo_novo | administrativo | judicial | pericia
+
+Se o destino logico e PERICIA (pericia contabil, calculo judicial, analise financeira),
+marque destino_sugerido='pericia' e explique o objeto pericial.
 
 Responda APENAS em JSON puro (sem markdown, sem crases):
 {
-  "nome": "Nome do Cliente — Tipo de Ação (ex: João Silva — BPC/LOAS)",
-  "tipo": "tipo de ação (ex: Mandado de Segurança, Ação Ordinária, Recurso CARF)",
-  "area": "Previdenciário|Cível|Trabalhista|Tributário|Família|Criminal|Administrativo",
-  "partes": "Autor vs Réu (ex: João Silva vs INSS)",
-  "tribunal": "tribunal provável (ex: TRF-6, TJMG, DRJ Belo Horizonte)",
-  "resumo": "resumo completo do caso em 3-5 linhas: o que aconteceu, qual o problema, o que o cliente quer",
-  "orientacao": "INSTRUÇÕES OPERACIONAIS DETALHADAS para o funcionário que pegar este processo:\\n1. Primeiro passo (o que fazer imediatamente)\\n2. Segundo passo\\n3. Documentos a solicitar ao cliente\\n4. Prazo estimado\\n5. Observações importantes\\n6. CUIDADOS ESPECIAIS (se houver prazo correndo, risco de prescrição, etc)",
-  "docs_faltantes": ["lista de TODOS os documentos que faltam para esta área do direito"],
-  "docs_sugeridos": ["lista dos docs obrigatórios para a área"],
-  "urgencia": "normal|urgente|critico — se tem prazo correndo = urgente/critico",
-  "tipo_processo": "administrativo|judicial — baseado no conteúdo real",
-  "destino_sugerido": "cadastro|processo_novo|administrativo|judicial",
-  "destino_justificativa": "1-2 linhas explicando por que este destino"
+  "modo_detectado": "processo_em_andamento | cliente_novo",
+  "nome": "Nome do Cliente — Tipo de Acao (ex: Joao Silva — BPC/LOAS)",
+  "tipo": "tipo de acao (ex: Mandado de Seguranca, Acao Ordinaria, Recurso CARF)",
+  "area": "Previdenciario|Civel|Trabalhista|Tributario|Familia|Criminal|Administrativo",
+  "partes": "Autor vs Reu",
+  "tribunal": "tribunal (TJMG, TRF-6, DRJ BH)",
+  "vara": "vara/orgao",
+  "juiz": "juiz/relator se identificado",
+  "numero_processo": "CNJ ou PA se houver",
+  "resumo": "resumo do caso 3-5 linhas",
+  "orientacao": "INSTRUCOES OPERACIONAIS DETALHADAS:\\n1. Primeiro passo\\n2. Segundo passo\\n3. Documentos a solicitar (SE aplicavel)\\n4. Prazo estimado\\n5. Observacoes importantes\\n6. CUIDADOS (prazos, prescricao)",
+  "docs_faltantes": ["lista de docs que faltam — VAZIO se processo em andamento ja completo"],
+  "docs_sugeridos": ["lista de docs obrigatorios da area"],
+  "urgencia": "normal|urgente|critico",
+  "tipo_processo": "administrativo|judicial",
+  "destino_sugerido": "cadastro|processo_novo|administrativo|judicial|pericia",
+  "destino_justificativa": "1-2 linhas explicando por que",
+  "perguntas_cliente": ["SO EM MODO CLIENTE NOVO: proximas perguntas a fazer para coletar dados faltantes"]
 }
 
 REGRAS DE OURO:
-- Se faltou informação, PERGUNTE no resumo (ex: "Falta saber o valor da causa e se já tem BO")
-- A ORIENTAÇÃO é o coração do cadastro — qualquer pessoa do escritório que abrir deve saber o que fazer
-- Se tem prazo correndo, ALERTE na orientação com ⚠️ URGENTE
-- Preencha tribunal com base na jurisdição (MG=TJMG, Federal=TRF-6, Trabalhista=TRT-3)`;
-    
-    const resposta = await chamarIA([{role:'user',content: msg + contextoDoc}], system, 1500);
+- NAO INVENTE. Se nao sabe: ""
+- Se tem prazo correndo, ALERTE com URGENTE
+- Destino 'pericia' quando objeto e calculo contabil/financeiro/evolucao de divida
+- Use os dados do documento ANEXADO quando houver (nao peca de novo)`;
+
+    const resposta = await chamarIA([{role:'user',content: msg + contextoDoc}], system, 1800);
     
     // Remove loading
     const loadEl = document.getElementById('_pIntakeLoad');
@@ -7638,7 +7682,8 @@ REGRAS DE OURO:
           'cadastro':       { icone:'👤', label:'Cadastro (Em Preparacao)', cor:'#6366f1' },
           'processo_novo':  { icone:'🆕', label:'Processo Novo (Judicial)', cor:'#0ea5e9' },
           'administrativo': { icone:'🏛️', label:'Processo Administrativo',  cor:'#f59e0b' },
-          'judicial':       { icone:'⚖️', label:'Processo Judicial',        cor:'#10b981' }
+          'judicial':       { icone:'⚖️', label:'Processo Judicial',        cor:'#10b981' },
+          'pericia':        { icone:'🔬', label:'Setor de Pericia',          cor:'#9333ea' }
         };
         const d = destinos[dados.destino_sugerido] || destinos['cadastro'];
         html += '<div style="background:var(--surface2);border:2px solid '+d.cor+';padding:12px;border-radius:10px;margin-bottom:6px;max-width:90%">';
@@ -7711,6 +7756,28 @@ function _pIntakeAgenteAnalisou(nomeArq, dados) {
 async function _pIntakeEncaminhar(destino) {
   const dados = window._pIntakeDados;
   if (!dados) { toast('Sem dados para encaminhar','erro'); return; }
+
+  // [NOVO] Se destino for 'pericia', abre o setor de Pericia com os dados pre-carregados
+  if (destino === 'pericia') {
+    try {
+      window._periciaContexto = {
+        nome: dados.nome || '',
+        area: dados.area || '',
+        resumo: dados.resumo || '',
+        orientacao: dados.orientacao || '',
+        numero_processo: dados.numero_processo || '',
+        tribunal: dados.tribunal || '',
+        vara: dados.vara || '',
+        juiz: dados.juiz || '',
+        dadosOriginais: dados
+      };
+      toast('Encaminhado para Setor de Pericia','ok');
+      document.getElementById('_pMOv')?.remove();
+      ir('pericia', null);
+    } catch(e){ toast('Erro ao encaminhar pericia: '+(e.message||e),'erro'); }
+    return;
+  }
+
   // Salva primeiro em preparacao (fonte unica da verdade) depois distribui
   try {
     // Garante que os campos principais estao no form (nome, tipo, area, etc)
@@ -8010,6 +8077,279 @@ const AGENTES_PADRAO=[
   {id:'financeiro',nome:'Lex Financeiro',icone:'💰',descricao:'Honorários, cobranças e fluxo de caixa',especialidade:'Financeiro e gestão de honorários',ativo:false,token:''},
   {id:'atendimento',nome:'Lex Atendimento',icone:'🤝',descricao:'Primeiro contato com clientes — triagem de casos',especialidade:'Atendimento ao cliente e triagem jurídica',ativo:false,token:''},
 ];
+
+// ═══════════════════════════════════════════════════════════════════
+// [SETOR_PERICIA] Setor de Pericia — frontend
+// Triagem preliminar (Sonnet/MID, economico) + Laudo (Opus/TOP, qualidade)
+// Anexa ao processo e permite download DOCX/PDF
+// ═══════════════════════════════════════════════════════════════════
+window._periciaState = window._periciaState || {
+  docs: [],           // [{nome, texto}]
+  processo_id: null,
+  objetivo: '',
+  tipo: 'contabil',
+  triagem: null,      // resultado /api/pericia/triagem
+  laudo: null,        // texto do laudo gerado
+  estatisticas: null
+};
+
+function renderPericia(){
+  const c = document.getElementById('content');
+  const ctx = window._periciaContexto || {};
+  const st = window._periciaState;
+  // Pre-carrega objetivo/nome do contexto (vindo do Setor em Preparacao)
+  if(ctx.nome && !st.objetivo) {
+    st.objetivo = 'Pericia para o caso: '+(ctx.nome||'')+'. '+(ctx.resumo||ctx.orientacao||'');
+  }
+  const procs = (typeof getProcs==='function') ? (getProcs()||[]) : [];
+  const procOpts = procs.map(p=>`<option value="${p.id}" ${String(st.processo_id)===String(p.id)?'selected':''}>[${p.id}] ${((p.titulo||p.nome||'?'))} — ${(p.cliente||'?')}</option>`).join('');
+  c.innerHTML = `
+  <div style="max-width:1100px;margin:0 auto;padding:18px;">
+    <div style="background:linear-gradient(135deg,#9333ea,#6366f1);padding:16px;border-radius:12px;color:#fff;margin-bottom:16px;">
+      <div style="font-size:18px;font-weight:800;">🔬 Setor de Pericia — Perito Contabil/Financeiro</div>
+      <div style="font-size:12px;opacity:.9;margin-top:4px;">Triagem preliminar (Sonnet) + Laudo minimo 8 paginas (Opus 4). Integrado aos processos do Lex.</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;" class="pericia-grid">
+      <div style="background:var(--card);padding:14px;border-radius:10px;border:1px solid var(--border);">
+        <div style="font-weight:700;margin-bottom:8px;">1. Vincular ao processo (opcional)</div>
+        <select id="per_proc" onchange="_periciaSetProc(this.value)" style="width:100%;padding:8px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;">
+          <option value="">— sem processo vinculado —</option>
+          ${procOpts}
+        </select>
+        <div style="font-size:11px;color:var(--text2);margin-top:6px;">Se vincular, o laudo sera anexado aos andamentos/pecas do processo.</div>
+      </div>
+
+      <div style="background:var(--card);padding:14px;border-radius:10px;border:1px solid var(--border);">
+        <div style="font-weight:700;margin-bottom:8px;">2. Tipo de pericia</div>
+        <select id="per_tipo" onchange="window._periciaState.tipo=this.value" style="width:100%;padding:8px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;">
+          <option value="contabil" ${st.tipo==='contabil'?'selected':''}>Contabil</option>
+          <option value="calculo_judicial" ${st.tipo==='calculo_judicial'?'selected':''}>Calculo Judicial</option>
+          <option value="analise_financeira" ${st.tipo==='analise_financeira'?'selected':''}>Analise Financeira</option>
+          <option value="tributaria" ${st.tipo==='tributaria'?'selected':''}>Tributaria</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="background:var(--card);padding:14px;border-radius:10px;border:1px solid var(--border);margin-bottom:14px;">
+      <div style="font-weight:700;margin-bottom:8px;">3. Objetivo da pericia</div>
+      <textarea id="per_obj" placeholder="Ex: Apurar evolucao da divida entre jan/2020 e dez/2024 conforme contrato de financiamento; verificar juros abusivos e correcao monetaria..." style="width:100%;min-height:80px;padding:8px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;resize:vertical;">${st.objetivo||''}</textarea>
+    </div>
+
+    <div style="background:var(--card);padding:14px;border-radius:10px;border:1px solid var(--border);margin-bottom:14px;">
+      <div style="font-weight:700;margin-bottom:8px;">4. Documentos para a pericia</div>
+      <input type="file" id="per_files" accept=".pdf,.txt,.png,.jpg,.jpeg" multiple onchange="_periciaUp(this)" style="margin-bottom:8px;">
+      <div id="per_docs_list" style="font-size:12px;">${_periciaRenderDocsList()}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:6px;">PDFs e imagens sao analisados e extraidos automaticamente. Anexe contratos, tabelas, extratos, memorias de calculo.</div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+      <button class="btn-primary" onclick="_periciaTriagem()" style="background:#0ea5e9;color:#fff;padding:10px 16px;border:none;border-radius:8px;cursor:pointer;font-weight:700;">🔍 Fazer Triagem (economica)</button>
+      <button class="btn-primary" onclick="_periciaGerarLaudo()" style="background:#9333ea;color:#fff;padding:10px 16px;border:none;border-radius:8px;cursor:pointer;font-weight:700;">📋 Gerar Laudo (Opus 4 — min 8 pag)</button>
+      <button onclick="_periciaReset()" style="background:var(--bg);color:var(--text);padding:10px 14px;border:1px solid var(--border);border-radius:8px;cursor:pointer;">Limpar</button>
+    </div>
+
+    <div id="per_resultado" style="min-height:40px;"></div>
+  </div>
+  <style>
+    @media (max-width: 900px){ .pericia-grid { grid-template-columns:1fr !important; } }
+  </style>`;
+  if(st.triagem) _periciaRenderTriagem();
+  if(st.laudo)   _periciaRenderLaudo();
+}
+
+function _periciaSetProc(id){
+  window._periciaState.processo_id = id || null;
+  if(!id) return;
+  const procs = (typeof getProcs==='function') ? (getProcs()||[]) : [];
+  const p = procs.find(x=>String(x.id)===String(id));
+  if(p && !document.getElementById('per_obj').value.trim()) {
+    const auto = 'Pericia para processo ['+p.id+'] '+(p.titulo||p.nome||'')+' — cliente '+(p.cliente||'?')+'. '+(p.descricao||p.resumo||'');
+    document.getElementById('per_obj').value = auto;
+    window._periciaState.objetivo = auto;
+  }
+}
+
+function _periciaRenderDocsList(){
+  const docs = window._periciaState.docs||[];
+  if(!docs.length) return '<div style="color:var(--text2);">Nenhum doc anexado ainda.</div>';
+  return docs.map((d,i)=>`<div style="padding:6px 8px;background:var(--bg);border-radius:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">
+    <span>📎 ${d.nome} <span style="color:var(--text2);font-size:11px;">(${(d.texto||'').length} car)</span></span>
+    <button onclick="_periciaRmDoc(${i})" style="background:transparent;border:none;color:var(--red-soft);cursor:pointer;">✕</button>
+  </div>`).join('');
+}
+
+function _periciaRmDoc(i){
+  window._periciaState.docs.splice(i,1);
+  const el = document.getElementById('per_docs_list');
+  if(el) el.innerHTML = _periciaRenderDocsList();
+}
+
+async function _periciaUp(input){
+  const files = Array.from(input.files||[]);
+  if(!files.length) return;
+  for(const f of files){
+    try {
+      toast('Processando '+f.name+'...','info');
+      let texto = '';
+      if(f.type==='application/pdf' || f.name.toLowerCase().endsWith('.pdf')){
+        // Usa o mesmo extrator do Em Preparacao se existir
+        if(typeof extrairTextoPdf==='function'){
+          texto = await extrairTextoPdf(f);
+        } else {
+          const ab = await f.arrayBuffer();
+          texto = '(PDF binario — '+ab.byteLength+' bytes, extrator nao disponivel)';
+        }
+      } else if(f.type.startsWith('image/')){
+        // Envia para /api/analisar como imagem
+        try {
+          const b64 = await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result.split(',')[1]); r.onerror=rej; r.readAsDataURL(f); });
+          const r = await chamarServidor('/api/analisar', {tipo:'image', mime:f.type, base64:b64});
+          texto = r?.texto || r?.analise || JSON.stringify(r).slice(0,2000);
+        } catch(e){ texto = '(Imagem nao processada: '+(e.message||e)+')'; }
+      } else {
+        texto = await f.text();
+      }
+      window._periciaState.docs.push({nome: f.name, texto: texto||''});
+    } catch(e){
+      toast('Falha '+f.name+': '+(e.message||e),'erro');
+    }
+  }
+  const el = document.getElementById('per_docs_list');
+  if(el) el.innerHTML = _periciaRenderDocsList();
+  input.value='';
+  toast('Documentos prontos','ok');
+}
+
+async function _periciaTriagem(){
+  const st = window._periciaState;
+  st.objetivo = document.getElementById('per_obj')?.value || st.objetivo;
+  if(!st.objetivo && !st.docs.length){ toast('Informe objetivo ou anexe docs','erro'); return; }
+  const r = document.getElementById('per_resultado');
+  r.innerHTML = '<div style="padding:14px;background:var(--card);border-radius:8px;">🔍 Analisando documentos com IA (triagem economica)...</div>';
+  try {
+    const res = await chamarServidor('/api/pericia/triagem', {
+      objetivo: st.objetivo,
+      docs: st.docs.map(d=>({nome:d.nome, texto:d.texto}))
+    });
+    if(res?.error){ throw new Error(res.error); }
+    st.triagem = res.triagem;
+    _periciaRenderTriagem();
+  } catch(e){
+    r.innerHTML = '<div style="padding:14px;background:#fee;color:#c00;border-radius:8px;">Erro triagem: '+(e.message||e)+'</div>';
+  }
+}
+
+function _periciaRenderTriagem(){
+  const st = window._periciaState;
+  const t = st.triagem; if(!t) return;
+  const r = document.getElementById('per_resultado');
+  if(!r) return;
+  const recebidos = Array.isArray(t.docs_recebidos) ? t.docs_recebidos : [];
+  const faltantes = Array.isArray(t.docs_faltantes) ? t.docs_faltantes : [];
+  const perguntas = Array.isArray(t.perguntas_perito) ? t.perguntas_perito : [];
+  const pontos = Array.isArray(t.pontos_duvidosos) ? t.pontos_duvidosos : [];
+  r.innerHTML = `
+  <div style="background:var(--card);padding:14px;border-radius:10px;border:1px solid var(--border);margin-bottom:12px;">
+    <div style="font-weight:700;margin-bottom:8px;">🔍 Resultado da Triagem</div>
+    <div style="margin-bottom:8px;"><b>Tipo sugerido:</b> ${t.tipo_pericia_sugerido||'?'} — <i>${t.justificativa_tipo||''}</i></div>
+    <div style="margin-bottom:8px;"><b>Pronto para pericia:</b> ${t.pronto_para_pericia?'<span style=color:#10b981>SIM</span>':'<span style=color:#f59e0b>NAO — '+(t.motivo||'faltam docs')+'</span>'}</div>
+    ${recebidos.length?`<div style="margin-bottom:8px;"><b>Docs recebidos:</b><ul style="margin:4px 0 0 16px;">${recebidos.map(d=>`<li>${d.doc||'?'} — ${d.descricao||''} <span style="color:var(--text2);">(${d.relevancia||'?'})</span></li>`).join('')}</ul></div>`:''}
+    ${faltantes.length?`<div style="margin-bottom:8px;color:#f59e0b;"><b>Docs faltantes:</b><ul style="margin:4px 0 0 16px;">${faltantes.map(d=>`<li>${d}</li>`).join('')}</ul></div>`:''}
+    ${perguntas.length?`<div style="margin-bottom:8px;"><b>Perguntas ao cliente/advogado:</b><ol style="margin:4px 0 0 16px;">${perguntas.map(q=>`<li>${q}</li>`).join('')}</ol></div>`:''}
+    ${pontos.length?`<div style="margin-bottom:8px;"><b>Pontos duvidosos:</b><ul style="margin:4px 0 0 16px;">${pontos.map(q=>`<li>${q}</li>`).join('')}</ul></div>`:''}
+    ${t.tipo_pericia_sugerido?`<button onclick="window._periciaState.tipo='${t.tipo_pericia_sugerido}';document.getElementById('per_tipo').value='${t.tipo_pericia_sugerido}';toast('Tipo ajustado','ok')" style="background:#0ea5e9;color:#fff;padding:6px 10px;border:none;border-radius:6px;cursor:pointer;font-size:12px;">Aplicar tipo sugerido</button>`:''}
+  </div>`;
+}
+
+async function _periciaGerarLaudo(){
+  const st = window._periciaState;
+  st.objetivo = document.getElementById('per_obj')?.value || st.objetivo;
+  st.tipo = document.getElementById('per_tipo')?.value || st.tipo;
+  if(!st.objetivo){ toast('Informe o objetivo da pericia','erro'); return; }
+  const r = document.getElementById('per_resultado');
+  r.innerHTML = '<div style="padding:14px;background:var(--card);border-radius:8px;">📋 Gerando laudo pericial com Opus 4 (pode levar 60-120s)...</div>';
+  try {
+    const procs = (typeof getProcs==='function') ? (getProcs()||[]) : [];
+    const proc = st.processo_id ? procs.find(p=>String(p.id)===String(st.processo_id)) : null;
+    const res = await chamarServidor('/api/pericia/gerar', {
+      objetivo: st.objetivo,
+      tipo_pericia: st.tipo,
+      docs: st.docs.map(d=>({nome:d.nome, texto:d.texto})),
+      processo: proc ? {id:proc.id, titulo:proc.titulo||proc.nome, cliente:proc.cliente, numero:proc.numero, vara:proc.vara, juiz:proc.juiz, area:proc.area} : null
+    });
+    if(res?.error){ throw new Error(res.error); }
+    st.laudo = res.laudo;
+    st.estatisticas = res.estatisticas;
+    _periciaRenderLaudo();
+  } catch(e){
+    r.innerHTML = '<div style="padding:14px;background:#fee;color:#c00;border-radius:8px;">Erro gerar laudo: '+(e.message||e)+'</div>';
+  }
+}
+
+function _periciaRenderLaudo(){
+  const st = window._periciaState;
+  if(!st.laudo) return;
+  const r = document.getElementById('per_resultado');
+  if(!r) return;
+  const s = st.estatisticas||{};
+  r.innerHTML = `
+  <div style="background:var(--card);padding:14px;border-radius:10px;border:1px solid var(--border);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+      <div style="font-weight:700;">📋 Laudo Pericial — ${st.tipo||'contabil'}</div>
+      <div style="font-size:12px;color:var(--text2);">${s.palavras||0} palavras · ~${s.paginas_aprox||'?'} paginas</div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+      <button onclick="_periciaBaixar('docx')" style="background:#2563eb;color:#fff;padding:8px 12px;border:none;border-radius:6px;cursor:pointer;">⬇️ Baixar DOCX</button>
+      <button onclick="_periciaBaixar('pdf')"  style="background:#dc2626;color:#fff;padding:8px 12px;border:none;border-radius:6px;cursor:pointer;">⬇️ Baixar PDF</button>
+      ${st.processo_id?`<button onclick="_periciaAnexar()" style="background:#10b981;color:#fff;padding:8px 12px;border:none;border-radius:6px;cursor:pointer;">📎 Anexar ao processo [${st.processo_id}]</button>`:''}
+      <button onclick="navigator.clipboard.writeText(window._periciaState.laudo||'');toast('Copiado','ok')" style="background:var(--bg);color:var(--text);padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;">📋 Copiar</button>
+    </div>
+    <pre style="white-space:pre-wrap;background:var(--bg);padding:12px;border-radius:6px;max-height:520px;overflow:auto;font-family:inherit;font-size:13px;line-height:1.5;">${(st.laudo||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</pre>
+  </div>`;
+}
+
+async function _periciaBaixar(formato){
+  const st = window._periciaState;
+  if(!st.laudo){ toast('Gere o laudo primeiro','erro'); return; }
+  try {
+    const token = (typeof getAuthToken==='function') ? getAuthToken() : '';
+    const r = await fetch(SERVIDOR + '/api/pericia/baixar', {
+      method:'POST',
+      headers:{'Content-Type':'application/json', ...(token?{'Authorization':'Bearer '+token}:{})},
+      body: JSON.stringify({formato, titulo:'Laudo Pericial — '+(st.tipo||'contabil'), conteudo: st.laudo})
+    });
+    if(!r.ok){ const e = await r.text(); throw new Error(e||('HTTP '+r.status)); }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'laudo_pericial_'+Date.now()+'.'+formato;
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 1000);
+    toast('Download iniciado','ok');
+  } catch(e){ toast('Erro download: '+(e.message||e),'erro'); }
+}
+
+async function _periciaAnexar(){
+  const st = window._periciaState;
+  if(!st.laudo || !st.processo_id){ toast('Vincule processo e gere o laudo','erro'); return; }
+  try {
+    const res = await chamarServidor('/api/pericia/anexar', {
+      processo_id: st.processo_id,
+      laudo: st.laudo,
+      tipo_pericia: st.tipo
+    });
+    if(res?.error) throw new Error(res.error);
+    toast('Laudo anexado ao processo '+st.processo_id,'ok');
+  } catch(e){ toast('Erro anexar: '+(e.message||e),'erro'); }
+}
+
+function _periciaReset(){
+  window._periciaState = { docs:[], processo_id:null, objetivo:'', tipo:'contabil', triagem:null, laudo:null, estatisticas:null };
+  window._periciaContexto = null;
+  renderPericia();
+}
 
 function renderAgentes(){
   if(!podeConfig()){

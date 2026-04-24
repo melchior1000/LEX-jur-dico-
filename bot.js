@@ -1,4 +1,5 @@
 // LEX ASSESSOR JURÍDICO IA v3.1 — Escritório Digital (CORRIGIDO + MELHORADO)
+// [FIX-prompt-prep] 2026-04-24: prompt de analisarDoc reforcado para extrair cabecalho
 // node bot.js
 //
 // ── NOVAS FUNCIONALIDADES v3.1 ──────────────────────────────────────────────
@@ -1509,29 +1510,70 @@ function getProcPrep() {
 // ════════════════════════════════════════════════════════════════════════════
 async function analisarDoc(buffer, isPdf, nome) {
   const base64=buffer.toString('base64');
-  const prompt=`Analise este documento jurídico completo (TODAS as páginas) e responda SOMENTE em JSON válido:
+  // PROMPT REFORCADO - extrai CABECALHO de processos judiciais E administrativos
+  // Consumido por _pAnal/_pIntakeAgenteAnalisou no frontend para preencher o form.
+  const prompt=`Voce e o EXTRATOR JURIDICO ELITE do escritorio Camargos Advocacia. Leia com ATENCAO TOTAL AO CABECALHO (todas as paginas, foco na 1a pagina) e extraia DADOS ESTRUTURADOS.
 
-{"tipo":"peticao_inicial|contestacao|recurso|decisao|sentenca|despacho|intimacao|contrato|pericia|parecer|outro",
-"numero_processo":"número CNJ completo",
-"nome_caso":"identificador curto",
-"partes":"autor vs réu",
-"tribunal":"vara e tribunal",
-"juiz_relator":"nome COMPLETO do juiz, desembargador ou relator, conforme aparece no documento (ex: 'Dr. João da Silva', 'Des. Amauri Pinto Ferreira', 'Min. Nancy Andrighi'). Vazio se não identificar.",
-"instancia":"1a|2a|STJ|STF|Turma Recursal|Juizado Especial — identifica o grau/instância do processo conforme o tribunal e a peça. Vazio se não identificar.",
-"area":"Cível|Trabalhista|Tributário|Execução Federal|Criminal|Previdenciário|Família",
-"status":"URGENTE|ATIVO|RECURSAL|AGUARDANDO",
-"prazo":"dd/mm/aaaa ou vazio",
-"proxima_acao":"próxima ação em 1 frase objetiva",
-"descricao":"resumo estratégico 3-4 linhas",
-"frentes":"frentes processuais por vírgula",
-"valor":"só números ou vazio",
-"andamentos":[{"data":"dd/mm/aaaa","txt":"descrição do andamento"}],
-"resumo":"análise completa 8-12 linhas: tipo do documento, partes, tribunal, fatos relevantes, prazos críticos com datas exatas, recomendação de ação imediata",
-"eh_decisao":false,
-"resposta_sugerida":"tipo de peça a gerar como resposta se for decisão ou intimação",
-"custas_necessarias":false,
-"documentos_necessarios":"lista de documentos necessários para a resposta se aplicável",
-"jurisprudencia":"jurisprudência real aplicável identificada no documento se houver"}`;
+PASSO 1 - CLASSIFIQUE:
+- JUDICIAL: peticao inicial, contestacao, replica, recurso (apelacao, agravo, especial, extraordinario), embargos, sentenca, acordao, decisao, despacho, intimacao, mandado, oficio judicial, procuracao, laudo, parecer, contrato judicial.
+- ADMINISTRATIVO: notificacao fiscal, auto de infracao, decisao DRJ/CARF, PAD, intimacao administrativa (Receita, INSS, Prefeitura, agencia reguladora), defesa/impugnacao, recurso administrativo, oficio nao-judicial.
+
+PASSO 2 - LEIA O CABECALHO:
+- Peticao inicial/contestacao: "EXMO. SR. DR. JUIZ DE DIREITO DA [VARA] DA COMARCA DE [COMARCA]" / "Processo no [CNJ]" / "[AUTOR] propoe em face de [REU]".
+- Sentenca/decisao: "Poder Judiciario - Tribunal de [UF]" / "[N VARA] da Comarca de [CIDADE]" / "Juiz(a): Dr(a). [NOME]" / "Autos: [NUMERO] - [AUTOR] x [REU]".
+- Administrativo: "[ORGAO - Receita Federal/INSS/Prefeitura...]" / "Processo Administrativo no [NUMERO]" / "Auto de Infracao/Notificacao no ..." / "Contribuinte/Interessado/Intimado: [NOME]".
+
+Se um campo NAO aparecer no documento, devolva "". NUNCA invente.
+
+PASSO 3 - RESPONDA APENAS em JSON valido (sem markdown/crases) com TODOS os campos:
+
+{
+  "tipo":"peticao_inicial|contestacao|replica|recurso|sentenca|acordao|decisao|despacho|intimacao|mandado|procuracao|laudo|parecer|contrato|notificacao_administrativa|auto_infracao|decisao_administrativa|pad|defesa_administrativa|recurso_administrativo|oficio|outro",
+  "tipo_processo":"judicial|administrativo",
+  "numero_processo":"numero CNJ (0000000-00.0000.0.00.0000) OU numero do PA, EXATAMENTE como aparece",
+  "nome_caso":"identificador curto - ex: 'Joao Silva - BPC' ou 'Contribuinte X - Auto Infracao'",
+  "nome_cliente":"nome do CLIENTE que o escritorio representa - geralmente o autor na peticao inicial, o reu na contestacao, o contribuinte no PA",
+  "autor":"nome COMPLETO do autor/requerente/exequente/impetrante",
+  "reu":"nome COMPLETO do reu/requerido/executado/impetrado/Fazenda",
+  "partes":"'Autor vs Reu' (ex: 'Joao Silva vs INSS')",
+  "requerente":"em PA: requerente/interessado/contribuinte",
+  "requerido":"em PA: orgao/pessoa contra quem se requer",
+  "tribunal":"tribunal (ex: 'TJMG','TRF-6','STJ','TST','TRT-3'). Administrativo: orgao julgador (ex: 'DRJ BH','CARF 1a Secao')",
+  "vara":"vara/juizo EXATO (ex: '3a Vara Civel','1a Vara Federal'). Vazio se administrativo.",
+  "comarca":"comarca/secao/foro (ex: 'Comarca de Unai/MG','SJ-MG','BH/MG'). Vazio se administrativo.",
+  "juiz_relator":"nome COMPLETO do juiz/desembargador/relator. Vazio se nao identificar.",
+  "orgao":"Administrativo: orgao EXATO (ex: 'Receita Federal - DRF BH','INSS - Agencia Unai','Prefeitura Unai - SEFAZ','CARF 2a Camara','CVM','ANATEL'). Vazio para judicial.",
+  "instancia":"1a|2a|STJ|STF|Turma Recursal|Juizado Especial|Administrativo 1a instancia|Administrativo 2a instancia (CARF/TIT). Vazio se nao identificar.",
+  "area":"Civel|Trabalhista|Tributario|Execucao Federal|Criminal|Previdenciario|Familia|Administrativo|Consumidor|Empresarial|Outro",
+  "area_direito":"mesmo que 'area' (redundancia)",
+  "setor_sugerido":"judicial|administrativo|cadastro - 'administrativo' se tipo_processo='administrativo', 'judicial' se ja houver CNJ, 'cadastro' se for coleta inicial",
+  "status":"URGENTE|ATIVO|RECURSAL|AGUARDANDO|EM_PREP - URGENTE se prazo<=5d, RECURSAL se peca recursal, ATIVO padrao",
+  "data_documento":"dd/mm/aaaa do documento. Vazio se nao houver.",
+  "prazo":"dd/mm/aaaa - prazo citado (ex: 15d contestar, 30d defesa). Vazio se nao houver.",
+  "proxima_acao":"1 FRASE (ex: 'Apresentar contestacao ate 25/05/2026')",
+  "descricao":"3-4 linhas: o que esta em jogo, tese central, pedido",
+  "frentes":"frentes por virgula (ex: 'Merito, Tutela de urgencia, Custas')",
+  "valor":"SO NUMEROS (sem R$ nem pontos) ou vazio",
+  "andamentos":[{"data":"dd/mm/aaaa","txt":"descricao do andamento"}],
+  "resumo":"8-12 linhas: tipo, CABECALHO (processo/vara/juiz/partes), fatos, prazos com datas exatas, recomendacao imediata",
+  "eh_decisao":false,
+  "resposta_sugerida":"tipo de peca a gerar (ex: 'Contestacao','Recurso de Apelacao','Defesa administrativa'). Vazio se nao aplicavel.",
+  "custas_necessarias":false,
+  "documentos_necessarios":"lista separada por virgula",
+  "documentos_faltantes":["array com cada doc que o cliente precisa fornecer"],
+  "jurisprudencia":"jurisprudencia real aplicavel se houver",
+  "tipo_acao":"tipo da acao em 1 frase (ex: 'Beneficio Previdenciario - BPC/LOAS','Mandado de Seguranca contra ato fiscal')",
+  "observacoes":"notas livres sobre qualidade da extracao",
+  "confianca_extracao":"alta|media|baixa"
+}
+
+REGRAS DE OURO:
+- NAO INVENTE. Se nao esta no documento: "".
+- Atencao MAXIMA ao CABECALHO.
+- Scan ilegivel: confianca_extracao="baixa" + explicacao em observacoes.
+- ADMINISTRATIVO: preencha 'orgao', deixe 'vara'/'comarca' vazios.
+- JUDICIAL: preencha 'vara'/'comarca', deixe 'orgao' vazio.
+- Responda SOMENTE o JSON.`;
 
   const nomeSafe = String(nome||'documento');
   const isDocx = (!isPdf) && nomeSafe.toLowerCase().endsWith('.docx');
@@ -1540,7 +1582,10 @@ async function analisarDoc(buffer, isPdf, nome) {
     ? [{type:'document',source:{type:'base64',media_type:'application/pdf',data:base64}},{type:'text',text:prompt}]
     : [{type:'text',text:'[Arquivo: '+nomeSafe+']\n\n'+String(txtArq||'').substring(0,50000)+'\n\n'+prompt}];
 
-  const txt=await ia([{role:'user',content}],null,3000, MODELO_MID); // Roteador/classificar doc → Sonnet
+  // [SETOR_PREPARACAO] Extrator de cabecalho + analise primaria usa Opus 4 (MODELO_TOP):
+  // qualidade maxima em OCR de peticoes/contestacoes/notificacoes e extracao
+  // estruturada das partes, vara, juiz, numero. E a funcao PRINCIPAL do setor.
+  const txt=await ia([{role:'user',content}],null,3000, MODELO_TOP);
   // FIX-05: try/catch para dar erro legível se IA retornar JSON inválido
   const m=txt.replace(/```json|```/g,'').trim().match(/\{[\s\S]*\}/);
   try { return JSON.parse(m?m[0]:txt); }
@@ -6431,12 +6476,26 @@ function _consolidarAnalises(analises, arqNome, totalPaginas) {
 
   return {
     tipo: primeiroNaoVazio('tipo') || 'outro',
+    tipo_processo: primeiroNaoVazio('tipo_processo'),
     numero_processo: primeiroNaoVazio('numero_processo'),
     nome_caso: primeiroNaoVazio('nome_caso') || arqNome.replace(/\.[^.]+$/,'').substring(0,60),
+    nome_cliente: primeiroNaoVazio('nome_cliente'),
+    autor: primeiroNaoVazio('autor'),
+    reu: primeiroNaoVazio('reu'),
     partes: primeiroNaoVazio('partes'),
+    requerente: primeiroNaoVazio('requerente'),
+    requerido: primeiroNaoVazio('requerido'),
     tribunal: primeiroNaoVazio('tribunal'),
+    vara: primeiroNaoVazio('vara'),
+    comarca: primeiroNaoVazio('comarca'),
+    juiz_relator: primeiroNaoVazio('juiz_relator'),
+    orgao: primeiroNaoVazio('orgao'),
+    instancia: primeiroNaoVazio('instancia'),
     area: primeiroNaoVazio('area'),
+    area_direito: primeiroNaoVazio('area_direito') || primeiroNaoVazio('area'),
+    setor_sugerido: primeiroNaoVazio('setor_sugerido'),
     status: ultimoNaoVazio('status') || 'ATIVO',
+    data_documento: primeiroNaoVazio('data_documento'),
     prazo: ultimoNaoVazio('prazo'),
     proxima_acao: ultimoNaoVazio('proxima_acao'),
     descricao: primeiroNaoVazio('descricao'),
@@ -6448,7 +6507,11 @@ function _consolidarAnalises(analises, arqNome, totalPaginas) {
     resposta_sugerida: ultimoNaoVazio('resposta_sugerida'),
     custas_necessarias: exigeCustas,
     documentos_necessarios: juntaListas('documentos_necessarios'),
+    documentos_faltantes: (()=>{const s=new Set();for(const a of analises){const v=a&&a.documentos_faltantes;if(Array.isArray(v))v.forEach(x=>{if(x)s.add(String(x).trim());});else if(v)String(v).split(',').map(x=>x.trim()).filter(Boolean).forEach(x=>s.add(x));}return Array.from(s);})(),
     jurisprudencia: juntaListas('jurisprudencia'),
+    tipo_acao: primeiroNaoVazio('tipo_acao'),
+    observacoes: primeiroNaoVazio('observacoes'),
+    confianca_extracao: primeiroNaoVazio('confianca_extracao') || 'media',
     _meta: {
       total_paginas: totalPaginas,
       total_chunks: analises.length,
@@ -10352,6 +10415,163 @@ if(url==='/api/memoria' && req.method==='GET') {
       _auditarAcao(pf, 'processo_atualizar_api', {processo_id:b.processo_id, campos:atualizados});
       res.writeHead(200,corsHeaders(req)); res.end(JSON.stringify({ok:true, processo_id:b.processo_id, atualizados, msg:'Processo atualizado com sucesso'}));
     } catch(e) { res.writeHead(500,corsHeaders(req)); res.end(JSON.stringify({error:e.message})); }
+    return;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // [SETOR_PERICIA] Endpoints do Setor de Pericia
+  // - POST /api/pericia/triagem : varredura preliminar dos docs (MODELO_MID, mais economico)
+  // - POST /api/pericia/gerar   : gera laudo pericial minimo 8 paginas (MODELO_TOP, Opus 4)
+  // - POST /api/pericia/anexar  : anexa laudo a andamento + pecas de um processo existente
+  // - POST /api/pericia/baixar  : gera DOCX ou PDF do laudo para download
+  // ═══════════════════════════════════════════════════════════════════
+  if(url==='/api/pericia/triagem' && req.method==='POST') {
+    try {
+      const pf = validarToken(getToken(req));
+      if(!pf) { res.writeHead(401,corsHeaders(req)); res.end(JSON.stringify({error:'Nao autenticado'})); return; }
+      if(!AK) { res.writeHead(500,corsHeaders(req)); res.end(JSON.stringify({error:'ANTHROPIC_KEY nao configurada no servidor'})); return; }
+      const b = await lerBody(req);
+      const docs = Array.isArray(b.docs) ? b.docs : [];
+      const objetivo = (b.objetivo||'').trim();
+      if(!docs.length && !objetivo) { res.writeHead(400,corsHeaders(req)); res.end(JSON.stringify({error:'Envie docs[] e/ou objetivo da pericia'})); return; }
+      const blocos = docs.slice(0,8).map((d,i)=>`--- DOC ${i+1}: ${d.nome||'sem_nome'} ---\n${String(d.texto||d.conteudo||'').slice(0,8000)}`).join('\n\n');
+      const sys = `Voce e o Triador Pericial — varredura preliminar dos documentos recebidos para uma pericia.
+Objetivo da pericia: ${objetivo||'(nao informado)'}
+
+Sua missao:
+1. Identificar tipo de pericia mais adequado (contabil, calculo judicial, analise financeira, tributaria)
+2. Listar documentos JA ENTREGUES (tabela resumida)
+3. Listar documentos AINDA FALTANTES e obrigatorios para a pericia (contratos, extratos, tabelas de evolucao de divida, indices de correcao, memorias de calculo)
+4. Apontar pontos duvidosos que o perito precisa investigar
+5. Sugerir 3-5 perguntas objetivas para solicitar ao cliente/juiz
+
+Responda em JSON puro:
+{
+  "tipo_pericia_sugerido": "contabil|calculo_judicial|analise_financeira|tributaria|outro",
+  "justificativa_tipo": "1-2 linhas",
+  "docs_recebidos": [{"doc":"nome","descricao":"o que contem","relevancia":"alta|media|baixa"}],
+  "docs_faltantes": ["lista"],
+  "perguntas_perito": ["lista de 3-5 perguntas objetivas ao cliente/advogado"],
+  "pontos_duvidosos": ["lista"],
+  "pronto_para_pericia": true|false,
+  "motivo": "explicacao curta caso nao pronto"
+}`;
+      // Triagem usa MODELO_MID (economico)
+      const txt = await ia([{role:'user',content:'Objetivo: '+objetivo+'\n\nDocumentos:\n\n'+(blocos||'(nenhum doc anexado)')}], sys, 2500, MODELO_MID);
+      let dados = null;
+      try { const m = txt.match(/\{[\s\S]*\}/); if(m) dados = JSON.parse(m[0]); } catch(_){ }
+      res.writeHead(200,corsHeaders(req));
+      res.end(JSON.stringify({ok:true, triagem: dados, texto: txt}));
+    } catch(e) {
+      console.error('[pericia/triagem] erro:', e?.message||e);
+      res.writeHead(500,corsHeaders(req)); res.end(JSON.stringify({error:e.message||'falha triagem'}));
+    }
+    return;
+  }
+
+  if(url==='/api/pericia/gerar' && req.method==='POST') {
+    try {
+      const pf = validarToken(getToken(req));
+      if(!pf) { res.writeHead(401,corsHeaders(req)); res.end(JSON.stringify({error:'Nao autenticado'})); return; }
+      if(!AK) { res.writeHead(500,corsHeaders(req)); res.end(JSON.stringify({error:'ANTHROPIC_KEY nao configurada no servidor'})); return; }
+      const b = await lerBody(req);
+      const docs = Array.isArray(b.docs) ? b.docs : [];
+      const objetivo = (b.objetivo||'').trim();
+      const tipo = (b.tipo_pericia||b.tipo||'contabil').trim();
+      const dadosProc = b.processo || {};
+      if(!objetivo) { res.writeHead(400,corsHeaders(req)); res.end(JSON.stringify({error:'objetivo da pericia obrigatorio'})); return; }
+      const blocos = docs.slice(0,12).map((d,i)=>`=== DOC ${i+1}: ${d.nome||'sem_nome'} ===\n${String(d.texto||d.conteudo||'').slice(0,12000)}`).join('\n\n');
+      const sys = `Voce e o Perito Judicial ELITE de Camargos Advocacia — perito contabil, financeiro e de calculo judicial.
+Este e um LAUDO PERICIAL formal que sera anexado aos autos. Qualidade maxima, linguagem tecnica, fundamentado.
+
+Dados do processo: ${JSON.stringify(dadosProc)}
+Tipo de pericia: ${tipo}
+Objetivo: ${objetivo}
+
+EXIGENCIAS OBRIGATORIAS:
+- MINIMO 8 PAGINAS (aproximadamente 4500 palavras ou mais)
+- Estrutura formal: 1. Identificacao | 2. Quesitos | 3. Metodologia | 4. Analise dos documentos | 5. Memoria de calculo detalhada | 6. Tabelas (quando aplicavel) | 7. Conclusao fundamentada | 8. Respostas aos quesitos
+- Fundamentacao tecnica: NBC, IFRS (quando contabil), tabelas de juros/correcao (SELIC, TR, INPC, IPCA), CPC, codigo civil, leis especificas
+- Memoria de calculo passo-a-passo quando houver valores (nao omita formulas)
+- Se faltar documento, APONTE explicitamente no laudo e faca as ressalvas tecnicas
+- Linguagem tecnica formal, terceira pessoa
+- Use marcadores claros: "### 1. IDENTIFICACAO", "### 2. QUESITOS", etc
+- Termine com "${'#'}## ASSINATURA" com placeholder para perito responsavel
+
+NAO INVENTE numeros. Se um valor nao consta nos documentos, diga "nao foi possivel apurar com os documentos entregues — recomenda-se solicitar X".`;
+      // Pericia usa MODELO_TOP (Opus 4) — qualidade maxima para laudo formal
+      const laudo = await ia([{role:'user',content:'Gere o LAUDO PERICIAL COMPLETO (minimo 8 paginas) para o seguinte caso:\n\nOBJETIVO: '+objetivo+'\n\nDOCUMENTOS ANALISADOS:\n\n'+(blocos||'(apenas a descricao do objetivo — faca laudo com ressalvas de documentos faltantes)')}], sys, 8192, MODELO_TOP);
+      const caracteres = (laudo||'').length;
+      const palavrasAprox = (laudo||'').split(/\s+/).filter(Boolean).length;
+      const paginasAprox = Math.max(1, Math.round(palavrasAprox/500));
+      res.writeHead(200,corsHeaders(req));
+      res.end(JSON.stringify({ok:true, laudo, estatisticas:{caracteres, palavras:palavrasAprox, paginas_aprox:paginasAprox}, tipo, objetivo}));
+    } catch(e) {
+      console.error('[pericia/gerar] erro:', e?.message||e);
+      res.writeHead(500,corsHeaders(req)); res.end(JSON.stringify({error:e.message||'falha pericia'}));
+    }
+    return;
+  }
+
+  if(url==='/api/pericia/anexar' && req.method==='POST') {
+    try {
+      const pf = validarToken(getToken(req));
+      if(!pf) { res.writeHead(401,corsHeaders(req)); res.end(JSON.stringify({error:'Nao autenticado'})); return; }
+      const b = await lerBody(req);
+      if(!b.processo_id || !b.laudo) { res.writeHead(400,corsHeaders(req)); res.end(JSON.stringify({error:'processo_id e laudo obrigatorios'})); return; }
+      const idx = processos.findIndex(p=>String(p.id)===String(b.processo_id));
+      if(idx===-1) { res.writeHead(404,corsHeaders(req)); res.end(JSON.stringify({error:'Processo nao encontrado'})); return; }
+      _backupProcesso(b.processo_id, 'pericia_anexar');
+      if(!processos[idx].andamentos) processos[idx].andamentos = [];
+      if(!processos[idx].pecas) processos[idx].pecas = [];
+      const data = horaBrasilia().toLocaleDateString('pt-BR');
+      const tituloLaudo = 'Laudo Pericial — '+(b.tipo_pericia||'contabil')+' ('+data+')';
+      processos[idx].andamentos.unshift({data, txt:'Laudo pericial emitido ('+((b.laudo||'').length)+' caracteres) — anexado aos autos'});
+      processos[idx].pecas.unshift({titulo: tituloLaudo, conteudo: b.laudo, tipo:'laudo_pericial', data, autor: pf});
+      _bumpProcessos('pericia_anexar');
+      _auditarAcao(pf, 'pericia_anexar', {processo_id:b.processo_id, tamanho:(b.laudo||'').length});
+      res.writeHead(200,corsHeaders(req)); res.end(JSON.stringify({ok:true, processo_id:b.processo_id, titulo:tituloLaudo}));
+    } catch(e) {
+      console.error('[pericia/anexar] erro:', e?.message||e);
+      res.writeHead(500,corsHeaders(req)); res.end(JSON.stringify({error:e.message||'falha anexar'}));
+    }
+    return;
+  }
+
+  if(url==='/api/pericia/baixar' && req.method==='POST') {
+    try {
+      const pf = validarToken(getToken(req));
+      if(!pf) { res.writeHead(401,corsHeaders(req)); res.end(JSON.stringify({error:'Nao autenticado'})); return; }
+      const b = await lerBody(req);
+      const formato = (b.formato||'docx').toLowerCase();
+      const titulo = b.titulo || 'Laudo Pericial';
+      const conteudo = b.conteudo || b.laudo || '';
+      if(!conteudo) { res.writeHead(400,corsHeaders(req)); res.end(JSON.stringify({error:'conteudo obrigatorio'})); return; }
+      if(formato==='pdf') {
+        const pdfBuf = await _gerarPecaPdfBuffer(titulo, conteudo, 'laudo_pericial');
+        const nome = _nomeArquivoSeguro(titulo, '.pdf');
+        res.writeHead(200, {
+          'Content-Type':'application/pdf',
+          'Content-Length': pdfBuf.length,
+          'Content-Disposition':'attachment; filename="'+nome+'"',
+          ...corsHeaders(req)
+        });
+        res.end(pdfBuf);
+      } else {
+        const docxBuf = _gerarDocxBufferPeca(titulo, conteudo, 'laudo_pericial');
+        const nome = _nomeArquivoSeguro(titulo, '.docx');
+        res.writeHead(200, {
+          'Content-Type':'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'Content-Length': docxBuf.length,
+          'Content-Disposition':'attachment; filename="'+nome+'"',
+          ...corsHeaders(req)
+        });
+        res.end(docxBuf);
+      }
+    } catch(e) {
+      console.error('[pericia/baixar] erro:', e?.message||e);
+      res.writeHead(500,corsHeaders(req)); res.end(JSON.stringify({error:e.message||'falha baixar'}));
+    }
     return;
   }
 
