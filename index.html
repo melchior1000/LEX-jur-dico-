@@ -6602,7 +6602,7 @@ async function abrirModalPrep(id){
     <div id="_pSlA">${slots}</div>
     <div class="fg" style="margin-top:6px"><label class="fl">⚠️ O que falta para protocolar</label><textarea class="fta" id="pfl" placeholder="Certidão de nascimento&#10;Comprovante de residência&#10;Laudo médico atualizado">${caso?.faltando||''}</textarea></div>
     <div class="fg"><label class="fl">📝 Contexto e estratégia</label><textarea class="fta" style="min-height:80px" id="pob" placeholder="Descreva o caso, estratégia, notas sobre o cliente...">${caso?.obs||''}</textarea></div>
-    <div class="fg"><label class="fl">Status</label><select class="fs" id="pst"><option value="INATIVO"${(caso?.status||'INATIVO')==='INATIVO'?' selected':''}>🔘 Inativo</option><option value="PRONTO"${caso?.status==='PRONTO'?' selected':''}>✅ Pronto</option><option value="URGENTE"${caso?.status==='URGENTE'?' selected':''}>🔴 Urgente</option></select></div>
+    <div class="fg"><label class="fl">Status</label><select class="fs" id="pst"><option value="EM_PREP"${(!caso?.status||caso?.status==='EM_PREP')?' selected':''}>🔵 Em Preparo</option><option value="INATIVO"${caso?.status==='INATIVO'?' selected':''}>🔘 Inativo</option><option value="PRONTO"${caso?.status==='PRONTO'?' selected':''}>✅ Pronto</option><option value="URGENTE"${caso?.status==='URGENTE'?' selected':''}>🔴 Urgente</option></select></div>
     <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
       <button class="btn-cancel" onclick="document.getElementById('_pMOv')?.remove()">Cancelar</button>
       <button class="btn-save" id="_pBSv" onclick="_pSv()">💾 Salvar</button>
@@ -6667,14 +6667,43 @@ async function _pIntakeSend() {
   chat.scrollTop = chat.scrollHeight;
   
   try {
-    const system = `Você é o Agente de Intake do escritório Camargos Advocacia.
-O advogado ou secretária está descrevendo um caso de cliente. Sua função:
-1. Interpretar a descrição e extrair: nome do cliente, tipo de ação, área do direito, partes (autor vs réu), tribunal provável
-2. Responder em JSON puro (sem markdown): {"nome":"...","tipo":"...","area":"...","partes":"...","tribunal":"...","resumo":"breve resumo do caso","docs_sugeridos":["doc1","doc2"]}
-3. Se faltar informação, preencha o que puder e indique o que falta no resumo
-Áreas válidas: Previdenciário, Cível, Trabalhista, Tributário, Família, Criminal, Administrativo, Outro`;
+    const system = `Você é o Agente de Intake ELITE do escritório Camargos Advocacia — o melhor cadastrador jurídico do Brasil.
+O advogado Kleuber ou a secretária está descrevendo um caso de cliente. Sua missão:
+
+1. INTERPRETAR a descrição com inteligência máxima — entenda a REAL demanda do cliente
+2. CLASSIFICAR a área do direito pelo CONTEÚDO (não por palavras soltas):
+   - Receita Federal, CARF, auto de infração = TRIBUTÁRIO
+   - INSS, BPC, aposentadoria, auxílio = PREVIDENCIÁRIO
+   - CLT, rescisão, horas extras = TRABALHISTA
+   - Contrato, indenização, consumidor = CÍVEL
+   - Divórcio, guarda, pensão = FAMÍLIA
+   - Crime, BO, denúncia = CRIMINAL
+   - PAD, licitação, servidor público = ADMINISTRATIVO
+3. GERAR ORIENTAÇÃO OPERACIONAL — instruções claras para qualquer funcionário saber EXATAMENTE o que fazer ao pegar o processo
+4. LISTAR documentos que FALTAM para protocolar (checklist completo da área)
+
+Responda APENAS em JSON puro (sem markdown, sem crases):
+{
+  "nome": "Nome do Cliente — Tipo de Ação (ex: João Silva — BPC/LOAS)",
+  "tipo": "tipo de ação (ex: Mandado de Segurança, Ação Ordinária, Recurso CARF)",
+  "area": "Previdenciário|Cível|Trabalhista|Tributário|Família|Criminal|Administrativo",
+  "partes": "Autor vs Réu (ex: João Silva vs INSS)",
+  "tribunal": "tribunal provável (ex: TRF-6, TJMG, DRJ Belo Horizonte)",
+  "resumo": "resumo completo do caso em 3-5 linhas: o que aconteceu, qual o problema, o que o cliente quer",
+  "orientacao": "INSTRUÇÕES OPERACIONAIS DETALHADAS para o funcionário que pegar este processo:\\n1. Primeiro passo (o que fazer imediatamente)\\n2. Segundo passo\\n3. Documentos a solicitar ao cliente\\n4. Prazo estimado\\n5. Observações importantes\\n6. CUIDADOS ESPECIAIS (se houver prazo correndo, risco de prescrição, etc)",
+  "docs_faltantes": ["lista de TODOS os documentos que faltam para esta área do direito"],
+  "docs_sugeridos": ["lista dos docs obrigatórios para a área"],
+  "urgencia": "normal|urgente|critico — se tem prazo correndo = urgente/critico",
+  "tipo_processo": "administrativo|judicial — baseado no conteúdo real"
+}
+
+REGRAS DE OURO:
+- Se faltou informação, PERGUNTE no resumo (ex: "Falta saber o valor da causa e se já tem BO")
+- A ORIENTAÇÃO é o coração do cadastro — qualquer pessoa do escritório que abrir deve saber o que fazer
+- Se tem prazo correndo, ALERTE na orientação com ⚠️ URGENTE
+- Preencha tribunal com base na jurisdição (MG=TJMG, Federal=TRF-6, Trabalhista=TRT-3)`;
     
-    const resposta = await chamarIA([{role:'user',content:msg}], system, 800);
+    const resposta = await chamarIA([{role:'user',content:msg}], system, 1500);
     
     // Remove loading
     const loadEl = document.getElementById('_pIntakeLoad');
@@ -6699,17 +6728,52 @@ O advogado ou secretária está descrevendo um caso de cliente. Sua função:
       }
       if (dados.partes) document.getElementById('pp').value = dados.partes;
       if (dados.tribunal) document.getElementById('ptr').value = dados.tribunal;
+      // Preenche orientação + faltando + obs
+      if (dados.docs_faltantes && dados.docs_faltantes.length) {
+        const fl = document.getElementById('pfl');
+        if (fl && !fl.value) fl.value = dados.docs_faltantes.join('\n');
+      }
+      if (dados.orientacao || dados.resumo) {
+        const ob = document.getElementById('pob');
+        if (ob && !ob.value) {
+          let texto = '';
+          if (dados.orientacao) texto += '📋 ORIENTAÇÃO OPERACIONAL:\n' + dados.orientacao.replace(/\\n/g,'\n') + '\n\n';
+          if (dados.resumo) texto += '📝 RESUMO DO CASO:\n' + dados.resumo;
+          ob.value = texto.trim();
+        }
+      }
+      // Se urgente/critico, muda status
+      if (dados.urgencia === 'urgente' || dados.urgencia === 'critico') {
+        const stSel = document.getElementById('pst');
+        if (stSel) stSel.value = 'URGENTE';
+      }
       
-      // Monta resposta visual
-      let html = '<div style="background:var(--green);color:#fff;padding:8px 12px;border-radius:10px 10px 10px 4px;margin-bottom:6px;max-width:85%">';
-      html += '<strong>🤖 Dados preenchidos:</strong><br>';
-      html += '• Nome: ' + (dados.nome || '—') + '<br>';
-      html += '• Tipo: ' + (dados.tipo || '—') + '<br>';
-      html += '• Área: ' + (dados.area || '—') + '<br>';
-      html += '• Partes: ' + (dados.partes || '—') + '<br>';
-      html += '• Tribunal: ' + (dados.tribunal || '—') + '<br>';
-      if (dados.resumo) html += '<br><em>' + dados.resumo + '</em>';
+      // Monta resposta visual COMPLETA
+      let html = '<div style="background:var(--green);color:#fff;padding:10px 14px;border-radius:10px 10px 10px 4px;margin-bottom:6px;max-width:90%;line-height:1.5">';
+      html += '<strong>🤖 Caso analisado e preenchido:</strong><br>';
+      html += '👤 ' + (dados.nome || '—') + '<br>';
+      html += '⚖️ ' + (dados.tipo || '—') + ' · ' + (dados.area || '—') + '<br>';
+      html += '👥 ' + (dados.partes || '—') + '<br>';
+      html += '🏛️ ' + (dados.tribunal || '—') + '<br>';
+      if (dados.resumo) html += '<br><em style="opacity:.9">' + dados.resumo + '</em><br>';
       html += '</div>';
+      
+      // Orientação operacional em destaque
+      if (dados.orientacao) {
+        html += '<div style="background:#1a73e8;color:#fff;padding:10px 14px;border-radius:10px;margin-bottom:6px;max-width:90%;line-height:1.6;font-size:12px">';
+        html += '<strong>📋 ORIENTAÇÃO PARA O FUNCIONÁRIO:</strong><br>';
+        html += dados.orientacao.replace(/\\n/g,'<br>').replace(/\n/g,'<br>');
+        html += '</div>';
+      }
+      
+      // Docs faltantes
+      if (dados.docs_faltantes && dados.docs_faltantes.length) {
+        html += '<div style="background:var(--orange);color:#fff;padding:8px 12px;border-radius:8px;margin-bottom:6px;max-width:90%;font-size:11px">';
+        html += '<strong>⚠️ DOCUMENTOS FALTANTES:</strong><br>';
+        html += dados.docs_faltantes.map(d => '• ' + d).join('<br>');
+        html += '</div>';
+      }
+      
       chat.innerHTML += html;
       
       // Mostra checklist de documentos
@@ -6766,7 +6830,10 @@ async function _pAnal(file){
   try{
     const b64=await _pB64(file);const b64d=b64.split(',')[1];let dados=null;
     try{
-      const r=await fetchComTimeout('https://lex-juridico.onrender.com/api/analisar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({base64:b64d,mimeType:file.type||'application/pdf',nome:file.name,prompt:'Analise e retorne APENAS JSON sem markdown: {"tipo_documento":"","nome_cliente":"","cpf_cnpj":"","data_nascimento":"","endereco":"","tipo_acao":"","partes":"","numero_processo":"","tribunal":"","prazo":"","documentos_faltantes":[],"observacoes":""}'})},25000);
+      const tk = (typeof getAuthToken==='function' ? (getAuthToken()||'') : '');
+      const hdrs = {'Content-Type':'application/json'};
+      if(tk) hdrs['Authorization'] = 'Bearer ' + tk;
+      const r=await fetchComTimeout(SERVIDOR+'/api/analisar',{method:'POST',headers:hdrs,body:JSON.stringify({base64:b64d,mimeType:file.type||'application/pdf',nome:file.name,prompt:'Analise e retorne APENAS JSON sem markdown: {"tipo_documento":"","nome_cliente":"","cpf_cnpj":"","data_nascimento":"","endereco":"","tipo_acao":"","partes":"","numero_processo":"","tribunal":"","prazo":"","documentos_faltantes":[],"observacoes":""}'})},25000);
       if(r.ok){const j=await r.json();if(!j.error)dados=j;}
     }catch(e){ console.warn('[Lex] Erro silenciado:', (e && e.message) ? e.message : e); }
     if(!dados)dados={observacoes:'Servidor offline — preencha manualmente'};
@@ -6786,7 +6853,7 @@ async function _pSv(){
   const btn=document.getElementById('_pBSv');if(btn){btn.textContent='⏳...';btn.disabled=true;}
   try{
     const casos=getPrep();const isEd=_pEId!==null;const id=isEd?_pEId:Date.now();
-    const caso={id,nome,tipo:document.getElementById('pt')?.value||'',area:document.getElementById('pa')?.value||'Cível',partes:document.getElementById('pp')?.value||'',tribunal:document.getElementById('ptr')?.value||'',previsao:document.getElementById('ppv')?.value||'',valor:document.getElementById('pvl')?.value||'',faltando:document.getElementById('pfl')?.value||'',obs:document.getElementById('pob')?.value||'',status:document.getElementById('pst')?.value||'INATIVO',criadoEm:isEd?(casos.find(c=>c.id===id)?.criadoEm||new Date().toLocaleDateString('pt-BR')):new Date().toLocaleDateString('pt-BR'),docsCount:0};
+    const caso={id,nome,tipo:document.getElementById('pt')?.value||'',area:document.getElementById('pa')?.value||'Cível',partes:document.getElementById('pp')?.value||'',tribunal:document.getElementById('ptr')?.value||'',previsao:document.getElementById('ppv')?.value||'',valor:document.getElementById('pvl')?.value||'',faltando:document.getElementById('pfl')?.value||'',obs:document.getElementById('pob')?.value||'',resumo:(document.getElementById('pob')?.value||'').substring(0,200),status:document.getElementById('pst')?.value||'EM_PREP',criadoEm:isEd?(casos.find(c=>c.id===id)?.criadoEm||new Date().toLocaleDateString('pt-BR')):new Date().toLocaleDateString('pt-BR'),docsCount:0};
     for(const doc of _pTmp)await _pSvDoc({cId:String(id),slot:doc.slot,nome:doc.nome,base64:doc.base64,tipo:doc.tipo});
     const dx=await _pGtDocs(id);caso.docsCount=dx.length;
     if(isEd){const idx=casos.findIndex(c=>c.id===id);if(idx>=0)casos[idx]=caso;else casos.push(caso);}else casos.push(caso);
@@ -6874,24 +6941,49 @@ function _pDistrConfirm(id){
 async function _pDet(id){
   const c=getPrep().find(x=>x.id===id);if(!c)return;
   const docs=await _pGtDocs(id);const dr=diasRestantes(c.previsao);
-  let al='';if(dr!==null){if(dr<0)al=`<span style="color:var(--red)">⚠️ ${Math.abs(dr)}d atrasado</span>`;else if(dr===0)al='<span style="color:var(--red)">🚨 HOJE</span>';else if(dr<=3)al=`<span style="color:var(--orange)">⏰ ${dr}d</span>`;}
+  let al='';if(dr!==null){if(dr<0)al=`<span style="color:var(--red);font-weight:700">⚠️ ${Math.abs(dr)}d atrasado</span>`;else if(dr===0)al='<span style="color:var(--red);font-weight:700">🚨 VENCE HOJE</span>';else if(dr<=3)al=`<span style="color:var(--orange);font-weight:700">⏰ ${dr}d</span>`;}
+  const stLabel={'URGENTE':'🔴 Urgente','PRONTO':'✅ Pronto','EM_PREP':'🔵 Em Preparo','INATIVO':'⚪ Inativo','AGUARDANDO_APROVACAO':'🔔 Aguardando'};
+  const stCor={'URGENTE':'var(--red)','PRONTO':'var(--green)','EM_PREP':'#1a73e8','INATIVO':'var(--text3)','AGUARDANDO_APROVACAO':'#eab308'};
+  const obsTexto = c.obs || '';
+  const temOrientacao = obsTexto.includes('ORIENTAÇÃO OPERACIONAL') || obsTexto.includes('ORIENTACAO OPERACIONAL');
+  let orientacaoHtml = '';
+  let contextoHtml = '';
+  if (temOrientacao) {
+    const partes = obsTexto.split(/📝 RESUMO DO CASO:/);
+    const orientParte = partes[0].replace(/📋 ORIENTAÇÃO OPERACIONAL:|📋 ORIENTACAO OPERACIONAL:/g,'').trim();
+    const resumoParte = (partes[1]||'').trim();
+    orientacaoHtml = `<div style="background:linear-gradient(135deg,#1a73e8,#1557b0);border-radius:12px;padding:14px 16px;margin-bottom:12px;color:#fff">
+      <div style="font-size:11px;font-weight:700;letter-spacing:1px;opacity:.85;margin-bottom:8px">📋 ORIENTAÇÃO OPERACIONAL</div>
+      <div style="font-size:13px;line-height:1.7;white-space:pre-wrap">${orientParte}</div>
+    </div>`;
+    if (resumoParte) contextoHtml = `<div style="background:var(--surface2);border-radius:10px;padding:12px;margin-bottom:12px;font-size:12px"><strong style="color:var(--accent)">📝 Resumo do caso:</strong><div style="white-space:pre-wrap;margin-top:4px;color:var(--text2);line-height:1.5">${resumoParte}</div></div>`;
+  } else if (obsTexto) {
+    contextoHtml = `<div style="background:var(--surface2);border-radius:10px;padding:12px;margin-bottom:12px;font-size:12px"><strong style="color:var(--accent)">📝 Contexto e estratégia:</strong><div style="white-space:pre-wrap;margin-top:4px;color:var(--text2);line-height:1.5">${obsTexto}</div></div>`;
+  }
   const ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;background:#00000099;z-index:400;display:flex;align-items:center;justify-content:center;padding:12px';
-  ov.innerHTML=`<div style="background:var(--surface);border-radius:14px;width:100%;max-width:520px;max-height:88vh;overflow-y:auto;padding:20px">
-    <div style="font-family:Arial,Helvetica,sans-serif;font-size:17px;font-weight:700;margin-bottom:12px">${c.nome}</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;margin-bottom:12px">
-      <div><span style="color:var(--text3)">Tipo:</span><br><strong>${c.tipo||'—'}</strong></div><div><span style="color:var(--text3)">Área:</span><br><strong>${c.area||'—'}</strong></div>
-      <div><span style="color:var(--text3)">Partes:</span><br><strong>${c.partes||'—'}</strong></div><div><span style="color:var(--text3)">Tribunal:</span><br><strong>${c.tribunal||'—'}</strong></div>
-      <div><span style="color:var(--text3)">Previsão:</span><br><strong>${c.previsao||'—'} ${al}</strong></div>
-      <div><span style="color:var(--text3)">Valor:</span><br><strong>${c.valor?'R$ '+Number(c.valor).toLocaleString('pt-BR'):'—'}</strong></div>
+  ov.innerHTML=`<div style="background:var(--surface);border-radius:16px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;padding:22px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+      <div style="flex:1">
+        <div style="font-family:Arial,Helvetica,sans-serif;font-size:18px;font-weight:700;color:var(--text)">${c.nome}</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:3px">${c.tipo||'—'} · ${c.area||'—'} ${al?'· '+al:''}</div>
+      </div>
+      <span style="font-size:11px;font-weight:700;padding:4px 12px;border-radius:20px;background:${stCor[c.status]||'var(--text3)'}22;color:${stCor[c.status]||'var(--text3)'};flex-shrink:0">${stLabel[c.status]||c.status||'—'}</span>
     </div>
-    ${c.faltando?`<div style="background:var(--orange-soft);border:1px solid var(--orange)33;border-radius:8px;padding:9px;margin-bottom:10px;font-size:12px"><strong style="color:var(--orange)">⚠ Falta:</strong><div style="white-space:pre-wrap;margin-top:3px">${c.faltando}</div></div>`:'<div style="color:var(--green);font-size:12px;margin-bottom:10px">✅ Sem pendências</div>'}
-    ${c.obs?`<div style="background:var(--surface2);border-radius:8px;padding:9px;margin-bottom:10px;font-size:12px"><strong style="color:var(--accent)">📝 Contexto:</strong><div style="white-space:pre-wrap;margin-top:3px;color:var(--text2)">${c.obs}</div></div>`:''}
-    <div style="font-size:10px;color:var(--text3);letter-spacing:2px;margin-bottom:8px">DOCUMENTOS (${docs.length})</div>
-    ${docs.length?`<div style="display:flex;flex-wrap:wrap;gap:8px">${docs.map(d=>`<div style="text-align:center;width:66px">${d.base64?.startsWith('data:image')?`<img src="${d.base64}" style="width:66px;height:66px;object-fit:cover;border-radius:8px;border:1px solid var(--border)">`:`<div style="width:66px;height:66px;background:var(--surface2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px;border:1px solid var(--border)">📄</div>`}<div style="font-size:9px;color:var(--text3);margin-top:2px">${(_PSL.find(s=>s.id===d.slot)||{l:d.slot}).l}</div></div>`).join('')}</div>`:'<div style="font-size:12px;color:var(--text3)">Nenhum documento.</div>'}
-    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;margin-bottom:14px">
+      <div style="background:var(--surface2);border-radius:8px;padding:10px"><div style="color:var(--text3);font-size:10px;margin-bottom:2px">👥 Partes</div><strong>${c.partes||'—'}</strong></div>
+      <div style="background:var(--surface2);border-radius:8px;padding:10px"><div style="color:var(--text3);font-size:10px;margin-bottom:2px">🏛️ Tribunal</div><strong>${c.tribunal||'—'}</strong></div>
+      <div style="background:var(--surface2);border-radius:8px;padding:10px"><div style="color:var(--text3);font-size:10px;margin-bottom:2px">📅 Previsão</div><strong>${c.previsao||'Sem previsão'}</strong></div>
+      <div style="background:var(--surface2);border-radius:8px;padding:10px"><div style="color:var(--text3);font-size:10px;margin-bottom:2px">💰 Valor</div><strong>${c.valor?'R$ '+Number(c.valor).toLocaleString('pt-BR'):'—'}</strong></div>
+    </div>
+    ${orientacaoHtml}
+    ${contextoHtml}
+    ${c.faltando?`<div style="background:var(--orange-soft);border:1px solid var(--orange)33;border-radius:10px;padding:12px;margin-bottom:12px;font-size:12px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;font-weight:700;color:var(--orange)">⚠ Documentos pendentes</div><div style="white-space:pre-wrap;line-height:1.6">${c.faltando}</div></div>`:'<div style="color:var(--green);font-size:12px;margin-bottom:12px;display:flex;align-items:center;gap:6px;font-weight:600">✅ Sem documentos pendentes</div>'}
+    <div style="font-size:10px;color:var(--text3);letter-spacing:2px;margin-bottom:8px">DOCUMENTOS ANEXADOS (${docs.length})</div>
+    ${docs.length?`<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">${docs.map(d=>`<div style="text-align:center;width:66px">${d.base64?.startsWith('data:image')?`<img src="${d.base64}" style="width:66px;height:66px;object-fit:cover;border-radius:8px;border:1px solid var(--border)">`:`<div style="width:66px;height:66px;background:var(--surface2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px;border:1px solid var(--border)">📄</div>`}<div style="font-size:9px;color:var(--text3);margin-top:2px">${(_PSL.find(s=>s.id===d.slot)||{l:d.slot}).l}</div></div>`).join('')}</div>`:'<div style="font-size:12px;color:var(--text3);margin-bottom:14px">Nenhum documento anexado.</div>'}
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn-cancel" onclick="this.closest('div[style*=fixed]').remove()">← Voltar</button>
       <button class="btn-primary" onclick="this.closest('div[style*=fixed]').remove();abrirModalPrep(${id})">✎ Editar</button>
-      <button class="btn-green" style="border:none" onclick="this.closest('div[style*=fixed]').remove();_pDistr(${id})">✓ Distribuído</button>
+      <button style="flex:1;padding:10px 16px;border:none;border-radius:10px;background:linear-gradient(135deg,var(--green),#059669);color:#fff;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px" onclick="this.closest('div[style*=fixed]').remove();_pDistr(${id})">📤 Distribuir</button>
     </div>
   </div>`;
   ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});document.body.appendChild(ov);
@@ -7789,9 +7881,12 @@ window.receberWebhookWhatsApp = async function(payload) {
       'ID:'+p.id+'|CNJ:'+(p.numero||'')+'|NOME:'+p.nome+'|PARTES:'+(p.partes||'')
     ).join('\n');
     const prompt = `Arquivo de WhatsApp de "${remetente||'cliente'}". Analise e extraia dados processuais. PROCESSOS NO LEX:\n${ctxProcessos}\n\nRetorne JSON conforme schema padrão do LEX.`;
-    const resp = await fetchComTimeout('https://lex-juridico.onrender.com/api/analisar', {
+    const _anHdrs = {'Content-Type':'application/json'};
+    const _anTk = (typeof getAuthToken==='function' ? (getAuthToken()||'') : '');
+    if(_anTk) _anHdrs['Authorization'] = 'Bearer ' + _anTk;
+    const resp = await fetchComTimeout(SERVIDOR+'/api/analisar', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: _anHdrs,
       body: JSON.stringify({ base64, mimeType: mimeType||'application/pdf', nome: nomeArquivo||'whatsapp.pdf', prompt })
     }, 45000);
     const json = await resp.json();
@@ -10139,8 +10234,11 @@ Se for cadastro de cliente, extraia também:
 RETORNE APENAS O JSON ABAIXO, SEM TEXTO ANTES OU DEPOIS:
 {"tipo_documento":"","nome":"","numero":"","partes":"","tribunal":"","prazo":"","proxacao":"","descricao":"","frentes":"","valor":"","area":"","status":"","andamentos":[],"atualizacoes_detectadas":[],"processo_existente_id":null,"processo_desatualizado":false,"dados_cliente":null}`;
 
-    const _pdfR = await fetchComTimeout('https://lex-juridico.onrender.com/api/analisar', {
-      method:'POST', headers:{'Content-Type':'application/json'},
+    const _pdfHd = {'Content-Type':'application/json'};
+    const _pdfTk = (typeof getAuthToken==='function' ? (getAuthToken()||'') : '');
+    if(_pdfTk) _pdfHd['Authorization'] = 'Bearer ' + _pdfTk;
+    const _pdfR = await fetchComTimeout(SERVIDOR+'/api/analisar', {
+      method:'POST', headers:_pdfHd,
       body: JSON.stringify({base64, mimeType:'application/pdf', nome:file.name, prompt})
     }, 30000)
     const json = await _pdfR.json();
