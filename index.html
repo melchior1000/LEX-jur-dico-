@@ -1521,6 +1521,20 @@ function conectarSSE() {
       atualizarIndicadorConexao(true);
     });
 
+    // LEX MOTOR PROATIVO — recebe alertas em tempo real
+    _sseConn.addEventListener('lex_motor', (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        console.log('[LEX MOTOR] Relatório recebido:', data);
+        if(data.alertas > 0) {
+          _mostrarBannerMotor(data);
+        }
+        // Re-renderiza painel (processos podem ter mudado status/urgência)
+        if(typeof renderPainel === 'function') renderPainel();
+        if(typeof renderProcessos === 'function') renderProcessos();
+      } catch(err) { console.warn('[LEX MOTOR] erro parse:', err); }
+    });
+
     _sseConn.addEventListener('error', (e) => {
       atualizarIndicadorConexao(false);
       if (_sseConn) { try { _sseConn.close(); } catch(e) { console.warn('[Lex] Erro silenciado:', (e && e.message) ? e.message : e); } _sseConn = null; }
@@ -2127,6 +2141,32 @@ const DEFAULT=[
 ];
 
 // ═══ TOAST ═══
+// Banner do Motor Proativo do Lex
+function _mostrarBannerMotor(data) {
+  document.getElementById('_lexMotorBanner')?.remove();
+  const div = document.createElement('div');
+  div.id = '_lexMotorBanner';
+  div.style.cssText = 'position:fixed;top:60px;right:16px;max-width:360px;z-index:600;animation:slideIn .3s ease';
+  div.innerHTML = `<div style="background:linear-gradient(135deg,var(--surface),var(--surface2));border:1px solid var(--accent)30;border-radius:14px;padding:16px 18px;box-shadow:var(--shadow-lg)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--purple));display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff">⚡</div>
+        <div style="font-size:13px;font-weight:700;color:var(--text)">Lex — Monitoramento</div>
+      </div>
+      <button onclick="this.closest('#_lexMotorBanner').remove()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px">✕</button>
+    </div>
+    <div style="display:flex;gap:12px;margin-bottom:10px;font-size:11px">
+      <span style="color:var(--red)">🔴 ${data.urgentes||0} urgentes</span>
+      <span style="color:var(--accent)">🔵 ${data.ativos||0} ativos</span>
+      <span style="color:var(--orange)">⚠️ ${data.parados||0} parados</span>
+    </div>
+    ${(data.resumo||[]).slice(0,3).map(a => `<div style="font-size:11px;color:var(--text2);padding:4px 0;border-top:1px solid var(--border);line-height:1.4">${a.replace(/\*/g,'')}</div>`).join('')}
+    ${data.acoes > 0 ? `<div style="font-size:10px;color:var(--accent);margin-top:6px;font-weight:600">⚡ ${data.acoes} ações executadas automaticamente</div>` : ''}
+  </div>`;
+  document.body.appendChild(div);
+  setTimeout(() => { document.getElementById('_lexMotorBanner')?.remove(); }, 15000);
+}
+
 function toast(msg, tipo='ok'){
   const t=document.getElementById('toast');
   if(!t) return;

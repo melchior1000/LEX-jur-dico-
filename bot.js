@@ -10481,6 +10481,141 @@ console.log('=================================\n');
 _agendarCobrador();
 
 // ════════════════════════════════════════════════════════════════════════════
+// MOTOR PROATIVO DO LEX — O gerente que NUNCA dorme
+// Roda a cada 2 horas, verifica TUDO e age
+// ════════════════════════════════════════════════════════════════════════════
+let _motorUltimaExecucao = 0;
+const MOTOR_INTERVALO = 2 * 60 * 60 * 1000; // 2 horas
+
+async function _motorProativoLex() {
+  if(Date.now() - _motorUltimaExecucao < MOTOR_INTERVALO) return;
+  _motorUltimaExecucao = Date.now();
+  console.log('[LEX MOTOR] Iniciando verificação proativa...');
+  
+  const agora = new Date();
+  const horaAtual = agora.getHours();
+  // Só roda entre 7h e 22h (horário de Brasília)
+  if(horaAtual < 7 || horaAtual > 22) { console.log('[LEX MOTOR] Fora do horário (7h-22h). Pulando.'); return; }
+  
+  const alertas = [];
+  const acoes = [];
+  
+  for(const p of processos) {
+    const st = String(p.status||'').toUpperCase();
+    const setor = String(p.setor||'').toLowerCase();
+    const dias = _diasSemAtualizacao(p);
+    const nome = p.nome || 'Sem nome';
+    
+    // 1. PROCESSOS PARADOS (sem atualização)
+    if(st === 'ATIVO' && dias >= 5) {
+      alertas.push(`⚠️ *${nome}* — ${dias} dias parado no setor ${setor}. Precisa de atenção!`);
+      // Marca como urgente automaticamente se > 10 dias
+      if(dias >= 10 && st !== 'URGENTE') {
+        p.status = 'URGENTE';
+        acoes.push(`🔴 ${nome} → URGENTE (${dias}d parado)`);
+      }
+    }
+    
+    // 2. DISTRIBUÍDOS sem movimentação > 3 dias
+    if(st === 'DISTRIBUIDO' && dias >= 3) {
+      alertas.push(`📤 *${nome}* — Distribuído há ${dias} dias e SEM MOVIMENTAÇÃO. Verificar se foi recebido pelo setor ${setor}.`);
+    }
+    
+    // 3. EM_PREP há mais de 7 dias
+    if((st === 'EM_PREP' || setor === 'autuacao') && dias >= 7) {
+      alertas.push(`📋 *${nome}* — Em preparação há ${dias} dias. Precisa ser distribuído ou tem docs pendentes?`);
+    }
+    
+    // 4. URGENTE há mais de 3 dias sem ação
+    if(st === 'URGENTE' && dias >= 3) {
+      alertas.push(`🚨 *${nome}* — URGENTE há ${dias} dias SEM AÇÃO! Prioridade máxima!`);
+    }
+    
+    // 5. Prazo vencendo
+    if(p.prazo) {
+      try {
+        const parts = p.prazo.includes('/') ? p.prazo.split('/').reverse().join('-') : p.prazo;
+        const dprazo = Math.ceil((new Date(parts) - agora) / (1000*60*60*24));
+        if(dprazo >= 0 && dprazo <= 2 && st !== 'CONCLUIDO' && st !== 'ENTREGUE') {
+          alertas.push(`⏰ *${nome}* — PRAZO em ${dprazo===0?'HOJE':dprazo+'d'}! ${setor}`);
+        }
+      } catch(e) {}
+    }
+    
+    // 6. Atualizar dias_parado
+    if(dias > 0) {
+      p.dias_parado = dias;
+      p.diasParado = dias;
+    }
+  }
+  
+  // Persistir mudanças
+  if(acoes.length) {
+    try { await persistirProcesso(processos[0], { processos, sbReq }); } catch(e) {}
+  }
+  
+  // Montar relatório
+  if(alertas.length > 0) {
+    const totalProcs = processos.length;
+    const urgentes = processos.filter(p=>p.status==='URGENTE').length;
+    const ativos = processos.filter(p=>p.status==='ATIVO').length;
+    const parados = processos.filter(p=>(p.dias_parado||0) >= 5).length;
+    
+    let msg = `🤖 *LEX — RELATÓRIO PROATIVO*\n`;
+    msg += `📊 ${totalProcs} processos | 🔴 ${urgentes} urgentes | 🔵 ${ativos} ativos | ⚠️ ${parados} parados\n\n`;
+    
+    if(acoes.length) {
+      msg += `*AÇÕES EXECUTADAS:*\n${acoes.join('\n')}\n\n`;
+    }
+    
+    msg += `*ALERTAS (${alertas.length}):*\n${alertas.slice(0,10).join('\n')}\n`;
+    
+    if(alertas.length > 10) msg += `\n... e mais ${alertas.length-10} alertas.`;
+    
+    msg += `\n\n💡 _Lex está monitorando. Próxima verificação em 2h._`;
+    
+    // Enviar pro Kleuber via Telegram
+    try {
+      await envTelegram(msg, null, CHAT_ID).catch(()=>{});
+      console.log('[LEX MOTOR] Relatório enviado ao Telegram.');
+    } catch(e) { console.warn('[LEX MOTOR] Erro ao enviar:', e.message); }
+    
+    // Notificar painel via SSE
+    try {
+      _sseNotificar('lex_motor', {
+        alertas: alertas.length,
+        acoes: acoes.length,
+        urgentes,
+        ativos,
+        parados,
+        resumo: alertas.slice(0,5)
+      });
+    } catch(e) {}
+    
+    // Persistir processos atualizados (dias_parado, status mudados)
+    _bumpProcessos('lex_motor');
+    
+  } else {
+    console.log('[LEX MOTOR] Tudo em ordem. Nenhum alerta.');
+  }
+  
+  console.log('[LEX MOTOR] Verificação concluída. Alertas:', alertas.length, 'Ações:', acoes.length);
+}
+
+// Agendar motor proativo — checa a cada 30min, executa a cada 2h
+setInterval(async () => {
+  try { await _motorProativoLex(); } catch(e) { console.warn('[LEX MOTOR] erro:', e.message); }
+}, 30 * 60 * 1000);
+
+// Executar imediatamente na inicialização (após 60s pra dar tempo de carregar processos)
+setTimeout(() => {
+  _motorProativoLex().catch(e => console.warn('[LEX MOTOR] erro inicial:', e.message));
+}, 60 * 1000);
+
+console.log('[LEX] Motor Proativo agendado — verificação a cada 2h, 7h-22h');
+
+
+// ════════════════════════════════════════════════════════════════════════════
 // REGISTRO DE FUNCIONÁRIOS (v2.9) — instanciar classes e registrar no Lex
 // ════════════════════════════════════════════════════════════════════════════
 //
