@@ -3668,7 +3668,7 @@ async function _mediarRespostaKleuber(respostaKleuber, clienteNome, processo, hi
     'Gere o JSON de mediação.'
   ].join('\n');
   
-  const respIA = await _chamarAnthropicSecretario([{role:'user', content:user}], system, 'claude-opus-4-20250514');
+  const respIA = await _chamarAnthropicSecretario([{role:'user', content:user}], system, MODELO_MID); // Intake/mediação cliente → Sonnet
   
   // Parse JSON da resposta
   let parsed = {};
@@ -3718,7 +3718,7 @@ async function _processarAutorizacaoLex(textoKleuber) {
       try {
         const system = 'Você é o Lex, atendente do escritório Camargos Advocacia no WhatsApp. O Kleuber autorizou você a passar orientações pro cliente. Transforme as orientações em uma mensagem curta, humana, no tom WhatsApp. Chame o cliente pelo nome. Não use listas.';
         const user = 'CLIENTE: '+clienteNome+'\nORIENTAÇÕES AUTORIZADAS: '+String(item.orientacoes_pendentes)+'\n\nMande a mensagem pro cliente.';
-        const msgOri = await _chamarAnthropicSecretario([{role:'user', content:user}], system, 'claude-opus-4-20250514');
+        const msgOri = await _chamarAnthropicSecretario([{role:'user', content:user}], system, MODELO_MID); // Humaniza orientação WhatsApp → Sonnet
         await envWhatsApp(msgOri, jid).catch(()=>{});
         _registrarMsgCentral('whatsapp', 'saida', jid, 'Lex (orientação autorizada)', msgOri);
         await envTelegram('✅ Orientações enviadas pro ' + clienteNome.split(' ')[0] + '!', null, CHAT_ID).catch(()=>{});
@@ -7609,7 +7609,7 @@ async function _processarImagem(ctx, mem, img) {
     const resposta = await ia([{role:'user', content:[
       {type:'image', source:{type:'base64', media_type:img.mime||'image/jpeg', data:base64}},
       {type:'text', text:'Analise esta imagem juridicamente. Se for decisão, despacho, sentença ou documento processual: identifique tipo, partes, número do processo, conteúdo, prazo e próxima ação. Senão, descreva e como pode ser relevante. Português, objetivo, técnico.'}
-    ]}], null, 1500);
+    ]}], null, 1500, MODELO_MID); // Cadastrador/análise imagem → Sonnet
     await env(resposta, ctx);
     mem.hist.push({role:'user', content:'[Imagem]'});
     mem.hist.push({role:'assistant', content:'[Análise: '+resposta.substring(0,200)+']'});
@@ -8621,7 +8621,7 @@ const server = http.createServer(async (req, res) => {
       // 1. API Key presente?
       diag.checks.api_key = AK ? 'presente ('+AK.substring(0,10)+'...)' : 'AUSENTE';
       // 2. Modelo
-      diag.checks.modelo = 'claude-opus-4-20250514';
+      diag.checks.modelo = MODELO_TOP + ' (top) / ' + MODELO_MID + ' (mid) / ' + MODELO_ECO + ' (eco)';
       // 3. Agente vivo carregado?
       diag.checks.agente_vivo = lex_agente_vivo ? 'carregado' : 'NAO CARREGADO';
       diag.checks.agente_vivo_tratarRota = (lex_agente_vivo && typeof lex_agente_vivo.tratarRota === 'function') ? 'OK' : 'FALHA';
@@ -8629,7 +8629,7 @@ const server = http.createServer(async (req, res) => {
       diag.checks.processos_count = processos.length;
       // 5. Testa chamada real à IA
       try {
-        const testeResp = await ia([{role:'user',content:'Diga apenas: OK FUNCIONANDO'}], 'Responda em 2 palavras.', 50);
+        const testeResp = await ia([{role:'user',content:'Diga apenas: OK FUNCIONANDO'}], 'Responda em 2 palavras.', 50, MODELO_ECO); // ping → Haiku
         diag.checks.ia_teste = 'OK: ' + (testeResp||'').substring(0,100);
       } catch(eIa) {
         diag.checks.ia_teste = 'ERRO: ' + String(eIa.message||eIa).substring(0,300);
@@ -8858,7 +8858,7 @@ const server = http.createServer(async (req, res) => {
   // ═══ TESTE CHAT PÚBLICO (temporário) ═══
   if(url==='/api/teste-ia' && req.method==='GET') {
     try {
-      const resp = await ia([{role:'user',content:'Diga: Lex funcionando perfeitamente'}], 'Responda em 1 frase curta.', 100);
+      const resp = await ia([{role:'user',content:'Diga: Lex funcionando perfeitamente'}], 'Responda em 1 frase curta.', 100, MODELO_ECO); // ping → Haiku
       res.writeHead(200, corsHeaders(req));
       res.end(JSON.stringify({ok:true, resposta:resp}));
     } catch(e) {
@@ -11410,7 +11410,7 @@ Responda em JSON ÚNICO e válido:
   "modelo_peticao_sugerido": "estrutura resumida de petição alinhada ao perfil deste juiz (seções: preliminar, mérito, pedido) com tom e argumentos específicos para ele"
 }`;
 
-  const txt = await ia([{role:'user', content: prompt}], null, 4500);
+  const txt = await ia([{role:'user', content: prompt}], null, 4500, MODELO_MID); // Perfil juiz (JSON estruturado) → Sonnet
   const m = txt.replace(/```json|```/g,'').trim().match(/\{[\s\S]*\}/);
   try {
     const perfil = JSON.parse(m ? m[0] : txt);
@@ -11570,7 +11570,7 @@ Retorne EXATAMENTE:
   "argumentos_fracos": ["..."]
 }`;
 
-  const txt = await ia([{role:'user', content: prompt}], null, 2400);
+  const txt = await ia([{role:'user', content: prompt}], null, 2400, MODELO_MID); // Prognóstico JSON → Sonnet
   const m = String(txt||'').replace(/```json|```/g,'').trim().match(/\{[\s\S]*\}/);
   let j = null;
   try { j = JSON.parse(m ? m[0] : txt); } catch(e) { console.warn('[Lex][bot] Erro silenciado:', (e && e.message) ? e.message : e); }
