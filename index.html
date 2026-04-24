@@ -2138,30 +2138,12 @@ const DEFAULT=[
 ];
 
 // ═══ TOAST ═══
-// Banner do Motor Proativo do Lex
+// Banner do Motor Proativo do Lex — REMOVIDO (no-op).
+// Mantemos a função como stub para não quebrar qualquer chamada legada.
 function _mostrarBannerMotor(data) {
-  document.getElementById('_lexMotorBanner')?.remove();
-  const div = document.createElement('div');
-  div.id = '_lexMotorBanner';
-  div.style.cssText = 'position:fixed;top:60px;right:16px;max-width:360px;z-index:600;animation:slideIn .3s ease';
-  div.innerHTML = `<div style="background:linear-gradient(135deg,var(--surface),var(--surface2));border:1px solid color-mix(in srgb, var(--accent) 19%, transparent);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow-lg)">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-      <div style="display:flex;align-items:center;gap:8px">
-        <div style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--purple));display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff">⚡</div>
-        <div style="font-size:13px;font-weight:700;color:var(--text)">Lex — Monitoramento</div>
-      </div>
-      <button onclick="this.closest('#_lexMotorBanner').remove()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px">✕</button>
-    </div>
-    <div style="display:flex;gap:12px;margin-bottom:10px;font-size:11px">
-      <span style="color:var(--red)">🔴 ${data.urgentes||0} urgentes</span>
-      <span style="color:var(--accent)">🔵 ${data.ativos||0} ativos</span>
-      <span style="color:var(--orange)">⚠️ ${data.parados||0} parados</span>
-    </div>
-    ${(data.resumo||[]).slice(0,3).map(a => `<div style="font-size:11px;color:var(--text2);padding:4px 0;border-top:1px solid var(--border);line-height:1.4">${a.replace(/\*/g,'')}</div>`).join('')}
-    ${data.acoes > 0 ? `<div style="font-size:10px;color:var(--accent);margin-top:6px;font-weight:600">⚡ ${data.acoes} ações executadas automaticamente</div>` : ''}
-  </div>`;
-  document.body.appendChild(div);
-  setTimeout(() => { document.getElementById('_lexMotorBanner')?.remove(); }, 15000);
+  // Banner foi removido conforme solicitação. Apenas garantimos que nenhum
+  // banner residual permaneça na tela.
+  try { document.getElementById('_lexMotorBanner')?.remove(); } catch(e){}
 }
 
 function toast(msg, tipo='ok'){
@@ -4920,8 +4902,10 @@ function salvarProc(){
     const idx=ps.findIndex(x=>x.id==editId);
     if(idx>-1) {
       ps[idx]={...ps[idx],...dados};
-      // SOBERANIA: na edição o status escolhido pelo usuário SEMPRE prevalece.
-      ps[idx].status = (statusVal||'ATIVO').toUpperCase();
+      // REGRA: edição = andamento → URGENTE sempre vira ATIVO automaticamente.
+      // SOBERANIA para outros status (RECURSAL, AGUARDANDO, etc.) continua valendo.
+      const _stForm = (statusVal||'ATIVO').toUpperCase();
+      ps[idx].status = (_stForm === 'URGENTE') ? 'ATIVO' : _stForm;
     }
   }
   else {
@@ -4931,14 +4915,16 @@ function salvarProc(){
   const _editedId=document.getElementById('modal').getAttribute('data-edit');saveProcs(ps); atualizarUrgentes(); fecharModal(); setTimeout(sincronizarComBot,500);
   if(_editedId) {
     registrarAcaoSalvar(parseInt(_editedId),'Processo editado');
-    // SOBERANIA: registrarAcaoSalvar -> cicloStatus('andamento') força ATIVO.
-    // Reaplicamos o status escolhido pelo usuário no formulário (vence sobre 'andamento').
+    // REGRA: edição gera andamento → URGENTE sempre vira ATIVO.
+    // Para outros status escolhidos pelo usuário no dropdown, mantém SOBERANIA.
     try {
+      const _stForm = (statusVal||'ATIVO').toUpperCase();
+      const _stFinal = (_stForm === 'URGENTE') ? 'ATIVO' : _stForm;
       if(typeof cicloStatus==='function'){
-        cicloStatus(parseInt(_editedId), 'set', {status: (statusVal||'ATIVO').toUpperCase(), skipRender:true});
+        cicloStatus(parseInt(_editedId), 'set', {status: _stFinal, skipRender:true});
       } else {
         const _ps2=getProcs(); const _ix=_ps2.findIndex(x=>x.id==_editedId);
-        if(_ix>-1){ _ps2[_ix].status=(statusVal||'ATIVO').toUpperCase(); saveProcs(_ps2); }
+        if(_ix>-1){ _ps2[_ix].status=_stFinal; saveProcs(_ps2); }
       }
     } catch(e){ console.warn('[salvarProc] reapply status falhou:', e&&e.message); }
     // Lex Consciência — analisa a edição
