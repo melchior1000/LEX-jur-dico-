@@ -3819,12 +3819,13 @@ function renderPainel(){
   const resumoHtml=`
     <div class="resumo-box">
       <div class="resumo-title">☀️ Resumo — ${hoje}</div>
-      ${urgList.map(p=>`
+      ${urgList.map(p=>{const _nmEsc=String(p.nome||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");return`
         <div class="resumo-item" onclick="abrirProc(${p.id})" style="cursor:pointer">
           <div style="width:8px;height:8px;border-radius:50%;background:var(--red);flex-shrink:0"></div>
           <div style="flex:1"><strong style="color:var(--text)">${p.nome}</strong> — ${p.proxacao||'Verificar próxima ação'}</div>
           ${p.prazo?`<span style="font-size:11px;color:var(--orange);font-weight:700">${diasRestantes(p.prazo)}d</span>`:''}
-        </div>`).join('')}
+          <button onclick="event.stopPropagation();excluirProcDoBanner(${p.id},'${_nmEsc}')" title="Excluir processo" style="background:linear-gradient(135deg,#e84545,#c81e1e);border:1px solid #ff5b5b55;border-radius:6px;padding:4px 10px;color:#fff;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.5px;box-shadow:0 2px 6px #e8454540;flex-shrink:0;transition:transform .15s,box-shadow .15s" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 10px #e8454566'" onmouseout="this.style.transform='none';this.style.boxShadow='0 2px 6px #e8454540'">🗑 Excluir</button>
+        </div>`;}).join('')}
       ${urgList.length===0?'<div style="font-size:13px;color:var(--text3)">Nenhum processo urgente no momento.</div>':''}
     </div>`;
 
@@ -4922,21 +4923,19 @@ function salvarProc(){
   const ps=getProcs(), editId=document.getElementById('modal').getAttribute('data-edit');
   const area=document.getElementById('f-area').value, prazoInput=document.getElementById('f-prazo').value.trim();
   const{prazo,prazoReal}=prazoInput?calcAjustado(prazoInput):{prazo:'',prazoReal:''};
-  let statusVal=document.getElementById('f-status').value;
-  if(prazo && diasRestantes(prazo)<=7) statusVal='URGENTE';
-  else if(statusVal==='URGENTE') statusVal='ATIVO';
+  // SOBERANIA DO USUÁRIO: o status escolhido no dropdown é respeitado SEMPRE.
+  // Não sobrescrevemos URGENTE -> ATIVO nem forçamos URGENTE por prazo.
+  const statusVal=document.getElementById('f-status').value;
   const setorVal=document.getElementById('f-setor')?.value||'autuacao';
-  const dados={nome,grupo:document.getElementById('f-grupo').value||'Outros',tipo:document.getElementById('f-tipo')?.value||'judicial',setor:setorVal,numero:document.getElementById('f-num').value,partes:document.getElementById('f-partes').value,area,tribunal:document.getElementById('f-trib').value,status:setorVal==='autuacao'?'EM_PREP':statusVal,prazo,prazoReal,valor:document.getElementById('f-valor').value,proxacao:document.getElementById('f-proxacao')?.value||'',honor:document.getElementById('f-honor')?.value||'',honorStatus:document.getElementById('f-honor-status')?.value||'',descricao:document.getElementById('f-desc').value,provas:document.getElementById('f-provas').value.split(',').map(s=>s.trim()).filter(Boolean),frentes:document.getElementById('f-frentes').value.split(',').map(s=>s.trim()).filter(Boolean),prevDist:(setorVal==='autuacao'||statusVal==='EM_PREP')?(document.getElementById('f-prev-dist')?.value||''):'',docsFaltantes:(setorVal==='autuacao'||statusVal==='EM_PREP')?(document.getElementById('f-docs-falt')?.value||''):''};
+  // Única exceção: processo NOVO (sem editId) em setor autuacao força EM_PREP.
+  const statusFinal = (!editId && setorVal==='autuacao') ? 'EM_PREP' : statusVal;
+  const dados={nome,grupo:document.getElementById('f-grupo').value||'Outros',tipo:document.getElementById('f-tipo')?.value||'judicial',setor:setorVal,numero:document.getElementById('f-num').value,partes:document.getElementById('f-partes').value,area,tribunal:document.getElementById('f-trib').value,status:statusFinal,prazo,prazoReal,valor:document.getElementById('f-valor').value,proxacao:document.getElementById('f-proxacao')?.value||'',honor:document.getElementById('f-honor')?.value||'',honorStatus:document.getElementById('f-honor-status')?.value||'',descricao:document.getElementById('f-desc').value,provas:document.getElementById('f-provas').value.split(',').map(s=>s.trim()).filter(Boolean),frentes:document.getElementById('f-frentes').value.split(',').map(s=>s.trim()).filter(Boolean),prevDist:(setorVal==='autuacao'||statusFinal==='EM_PREP')?(document.getElementById('f-prev-dist')?.value||''):'',docsFaltantes:(setorVal==='autuacao'||statusFinal==='EM_PREP')?(document.getElementById('f-docs-falt')?.value||''):''};
   if(editId){
     const idx=ps.findIndex(x=>x.id==editId);
     if(idx>-1) {
       ps[idx]={...ps[idx],...dados};
-      // Atualização manual = houve trabalho — delegamos para cicloStatus via registrarAcaoSalvar abaixo.
-      // Aqui só garantimos que EM_PREP/CONCLUIDO/ARQUIVADO explícitos no form sejam preservados.
-      const stForm = (dados.status || '').toUpperCase();
-      if(stForm === 'EM_PREP' || stForm === 'CONCLUIDO' || stForm === 'ENTREGUE' || stForm === 'ARQUIVADO'){
-        ps[idx].status = stForm;
-      }
+      // SOBERANIA: na edição o status escolhido pelo usuário SEMPRE prevalece.
+      ps[idx].status = (statusVal||'ATIVO').toUpperCase();
     }
   }
   else {
@@ -4954,6 +4953,23 @@ function salvarProc(){
   renderProcessos(); ir('processos',document.querySelector('.nav-btn[onclick*="processos"]'));
 }
 function excluirProc(id){if(!confirm('Excluir este processo permanentemente?'))return;saveProcs(getProcs().filter(p=>p.id!==id));atualizarUrgentes();ir('processos',document.querySelector('.nav-btn[onclick*="processos"]'));}
+// Excluir processo a partir do banner de urgentes (painel) — re-renderiza painel + banner
+function excluirProcDoBanner(id, nome){
+  const _nm = (nome||'este processo').toString().replace(/\\'/g,"'");
+  if(!confirm('Tem certeza que deseja excluir o processo '+_nm+'?')) return;
+  try{
+    const novos = getProcs().filter(p=>p.id!==id);
+    saveProcs(novos); // grava local + dispara sincronizarComBot() (propaga DELETE para Supabase)
+    atualizarUrgentes();
+    if(typeof renderPainel==='function'){ try{ renderPainel(); }catch(e){ console.warn('[Lex] renderPainel falhou:', e && e.message); } }
+    // Remove banner do Motor se ainda estiver visível (re-renderização)
+    const _b = document.getElementById('_lexMotorBanner'); if(_b) _b.remove();
+    if(typeof toast==='function') toast('✓ Processo excluído: '+_nm,'ok');
+  }catch(e){
+    console.error('[Lex] excluirProcDoBanner erro:', e);
+    if(typeof toast==='function') toast('Erro ao excluir: '+(e&&e.message||e),'erro');
+  }
+}
 
 // ═══════════════ PRAZOS ═══════════════
 function renderPrazos(){
