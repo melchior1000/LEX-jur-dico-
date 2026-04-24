@@ -5824,6 +5824,7 @@ Redija a peça completa:`}],null,3000);
         +'<div class="peticao-area" id="pet-txt-inline">'+txt+'</div>'
         +'<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">'
         +'<button class="btn-green" onclick="navigator.clipboard.writeText(document.getElementById(\'pet-txt-inline\').textContent).then(()=>toast(\'✓ Copiado!\',\'ok\'))">Copiar Texto</button>'
+        +'<button class="btn-primary" style="background:#1a73e8" onclick="_redatorExportarPeca()">📤 Exportar Peça (DOCX/PDF/Email)</button>'
         +'<button class="btn-primary" onclick="baixarPecaPdf()">[Baixar PDF]</button>'
 +'<button class="btn-primary" onclick="baixarPecaDox()">[Baixar DOX]</button>'
         +'</div>';
@@ -6132,20 +6133,193 @@ async function _juizChatEnviar(){
 }
 
 // Buscar e analisar juiz pelo nome digitado
-async function _juizBuscar(){
-  const nome=(document.getElementById('_juizBuscaInput')?.value||'').trim();
-  const trib=(document.getElementById('_juizBuscaTrib')?.value||'').trim();
-  if(!nome){toast('Digite o nome do magistrado','erro');return;}
-  // Verifica se já existe
-  const j=JSON.parse(localStorage.getItem(JK)||'[]');
-  let idx=j.findIndex(jz=>jz.nome.toLowerCase()===nome.toLowerCase());
-  if(idx<0){
-    j.push({nome,tribunal:trib,vara:'',notas:'',autoExtracted:false});
-    localStorage.setItem(JK,JSON.stringify(j));
-    idx=j.length-1;
+async function _juizBuscar(){ _juizAbrirPesquisa(); }
+
+// REFORMA — PESQUISA COMPLETA DE MAGISTRADO (modal rico)
+async function _juizAbrirPesquisa(prefill){
+  prefill = prefill || {};
+  const procs = (typeof getProcs==='function' ? getProcs() : JSON.parse(localStorage.getItem(SK)||'[]'));
+  const opcoesProc = (procs||[]).map(function(p){
+    var id = p.id || p.uuid || '';
+    var nm = (p.nome||p.titulo||'Processo s/ nome');
+    var nr = (p.numero||p.n_processo||'');
+    return '<option value="'+id+'">'+_escPJ(nm)+(nr?(' — '+_escPJ(nr)):'')+'</option>';
+  }).join('');
+
+  var html = ''
+    + '<div style="padding:8px 2px 2px;max-width:720px">'
+    + '<div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:4px">⚖️ Pesquisa de Magistrado — Inteligência Judicial</div>'
+    + '<div style="font-size:11px;color:var(--text3);margin-bottom:14px;line-height:1.5">Preencha o máximo de campos possível. Quanto mais contexto (principalmente <b>PDFs de decisões/despachos</b>), mais profunda será a análise.</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
+    +   '<label style="font-size:11px;font-weight:700;color:var(--text2)">Nome do magistrado *'
+    +     '<input id="_pj_nome" class="fi" placeholder="Ex: João da Silva" value="'+_escPJ(prefill.nome||'')+'" style="margin-top:4px"></label>'
+    +   '<label style="font-size:11px;font-weight:700;color:var(--text2)">UF'
+    +     '<input id="_pj_uf" class="fi" placeholder="MG, SP, RJ..." maxlength="2" value="'+_escPJ(prefill.uf||'')+'" style="margin-top:4px;text-transform:uppercase"></label>'
+    +   '<label style="font-size:11px;font-weight:700;color:var(--text2)">Município'
+    +     '<input id="_pj_municipio" class="fi" placeholder="Ex: Belo Horizonte" value="'+_escPJ(prefill.municipio||'')+'" style="margin-top:4px"></label>'
+    +   '<label style="font-size:11px;font-weight:700;color:var(--text2)">Tribunal / Comarca / Vara'
+    +     '<input id="_pj_comarca" class="fi" placeholder="Ex: TJMG — 2ª Vara Cível" value="'+_escPJ(prefill.comarca||prefill.tribunal||'')+'" style="margin-top:4px"></label>'
+    +   '<label style="font-size:11px;font-weight:700;color:var(--text2);grid-column:1 / span 2">Nº do processo'
+    +     '<input id="_pj_numproc" class="fi" placeholder="Ex: 0001234-56.2024.8.13.0024" value="'+_escPJ(prefill.numero_processo||'')+'" style="margin-top:4px"></label>'
+    +   '<label style="font-size:11px;font-weight:700;color:var(--text2);grid-column:1 / span 2">Vincular a processo já cadastrado no Lex (opcional)'
+    +     '<select id="_pj_procid" class="fi" style="margin-top:4px"><option value="">— Nenhum —</option>'+opcoesProc+'</select></label>'
+    + '</div>'
+    + '<div style="margin-top:14px;padding:12px;background:var(--surface2,#f8fafc);border:1px dashed var(--border);border-radius:10px">'
+    +   '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px">📎 Anexar PDFs do processo (decisões, despachos, sentenças)</div>'
+    +   '<div style="font-size:10.5px;color:var(--text3);margin-bottom:8px;line-height:1.5">O Lex lê cada PDF automaticamente (chunking se grande — até 100 páginas por chamada), extrai doutrinadores citados, estilo, súmulas e tom.</div>'
+    +   '<input type="file" id="_pj_pdfs" accept="application/pdf,.pdf" multiple style="font-size:11px">'
+    +   '<div id="_pj_pdfs_lista" style="margin-top:8px;font-size:11px;color:var(--text2)"></div>'
+    + '</div>'
+    + '<div style="margin-top:14px;padding:12px;background:var(--surface2,#f8fafc);border:1px solid var(--border);border-radius:10px">'
+    +   '<label style="font-size:11px;font-weight:700;color:var(--text2)">Decisões em TEXTO (opcional — cole aqui trechos relevantes)'
+    +     '<textarea id="_pj_decisoes" rows="4" class="fi" placeholder="Cole aqui trechos de decisões, votos ou despachos que você já tem em texto..." style="margin-top:4px;resize:vertical;font-family:inherit"></textarea></label>'
+    + '</div>'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap">'
+    +   '<button class="btn-outline" style="padding:10px 16px;font-size:12px" onclick="closeModalPJ()">Cancelar</button>'
+    +   '<button class="btn-primary" id="_pj_btn_ok" style="padding:10px 22px;font-size:12px;font-weight:700" onclick="_juizPesquisarExec()">🤖 Analisar Magistrado</button>'
+    + '</div>'
+    + '<div id="_pj_status" style="margin-top:10px;font-size:11px;color:var(--accent);min-height:16px"></div>'
+    + '</div>';
+
+  openModalPJ('Pesquisa Avançada de Magistrado', html);
+
+  setTimeout(function(){
+    var inp = document.getElementById('_pj_pdfs');
+    if(inp){
+      inp.addEventListener('change', function(){
+        var l = document.getElementById('_pj_pdfs_lista');
+        if(!l) return;
+        var arr = Array.from(inp.files||[]);
+        if(arr.length===0){ l.innerHTML=''; return; }
+        l.innerHTML = arr.map(function(f){ return '<div>📄 '+_escPJ(f.name)+' <span style="color:var(--text3)">('+Math.round(f.size/1024)+' KB)</span></div>'; }).join('');
+      });
+    }
+  }, 80);
+}
+
+function _escPJ(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
+
+// Overlay custom p/ o modal de pesquisa de juiz (não depende de modais globais)
+function openModalPJ(titulo, innerHtml){
+  closeModalPJ();
+  var ov = document.createElement('div');
+  ov.id = '_pj_modal_ov';
+  ov.style.cssText = 'position:fixed;inset:0;background:#00000099;z-index:800;display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto;';
+  ov.innerHTML = '<div style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:760px;padding:0;margin:auto;overflow:hidden">'
+    + '<div style="background:linear-gradient(135deg,#6366f120,var(--surface));padding:14px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'
+    +   '<div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:var(--text)">'+_escPJ(titulo)+'</div>'
+    +   '<button onclick="closeModalPJ()" style="background:none;border:none;font-size:16px;cursor:pointer;color:var(--text3)">✕</button>'
+    + '</div>'
+    + '<div style="padding:18px 22px;max-height:82vh;overflow-y:auto">'+innerHtml+'</div>'
+    + '</div>';
+  ov.addEventListener('click', function(e){ if(e.target===ov) closeModalPJ(); });
+  document.body.appendChild(ov);
+}
+function closeModalPJ(){ var ov = document.getElementById('_pj_modal_ov'); if(ov) ov.remove(); }
+
+function _pjFileToB64(f){
+  return new Promise(function(resolve,reject){
+    var r = new FileReader();
+    r.onload = function(){ var s = String(r.result||''); resolve(s.split(',').pop()||''); };
+    r.onerror = function(){ reject(r.error||new Error('erro leitura')); };
+    r.readAsDataURL(f);
+  });
+}
+
+async function _juizPesquisarExec(){
+  var nome = (document.getElementById('_pj_nome')?.value||'').trim();
+  if(!nome){ toast('Informe o nome do magistrado','erro'); return; }
+  var uf = (document.getElementById('_pj_uf')?.value||'').trim().toUpperCase();
+  var municipio = (document.getElementById('_pj_municipio')?.value||'').trim();
+  var comarca = (document.getElementById('_pj_comarca')?.value||'').trim();
+  var numero_processo = (document.getElementById('_pj_numproc')?.value||'').trim();
+  var processoId = (document.getElementById('_pj_procid')?.value||'').trim();
+  var decisoes = (document.getElementById('_pj_decisoes')?.value||'').trim();
+  var inpPdfs = document.getElementById('_pj_pdfs');
+  var files = inpPdfs ? Array.from(inpPdfs.files||[]) : [];
+
+  var btn = document.getElementById('_pj_btn_ok');
+  var st  = document.getElementById('_pj_status');
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ Analisando...'; }
+
+  var pdfs = [];
+  for(var i=0; i<files.length; i++){
+    if(st) st.textContent = '📎 Lendo PDF '+(i+1)+'/'+files.length+': '+files[i].name;
+    try {
+      var b64 = await _pjFileToB64(files[i]);
+      pdfs.push({ nome: files[i].name, mimeType: files[i].type||'application/pdf', base64: b64 });
+    } catch(e){ console.warn('pdf err', e); }
   }
-  renderJuizes();
-  await _juizAnalisar(idx);
+
+  if(st) st.textContent = '🤖 Analisando perfil do magistrado (pode levar 30-90s se houver PDFs)...';
+
+  try {
+    var tokP = (typeof getAuthToken==='function') ? getAuthToken() : (localStorage.getItem('cam_jwt')||'');
+    var r = await fetchComTimeout(SERVIDOR+'/api/perfil-juiz', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+tokP},
+      body: JSON.stringify({
+        nomeJuiz: nome,
+        tribunal: comarca,
+        uf: uf, municipio: municipio, comarca: comarca,
+        numero_processo: numero_processo,
+        processoId: processoId || null,
+        decisoes: decisoes || null,
+        pdfs: pdfs
+      })
+    }, 180000);
+    var d = await r.json();
+    if(d.error){
+      if(st) st.textContent = '❌ '+d.error;
+      toast('Erro: '+d.error, 'erro');
+      if(btn){ btn.disabled=false; btn.textContent='🤖 Analisar Magistrado'; }
+      return;
+    }
+
+    var j = JSON.parse(localStorage.getItem(JK)||'[]');
+    var idx = j.findIndex(function(jz){ return (jz.nome||'').toLowerCase() === nome.toLowerCase(); });
+    var registro = {
+      nome: nome,
+      tribunal: comarca || (d.tribunal||''),
+      uf: uf || d.uf || '',
+      municipio: municipio || d.municipio || '',
+      comarca: comarca || d.comarca || '',
+      vara: comarca,
+      numero_processo: numero_processo,
+      processoId: processoId || null,
+      notas: '',
+      autoExtracted: false,
+      perfil: d,
+      perfilEm: new Date().toISOString()
+    };
+    if(idx < 0){ j.push(registro); idx = j.length-1; }
+    else { j[idx] = Object.assign({}, j[idx], registro); }
+    localStorage.setItem(JK, JSON.stringify(j));
+
+    if(processoId){
+      try {
+        var procs = getProcs();
+        var pi = procs.findIndex(function(p){ return String(p.id)===String(processoId); });
+        if(pi >= 0){
+          procs[pi].perfil_juiz = d;
+          procs[pi].perfil_juiz_em = new Date().toISOString();
+          if(!procs[pi].juiz_relator) procs[pi].juiz_relator = nome;
+          saveProcs(procs);
+        }
+      } catch(e){ console.warn('save proc local', e); }
+    }
+
+    toast('✓ Perfil de '+nome+' analisado com sucesso!', 'ok');
+    closeModalPJ();
+    renderJuizes();
+    setTimeout(function(){ try { _juizVerPerfil(idx); } catch(e){} }, 250);
+
+  } catch(e){
+    console.error('perfil-juiz fail', e);
+    if(st) st.textContent = '❌ '+e.message;
+    toast('Erro ao analisar: '+e.message, 'erro');
+    if(btn){ btn.disabled=false; btn.textContent='🤖 Analisar Magistrado'; }
+  }
 }
 
 // Analisar perfil via backend /api/perfil-juiz
@@ -6163,9 +6337,10 @@ async function _juizAnalisar(i){
   if(el) el.innerHTML='<div style="padding:14px 18px;text-align:center;font-size:12px;color:var(--accent)"><div style="font-size:14px;margin-bottom:8px;animation:spin 1s linear infinite">🔄</div>Analisando perfil decisório de <strong>'+jz.nome+'</strong>...<br><span style="font-size:10px;color:var(--text3)">Cruzando jurisprudência, decisões e padrões...</span></div>';
   
   try {
-    const r=await fetchComTimeout(BASE+'/api/perfil-juiz',{
+    const tokA = (typeof getAuthToken==='function') ? getAuthToken() : (localStorage.getItem('cam_jwt')||'');
+    const r=await fetchComTimeout(SERVIDOR+'/api/perfil-juiz',{
       method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+tokA},
       body:JSON.stringify({nomeJuiz:jz.nome, tribunal:jz.tribunal||''})
     });
     const d=await r.json();
@@ -6274,6 +6449,97 @@ function _juizVerPerfil(i){
         ${recHTML}
       </div>
 
+      <!-- ════════════════════════════════════════════════════════════════
+           REFORM: Seções de inteligência judicial profunda
+           ════════════════════════════════════════════════════════════════ -->
+      ${pf.orientacao_advogado?`
+      <div style="background:linear-gradient(135deg,#6366f118,#6366f108);border:1px solid #6366f155;border-radius:12px;padding:16px;margin-bottom:16px">
+        <div style="font-size:11px;font-weight:700;color:#6366f1;margin-bottom:6px">🎯 ORIENTAÇÃO AO ADVOGADO — Resumo Executivo</div>
+        <div style="font-size:12.5px;color:var(--text);line-height:1.6;white-space:pre-wrap">${pf.orientacao_advogado}</div>
+      </div>`:''}
+
+      ${pf.comportamento_em_audiencia?`
+      <div style="background:color-mix(in srgb, var(--accent) 4%, transparent);border:1px solid color-mix(in srgb, var(--accent) 15%, transparent);border-radius:10px;padding:14px;margin-bottom:12px">
+        <div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:6px">🎤 COMO SE PORTAR EM AUDIÊNCIA</div>
+        <div style="font-size:12px;color:var(--text);line-height:1.6;white-space:pre-wrap">${pf.comportamento_em_audiencia}</div>
+      </div>`:''}
+
+      ${pf.despacho_pessoal?`
+      <div style="background:color-mix(in srgb, #8b5cf6 4%, transparent);border:1px solid color-mix(in srgb, #8b5cf6 20%, transparent);border-radius:10px;padding:14px;margin-bottom:12px">
+        <div style="font-size:11px;font-weight:700;color:#8b5cf6;margin-bottom:6px">🤝 DESPACHO PESSOAL COM O JUIZ</div>
+        <div style="font-size:12px;color:var(--text);line-height:1.6;white-space:pre-wrap">${pf.despacho_pessoal}</div>
+      </div>`:''}
+
+      ${(Array.isArray(pf.argumentos_para_peticoes)&&pf.argumentos_para_peticoes.length)?`
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px">
+        <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:8px">💡 ARGUMENTOS PARA PEÇAS</div>
+        ${pf.argumentos_para_peticoes.map(a=>'<div style="font-size:12px;color:var(--text2);margin-bottom:5px;line-height:1.5;padding-left:12px;border-left:2px solid #6366f1">'+a+'</div>').join('')}
+      </div>`:''}
+
+      ${(Array.isArray(pf.caminhos_estrategicos)&&pf.caminhos_estrategicos.length)?`
+      <div style="background:color-mix(in srgb, var(--green) 3%, transparent);border:1px solid color-mix(in srgb, var(--green) 15%, transparent);border-radius:10px;padding:14px;margin-bottom:12px">
+        <div style="font-size:11px;font-weight:700;color:var(--green);margin-bottom:8px">🧭 CAMINHOS ESTRATÉGICOS</div>
+        ${pf.caminhos_estrategicos.map(a=>'<div style="font-size:12px;color:var(--text2);margin-bottom:5px;line-height:1.5;padding-left:12px;border-left:2px solid var(--green)">'+a+'</div>').join('')}
+      </div>`:''}
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        ${(Array.isArray(pf.autores_juridicos_citados)&&pf.autores_juridicos_citados.length)?`
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px">
+          <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:8px">📚 AUTORES CITADOS PELO JUIZ</div>
+          ${pf.autores_juridicos_citados.map(a=>'<div style="font-size:11.5px;color:var(--text2);margin-bottom:3px">• '+a+'</div>').join('')}
+        </div>`:''}
+
+        ${(Array.isArray(pf.doutrinadores_para_citar)&&pf.doutrinadores_para_citar.length)?`
+        <div style="background:color-mix(in srgb, #f59e0b 4%, transparent);border:1px solid color-mix(in srgb, #f59e0b 20%, transparent);border-radius:10px;padding:14px">
+          <div style="font-size:11px;font-weight:700;color:#f59e0b;margin-bottom:8px">✨ CITE NAS PEÇAS</div>
+          ${pf.doutrinadores_para_citar.map(a=>'<div style="font-size:11.5px;color:var(--text2);margin-bottom:3px">• '+a+'</div>').join('')}
+        </div>`:''}
+      </div>
+
+      ${(Array.isArray(pf.jurisprudencia_seguida)&&pf.jurisprudencia_seguida.length)?`
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px">
+        <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:8px">⚖️ JURISPRUDÊNCIA QUE O JUIZ SEGUE</div>
+        ${pf.jurisprudencia_seguida.map(a=>'<div style="font-size:11.5px;color:var(--text2);margin-bottom:4px;padding-left:10px;border-left:2px solid #6366f155">'+a+'</div>').join('')}
+      </div>`:''}
+
+      ${(pf._pdfs_analisados||pf._processo_vinculado||pf._buscas_web)?`
+      <div style="font-size:10px;color:var(--text3);margin-bottom:10px;padding:8px 12px;background:var(--surface2);border-radius:8px;line-height:1.6">
+        ${pf._pdfs_analisados?('📎 '+pf._pdfs_analisados+' PDF(s) analisado(s). '):''}${pf._processo_vinculado?('🔗 Vinculado ao processo #'+pf._processo_vinculado+'. '):''}${pf._buscas_web?('🌐 '+pf._buscas_web+' busca(s) na web.'):''}
+        ${(Array.isArray(pf._buscas_web_queries)&&pf._buscas_web_queries.length)?('<div style="margin-top:4px;color:var(--text3)"><b>Queries:</b> '+pf._buscas_web_queries.slice(0,5).map(q=>'<span style="background:var(--surface);padding:1px 5px;border-radius:3px;margin-right:3px;font-size:9px">'+_escPJ(q).substring(0,60)+'</span>').join('')+'</div>'):''}
+      </div>`:''}
+
+      ${(Array.isArray(pf.teses_aceita)&&pf.teses_aceita.length)||(Array.isArray(pf.teses_rejeita)&&pf.teses_rejeita.length)?`
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        ${(Array.isArray(pf.teses_aceita)&&pf.teses_aceita.length)?`
+        <div style="background:color-mix(in srgb, var(--green) 3%, transparent);border:1px solid color-mix(in srgb, var(--green) 15%, transparent);border-radius:10px;padding:14px">
+          <div style="font-size:11px;font-weight:700;color:var(--green);margin-bottom:8px">✅ TESES QUE ELE ACEITA</div>
+          ${pf.teses_aceita.map(a=>'<div style="font-size:11.5px;color:var(--text2);margin-bottom:5px;line-height:1.45;padding-left:10px;border-left:2px solid var(--green)">'+a+'</div>').join('')}
+        </div>`:''}
+        ${(Array.isArray(pf.teses_rejeita)&&pf.teses_rejeita.length)?`
+        <div style="background:color-mix(in srgb, var(--red) 3%, transparent);border:1px solid color-mix(in srgb, var(--red) 15%, transparent);border-radius:10px;padding:14px">
+          <div style="font-size:11px;font-weight:700;color:var(--red);margin-bottom:8px">❌ TESES QUE ELE REJEITA</div>
+          ${pf.teses_rejeita.map(a=>'<div style="font-size:11.5px;color:var(--text2);margin-bottom:5px;line-height:1.45;padding-left:10px;border-left:2px solid var(--red)">'+a+'</div>').join('')}
+        </div>`:''}
+      </div>`:''}
+
+      ${(pf.indice_reforma_estimado||pf.tempo_medio_decisao||pf.tendencia_ideologica)?`
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        ${pf.tendencia_ideologica?`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:10.5px"><b style="color:var(--text3)">Tendência:</b> ${pf.tendencia_ideologica}</div>`:''}
+        ${pf.indice_reforma_estimado?`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:10.5px"><b style="color:var(--text3)">Reforma 2ª inst:</b> ${pf.indice_reforma_estimado}</div>`:''}
+        ${pf.tempo_medio_decisao?`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:10.5px"><b style="color:var(--text3)">Celeridade:</b> ${pf.tempo_medio_decisao}</div>`:''}
+      </div>`:''}
+
+      ${pf.modelo_peticao_sugerido?`
+      <div style="background:color-mix(in srgb, #f59e0b 5%, transparent);border:1px solid color-mix(in srgb, #f59e0b 20%, transparent);border-radius:10px;padding:14px;margin-bottom:12px">
+        <div style="font-size:11px;font-weight:700;color:#f59e0b;margin-bottom:6px">📝 ESTRUTURA SUGERIDA DE PETIÇÃO</div>
+        <div style="font-size:12px;color:var(--text);line-height:1.6;white-space:pre-wrap">${pf.modelo_peticao_sugerido}</div>
+      </div>`:''}
+
+      <!-- Botão: Gerar modelo de peça completo -->
+      <div style="display:flex;gap:8px;justify-content:center;margin:16px 0 10px;flex-wrap:wrap">
+        <button class="btn-primary" style="padding:10px 18px;font-size:12px;font-weight:700" onclick="_juizGerarPecaModelo(${i})">📝 Gerar Modelo de Petição para este Juiz</button>
+      </div>
+
       ${pf.advertencia?`<div style="background:color-mix(in srgb, var(--orange) 3%, transparent);border:1px solid color-mix(in srgb, var(--orange) 13%, transparent);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--orange)">⚠️ ${pf.advertencia}</div>`:''}`}
     </div>
   </div>`;
@@ -6292,6 +6558,115 @@ async function _juizAnalisarTodos(){
     await new Promise(r=>setTimeout(r,1000));
   }
   toast('✅ Todos os perfis atualizados!','ok');
+}
+
+// REFORM: Gerar modelo de petição ajustado ao perfil do juiz
+async function _juizGerarPecaModelo(i){
+  const all = window._juizes || [];
+  const jz = all[i];
+  if(!jz || !jz.perfil){ toast('Analise o juiz primeiro.','erro'); return; }
+
+  const procs = (typeof getProcs==='function' ? getProcs() : JSON.parse(localStorage.getItem(SK)||'[]'));
+  const opcoesProc = (procs||[]).map(function(p){
+    var id = p.id || p.uuid || '';
+    var nm = (p.nome||p.titulo||'Processo s/ nome');
+    var nr = (p.numero||p.n_processo||'');
+    return '<option value="'+id+'">'+_escPJ(nm)+(nr?(' — '+_escPJ(nr)):'')+'</option>';
+  }).join('');
+
+  var html = ''
+    + '<div style="padding:4px 2px">'
+    + '<div style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:10px">📝 Modelo de Petição — Ajustado ao Juiz</div>'
+    + '<div style="font-size:11px;color:var(--text3);margin-bottom:14px;line-height:1.5">A peça será redigida com o tom, doutrinadores e jurisprudência que este magistrado costuma acolher.</div>'
+    + '<label style="font-size:11px;font-weight:700;color:var(--text2)">Tipo de peça *'
+    +   '<select id="_pm_tipo" class="fi" style="margin-top:4px">'
+    +     '<option>Petição Inicial</option><option>Contestação</option><option>Réplica</option>'
+    +     '<option>Agravo de Instrumento</option><option>Apelação</option><option>Embargos de Declaração</option>'
+    +     '<option>Recurso Especial (STJ)</option><option>Recurso Extraordinário (STF)</option>'
+    +     '<option>Mandado de Segurança</option><option>Tutela de Urgência</option>'
+    +     '<option>Impugnação ao Cumprimento de Sentença</option><option>Embargos à Execução</option>'
+    +     '<option>Memoriais</option><option>Alegações Finais</option>'
+    +     '<option>Habeas Corpus</option><option>Outro (descrever no caso)</option>'
+    +   '</select></label>'
+    + '<label style="font-size:11px;font-weight:700;color:var(--text2);display:block;margin-top:10px">Vincular a processo (opcional — usa a descrição)'
+    +   '<select id="_pm_proc" class="fi" style="margin-top:4px"><option value="">— Modelo genérico —</option>'+opcoesProc+'</select></label>'
+    + '<label style="font-size:11px;font-weight:700;color:var(--text2);display:block;margin-top:10px">Descrição do caso / objeto da peça'
+    +   '<textarea id="_pm_desc" rows="5" class="fi" placeholder="Descreva o caso, partes, pedidos, o que pretende atacar/sustentar..." style="margin-top:4px;resize:vertical;font-family:inherit"></textarea></label>'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap">'
+    +   '<button class="btn-outline" style="padding:10px 16px;font-size:12px" onclick="closeModalPJ()">Cancelar</button>'
+    +   '<button class="btn-primary" id="_pm_btn" style="padding:10px 22px;font-size:12px;font-weight:700" onclick="_juizGerarPecaExec('+i+')">🤖 Gerar Modelo</button>'
+    + '</div>'
+    + '<div id="_pm_status" style="margin-top:10px;font-size:11px;color:var(--accent);min-height:16px"></div>'
+    + '<div id="_pm_resultado" style="margin-top:14px"></div>'
+    + '</div>';
+
+  openModalPJ('Gerar Modelo de Petição — '+(jz.nome||'Juiz'), html);
+}
+
+async function _juizGerarPecaExec(i){
+  const all = window._juizes || [];
+  const jz = all[i];
+  if(!jz || !jz.perfil){ toast('Perfil do juiz ausente.','erro'); return; }
+
+  var tipoPeca = (document.getElementById('_pm_tipo')?.value||'Petição').trim();
+  var processoId = (document.getElementById('_pm_proc')?.value||'').trim();
+  var desc = (document.getElementById('_pm_desc')?.value||'').trim();
+  var btn = document.getElementById('_pm_btn');
+  var st = document.getElementById('_pm_status');
+  var out = document.getElementById('_pm_resultado');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Gerando...'; }
+  if(st) st.textContent = '🤖 Redigindo modelo ajustado ao perfil de '+jz.nome+' — pode levar 40-80s...';
+
+  try {
+    var tok = (typeof getAuthToken==='function') ? getAuthToken() : (localStorage.getItem('cam_jwt')||'');
+    var r = await fetchComTimeout(SERVIDOR+'/api/perfil-juiz/peca-modelo', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok},
+      body: JSON.stringify({
+        perfil: jz.perfil,
+        tipo_peca: tipoPeca,
+        descricao_caso: desc,
+        processoId: processoId || null
+      })
+    }, 180000);
+    var d = await r.json();
+    if(d.error){ if(st) st.textContent = '❌ '+d.error; toast('Erro: '+d.error,'erro'); if(btn){ btn.disabled=false; btn.textContent='🤖 Gerar Modelo'; } return; }
+
+    if(st) st.textContent = '✓ Modelo gerado — '+(d.gerado_em||'');
+    if(out){
+      out.innerHTML =
+        '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;max-height:60vh;overflow-y:auto;margin-top:8px">'
+        + '<div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:8px">📄 '+_escPJ(tipoPeca)+' — ajustada a '+_escPJ(jz.nome)+'</div>'
+        + '<pre style="font-family:Georgia,serif;font-size:12px;color:var(--text);line-height:1.7;white-space:pre-wrap;word-wrap:break-word;margin:0">'+_escPJ(d.peca||'(vazio)')+'</pre>'
+        + '<div style="display:flex;gap:8px;margin-top:12px">'
+        +   '<button class="btn-primary" style="padding:8px 16px;font-size:11px" onclick="navigator.clipboard.writeText(this.parentElement.previousElementSibling.textContent).then(()=>toast(\'Copiado!\',\'ok\'))">📋 Copiar</button>'
+        +   '<button class="btn-outline" style="padding:8px 16px;font-size:11px" onclick="_juizBaixarPeca('+i+',\''+_escPJ(tipoPeca).replace(/\'/g,'')+'\')">💾 Baixar .txt</button>'
+        + '</div>'
+        + '</div>';
+      window._pmUltimaPeca = d.peca || '';
+      window._pmUltimoTipo = tipoPeca;
+    }
+    if(btn){ btn.disabled=false; btn.textContent='🔄 Gerar Outra Versão'; }
+  } catch(e){
+    if(st) st.textContent = '❌ '+e.message;
+    toast('Erro: '+e.message,'erro');
+    if(btn){ btn.disabled=false; btn.textContent='🤖 Gerar Modelo'; }
+  }
+}
+
+function _juizBaixarPeca(i, tipo){
+  var txt = window._pmUltimaPeca || '';
+  if(!txt){ toast('Nada para baixar.','erro'); return; }
+  var all = window._juizes || [];
+  var jz = all[i] || {};
+  var nome = (jz.nome||'juiz').replace(/[^a-zA-Z0-9]/g,'_');
+  var t = (tipo||window._pmUltimoTipo||'peca').replace(/[^a-zA-Z0-9]/g,'_');
+  var blob = new Blob([txt], {type:'text/plain;charset=utf-8'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'modelo_'+t+'_'+nome+'.txt';
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 500);
 }
 
 function addJuiz(){
@@ -8105,11 +8480,28 @@ function _addMsgGestor(role, txt) {
   div.style.cssText = `background:${bg};border-left:3px solid ${border};padding:10px 14px;border-radius:8px;font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:10px;white-space:pre-wrap`;
   const txtSafe = String(txt||'').replace(/</g,'&lt;').replace(/\n/g,'<br>');
   div.innerHTML = `<b style="color:${labelColor}">${label}:</b> ${txtSafe}`;
-  // Botão DOCX para respostas longas do assistente (petições, análises, laudos)
+  // Botão Exportar Peça (DOCX/PDF/Email/WhatsApp) para respostas longas do assistente
   if(role === 'assistant' && String(txt||'').length > 500) {
+    const btnGroup = document.createElement('div');
+    btnGroup.style.cssText = 'margin-top:8px;display:flex;gap:6px;flex-wrap:wrap';
+
+    const btnExportar = document.createElement('button');
+    btnExportar.textContent = '📤 Exportar Peça';
+    btnExportar.style.cssText = 'background:#1a73e8;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-weight:700;font-size:12px;font-family:Arial,Helvetica,sans-serif';
+    btnExportar.onclick = () => {
+      try {
+        const procNome = _gestorProcAtual?.nome || _gestorProcAtual?.partes || ('Peca_Lex_'+new Date().toISOString().slice(0,10));
+        const procId = _gestorProcAtual?.id || null;
+        const lower = String(txt||'').toLowerCase();
+        const tipo = (lower.includes('laudo') || lower.includes('pericial') || lower.includes('perícia')) ? 'pericia' : 'peticao';
+        exportarPecaLex(procNome, String(txt||''), { tipo, procId });
+      } catch(e) { console.error('[Gestor] exportar erro:', e); toast('Erro ao abrir exportador.','erro'); }
+    };
+    btnGroup.appendChild(btnExportar);
+
     const btnDocx = document.createElement('button');
-    btnDocx.textContent = '📥 Baixar DOCX';
-    btnDocx.style.cssText = 'margin-top:8px;background:var(--gold);color:#000;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-weight:700;font-size:12px;font-family:Arial,Helvetica,sans-serif';
+    btnDocx.textContent = '📥 DOCX rápido';
+    btnDocx.style.cssText = 'background:var(--gold);color:#000;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-weight:700;font-size:12px;font-family:Arial,Helvetica,sans-serif';
     btnDocx.onclick = async () => {
       try {
         btnDocx.textContent = '⏳ Gerando...';
@@ -8126,10 +8518,18 @@ function _addMsgGestor(role, txt) {
         a.href = url; a.download = procNome.replace(/[^a-zA-Z0-9\u00C0-\u00FF ]/g,'_').substring(0,50) + '.docx';
         a.click(); URL.revokeObjectURL(url);
         btnDocx.textContent = '✅ Baixado!';
-        setTimeout(()=>{ btnDocx.textContent = '📥 Baixar DOCX'; }, 3000);
+        // Registra andamento no processo se houver processo vinculado
+        try {
+          if(_gestorProcAtual?.id && typeof _epRegistrarAndamento==='function') {
+            _epRegistrarAndamento(_gestorProcAtual.id, 'baixado_docx', procNome, 'peticao');
+          }
+        } catch(e){}
+        setTimeout(()=>{ btnDocx.textContent = '📥 DOCX rápido'; }, 3000);
       } catch(e) { btnDocx.textContent = '❌ Erro'; console.error('[LEX] DOCX erro:', e); }
     };
-    div.appendChild(btnDocx);
+    btnGroup.appendChild(btnDocx);
+
+    div.appendChild(btnGroup);
   }
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
@@ -10133,9 +10533,10 @@ function addMsgEl(tipo, txt){
       '<button onclick="atualizarAndamentoProcessoExistente()" style="background:var(--accent);border:none;border-radius:6px;padding:7px 12px;color:#fff;font-size:12px;cursor:pointer;font-weight:700">Atualizar Andamento</button>'
       + '<button onclick="criarNovoCasoViaChat()" style="background:var(--gold);border:none;border-radius:6px;padding:7px 12px;color:#000;font-size:12px;cursor:pointer;font-weight:700">Criar Novo Caso</button>'
       + '<button onclick="apenasConsultaChat()" style="background:transparent;border:1px solid var(--border2);border-radius:6px;padding:7px 12px;color:var(--text2);font-size:12px;cursor:pointer">Apenas Consulta</button>';
-    // Botão DOCX para respostas longas (petições, análises, laudos)
+    // Botão Exportar Peça (DOCX/PDF/Email) para respostas longas (petições, análises, laudos)
     if(String(txt||'').length > 500) {
-      acoes.innerHTML += '<button onclick="baixarDocxDoChat(this)" style="background:#1a73e8;border:none;border-radius:6px;padding:7px 12px;color:#fff;font-size:12px;cursor:pointer;font-weight:700">📥 Baixar DOCX</button>';
+      acoes.innerHTML += '<button onclick="_chatExportarPeca(this)" style="background:#1a73e8;border:none;border-radius:6px;padding:7px 12px;color:#fff;font-size:12px;cursor:pointer;font-weight:700">📤 Exportar Peça</button>';
+      acoes.innerHTML += '<button onclick="baixarDocxDoChat(this)" style="background:transparent;border:1px solid var(--border2);border-radius:6px;padding:7px 12px;color:var(--text2);font-size:12px;cursor:pointer">📥 DOCX rápido</button>';
     }
     msgs.appendChild(acoes);
   }
@@ -10163,6 +10564,22 @@ async function baixarDocxDoChat(btn) {
     btn.textContent = '✅ Baixado!';
     setTimeout(()=>{ btn.textContent = '📥 Baixar DOCX'; }, 3000);
   } catch(e) { btn.textContent = '❌ Erro'; console.error('[LEX] DOCX chat erro:', e); }
+}
+
+// Exportar peca do chat via modal completo (DOCX/PDF/Email/WhatsApp + registro no processo)
+function _chatExportarPeca(btn) {
+  try {
+    const msgDiv = btn.closest('.chat-decisao-final')?.previousElementSibling;
+    const conteudo = msgDiv ? msgDiv.textContent : '';
+    if(!conteudo || conteudo.trim().length<10) { toast('Nada para exportar.','erro'); return; }
+    // tenta identificar processo ativo (chatCtx e o processo ativo do chat assessor)
+    const procId = (typeof chatCtx!=='undefined' && chatCtx) ? chatCtx.id : null;
+    const lower = conteudo.toLowerCase();
+    const tipo = (lower.includes('laudo') || lower.includes('pericial') || lower.includes('perícia')) ? 'pericia' : 'peticao';
+    const primeiraLinha = (conteudo.split('\n').find(l=>l.trim().length>6)||'').trim().slice(0,60);
+    const titulo = primeiraLinha || ('Peca_Lex_'+new Date().toISOString().slice(0,10));
+    exportarPecaLex(titulo, conteudo, { tipo, procId });
+  } catch(e) { console.error('[LEX] exportar chat erro:', e); toast('Erro ao abrir exportador.','erro'); }
 }
 
 function exportarBackup(){
@@ -10209,6 +10626,729 @@ function importarBackup(input){
   };
   reader.readAsText(file);
   input.value='';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CENTRO DE DADOS — Backup completo do escritório (LGPD / portabilidade)
+// ═══════════════════════════════════════════════════════════════════
+function _cdLs(chave, fallback){
+  try {
+    const s = localStorage.getItem(chave);
+    if(!s) return fallback;
+    return JSON.parse(s);
+  } catch(e){ return fallback; }
+}
+
+function _cdColetarTudo(){
+  const col = {
+    meta: {
+      versao: 'lex-centro-dados-v1',
+      exportado_em: new Date().toISOString(),
+      aparelho_id: (typeof getAparelhoId==='function'?getAparelhoId():''),
+      escritorio: (typeof getEscritorio==='function'?getEscritorio():{})
+    },
+    processos: (typeof getProcs==='function'?getProcs():[]),
+    juizes: _cdLs('cam_juizes_v1', []),
+    chat_historico: _cdLs('cam_chat_hist', []),
+    preparacao: (typeof getPrep==='function'?getPrep():[]),
+    agentes: (typeof getAgentes==='function'?getAgentes():[]),
+    agentes_log: _cdLs('lex_agentes_log_v1', []),
+    pecas_geradas: _cdLs('lex_pecas_geradas', []),
+    agenda_contatos: _cdLs('lex_agenda', []),
+    pix_dados: _cdLs('lex_pix_dados', {}),
+    pix_historico: _cdLs('lex_pix_historico', []),
+    juris_historico: _cdLs('lex_juris_hist', []),
+    pje_processos: _cdLs('lex_pje_processos_v1', []),
+    pje_config: _cdLs('lex_pje_config', {}),
+    pje_adv_config: _cdLs('lex_pje_adv_cfg_v1', {}),
+    whatsapp_config: _cdLs('lex_whatsapp_cfg_v1', {}),
+    telegram_config: _cdLs('lex_tg_config', {}),
+    tempo_uso: _cdLs('lex_tempo_uso_v1', {})
+  };
+  try {
+    const pipelines = {};
+    (col.processos||[]).forEach(p=>{
+      const k = 'lex_pipeline_'+p.id;
+      const s = localStorage.getItem(k);
+      if(s){ try{ pipelines[p.id] = JSON.parse(s); }catch(e){} }
+      const hk = 'lex_pipeline_hist_'+p.id;
+      const hs = localStorage.getItem(hk);
+      if(hs){ try{ pipelines[p.id+'_hist'] = JSON.parse(hs); }catch(e){} }
+    });
+    col.pipelines = pipelines;
+  } catch(e){ col.pipelines = {}; }
+  return col;
+}
+
+function _cdNomeBase(){
+  const esc = (typeof getEscritorio==='function'?getEscritorio():{});
+  const nome = (esc.nome||'Lex').replace(/[^a-zA-Z0-9]+/g,'_').slice(0,40) || 'Lex';
+  const data = new Date().toISOString().slice(0,10);
+  return nome+'_Backup_'+data;
+}
+
+function _cdDownloadBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(()=>{
+    try { URL.revokeObjectURL(url); } catch(e){}
+    try { a.remove(); } catch(e){}
+  }, 2000);
+}
+
+function _cdGerarCsvProcessos(procs){
+  const cols = ['id','numero','nome','cliente','area','status','juiz','vara','prazo','proxacao','valor_causa','criado_em'];
+  const esc = (v)=>{
+    const s = String(v==null?'':v).replace(/"/g,'""');
+    return /[",;\n\r]/.test(s) ? ('"'+s+'"') : s;
+  };
+  const linhas = [cols.join(';')];
+  (procs||[]).forEach(p=>{ linhas.push(cols.map(c=>esc(p[c])).join(';')); });
+  return '\uFEFF'+linhas.join('\r\n');
+}
+
+function _cdGerarRelatorioTxt(col){
+  const esc = col.meta.escritorio||{};
+  const ps = col.processos||[];
+  const por = (status)=>ps.filter(p=>p.status===status).length;
+  return [
+    '===================================================',
+    ' LEX JURIDICO - BACKUP COMPLETO DO ESCRITORIO',
+    '===================================================',
+    'Escritorio: '+(esc.nome||'Nao configurado'),
+    'Responsavel: '+(esc.responsavel||'-'),
+    'Registro: '+(esc.registro||'-'),
+    'Endereco: '+(esc.endereco||'-'),
+    'Telefone: '+(esc.telefone||'-'),
+    'Data do backup: '+new Date(col.meta.exportado_em).toLocaleString('pt-BR'),
+    '',
+    '---------------- RESUMO DE PROCESSOS ----------------',
+    'Total: '+ps.length,
+    'URGENTE: '+por('URGENTE')+' | ATIVO: '+por('ATIVO')+' | RECURSAL: '+por('RECURSAL')+' | ARQUIVADO: '+por('ARQUIVADO'),
+    '',
+    '---------------- OUTROS DADOS -----------------------',
+    'Contatos: '+(col.agenda_contatos||[]).length,
+    'Juizes: '+(col.juizes||[]).length,
+    'Preparacao: '+(col.preparacao||[]).length,
+    'Pecas geradas: '+(col.pecas_geradas||[]).length,
+    'Mensagens no chat: '+(col.chat_historico||[]).length,
+    'Jurisprudencia: '+(col.juris_historico||[]).length,
+    'Processos PJe: '+(col.pje_processos||[]).length,
+    '',
+    '---------------- PROCESSOS (detalhe) ----------------',
+    ...ps.map((p,i)=>[
+      (i+1)+'. '+(p.nome||'Sem nome'),
+      '   Numero: '+(p.numero||'-'),
+      '   Status: '+(p.status||'-')+' | Area: '+(p.area||'-'),
+      '   Cliente: '+(p.cliente||'-'),
+      '   Prazo: '+(p.prazo||'-')+' | Proxima acao: '+(p.proxacao||'-'),
+      '   Andamentos: '+((p.andamentos||[]).length)+' registros',
+      ''
+    ].join('\n')),
+    '===================================================',
+    'LGPD Art. 18 V - Portabilidade de dados.',
+    '==================================================='
+  ].join('\n');
+}
+
+async function _cdExportarCompleto(){
+  const btn = document.getElementById('cd-btn-completo');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Gerando pacote...'; }
+  try {
+    const col = _cdColetarTudo();
+    const nomeBase = _cdNomeBase();
+
+    if(typeof JSZip === 'undefined'){
+      const blob = new Blob([JSON.stringify(col,null,2)],{type:'application/json'});
+      _cdDownloadBlob(blob, nomeBase+'.json');
+      toast('Backup JSON baixado (JSZip indisponivel).','ok');
+      return;
+    }
+
+    const zip = new JSZip();
+    zip.file('backup_completo.json', JSON.stringify(col,null,2));
+    zip.file('processos.json', JSON.stringify(col.processos,null,2));
+    zip.file('processos.csv', _cdGerarCsvProcessos(col.processos));
+    zip.file('agenda_contatos.json', JSON.stringify(col.agenda_contatos,null,2));
+    zip.file('juizes.json', JSON.stringify(col.juizes,null,2));
+    zip.file('preparacao.json', JSON.stringify(col.preparacao,null,2));
+    zip.file('agentes.json', JSON.stringify(col.agentes,null,2));
+    zip.file('pecas_geradas.json', JSON.stringify(col.pecas_geradas,null,2));
+    zip.file('chat_historico.json', JSON.stringify(col.chat_historico,null,2));
+    zip.file('juris_historico.json', JSON.stringify(col.juris_historico,null,2));
+    zip.file('pje_processos.json', JSON.stringify(col.pje_processos,null,2));
+    zip.file('pipelines.json', JSON.stringify(col.pipelines,null,2));
+    zip.file('configuracoes.json', JSON.stringify({
+      escritorio: col.meta.escritorio,
+      whatsapp: col.whatsapp_config,
+      telegram: col.telegram_config,
+      pje_config: col.pje_config,
+      pje_adv_config: col.pje_adv_config,
+      pix: col.pix_dados
+    },null,2));
+    zip.file('RELATORIO.txt', _cdGerarRelatorioTxt(col));
+    zip.file('LEIAME.txt', [
+      'BACKUP COMPLETO - LEX JURIDICO',
+      '==============================',
+      'Este pacote ZIP contem TODOS os dados do seu escritorio',
+      'armazenados no Lex neste dispositivo.',
+      '',
+      'Data: '+new Date().toLocaleString('pt-BR'),
+      '',
+      'Para restaurar: use "Importar Backup" no Centro de Dados.'
+    ].join('\n'));
+
+    try {
+      const tk = (typeof getAuthToken==='function'?getAuthToken():null);
+      if(tk){
+        const r = await fetch(SERVIDOR+'/api/arquivo-morto/exportar?tipo=todos', {
+          headers:{'Authorization':'Bearer '+tk}
+        });
+        if(r.ok){
+          const buf = await r.arrayBuffer();
+          zip.file('backend/arquivo_morto.zip', buf);
+        }
+      }
+    } catch(e){ console.warn('[Lex] backup backend opcional falhou:', e.message); }
+
+    const blob = await zip.generateAsync({type:'blob', compression:'DEFLATE'});
+    _cdDownloadBlob(blob, nomeBase+'.zip');
+    localStorage.setItem('lex_backup_data', new Date().toISOString());
+    toast('✓ Backup completo baixado em Downloads.','ok');
+  } catch(e){
+    console.error('[CD] Erro export completo:', e);
+    toast('Erro ao gerar backup: '+e.message,'erro');
+  } finally {
+    if(btn){ btn.disabled=false; btn.textContent='📦 Baixar Backup Completo (ZIP)'; }
+  }
+}
+
+function _cdExportarProcessosCsv(){
+  const col = _cdColetarTudo();
+  const csv = _cdGerarCsvProcessos(col.processos);
+  const blob = new Blob([csv],{type:'text/csv;charset=utf-8'});
+  _cdDownloadBlob(blob, _cdNomeBase()+'_processos.csv');
+  toast('CSV de processos baixado.','ok');
+}
+
+function _cdExportarRelatorioTxt(){
+  const col = _cdColetarTudo();
+  const txt = _cdGerarRelatorioTxt(col);
+  const blob = new Blob([txt],{type:'text/plain;charset=utf-8'});
+  _cdDownloadBlob(blob, _cdNomeBase()+'_relatorio.txt');
+  toast('Relatorio TXT baixado.','ok');
+}
+
+function _cdExportarJsonTecnico(){
+  const col = _cdColetarTudo();
+  const blob = new Blob([JSON.stringify(col,null,2)],{type:'application/json'});
+  _cdDownloadBlob(blob, _cdNomeBase()+'.json');
+  toast('JSON tecnico baixado.','ok');
+}
+
+function _cdExportarContatosCsv(){
+  const col = _cdColetarTudo();
+  const contatos = col.agenda_contatos||[];
+  const esc = (v)=>{ const s=String(v==null?'':v).replace(/"/g,'""'); return /[",;\n\r]/.test(s)?('"'+s+'"'):s; };
+  const cols = ['id','nome','telefone','telegram_id','cpf','email','processo_nome','obs','criado_em'];
+  const linhas = [cols.join(';')];
+  contatos.forEach(c=>{ linhas.push(cols.map(k=>esc(c[k])).join(';')); });
+  const csv = '\uFEFF'+linhas.join('\r\n');
+  const blob = new Blob([csv],{type:'text/csv;charset=utf-8'});
+  _cdDownloadBlob(blob, _cdNomeBase()+'_contatos.csv');
+  toast('CSV de contatos baixado.','ok');
+}
+
+function _cdExportarCategoria(cat){
+  const col = _cdColetarTudo();
+  const mapa = {
+    processos: col.processos,
+    contatos: col.agenda_contatos,
+    pecas: col.pecas_geradas,
+    chat: col.chat_historico,
+    juizes: col.juizes,
+    preparacao: col.preparacao,
+    juris: col.juris_historico,
+    pje: col.pje_processos,
+    configuracoes: {
+      escritorio: col.meta.escritorio,
+      whatsapp: col.whatsapp_config,
+      telegram: col.telegram_config,
+      pje_config: col.pje_config
+    }
+  };
+  const dados = mapa[cat];
+  if(!dados){ toast('Categoria invalida.','erro'); return; }
+  const blob = new Blob([JSON.stringify(dados,null,2)],{type:'application/json'});
+  _cdDownloadBlob(blob, _cdNomeBase()+'_'+cat+'.json');
+  toast('Categoria "'+cat+'" baixada.','ok');
+}
+
+// EXPORTACAO DE ENCERRAMENTO - pacote completo para cancelamento da assinatura
+// Gera ZIP com: backup_completo.json + processos.csv + contatos.csv + relatorios TXT por setor +
+// LEIAME de encerramento + instrucoes LGPD (Art. 18 V - portabilidade)
+async function _cdExportarEncerramento(){
+  const btn = document.getElementById('cd-btn-encerramento');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Preparando pacote de encerramento...'; }
+  try {
+    if(!confirm('EXPORTACAO DE ENCERRAMENTO\n\nGera um pacote ZIP completo com TODOS os seus dados, pronto para cancelar a assinatura com seguranca (LGPD Art. 18 V - portabilidade).\n\nInclui:\n- Backup JSON completo\n- Processos (CSV + TXT)\n- Contatos (CSV)\n- Relatorios legiveis por setor\n- Instrucoes de restauracao\n\nDeseja continuar?')) return;
+    const col = _cdColetarTudo();
+    const nomeBase = _cdNomeBase()+'_ENCERRAMENTO';
+
+    if(typeof JSZip === 'undefined'){
+      // fallback sem JSZip: so baixa o JSON completo
+      const blob = new Blob([JSON.stringify(col,null,2)],{type:'application/json'});
+      _cdDownloadBlob(blob, nomeBase+'.json');
+      toast('JSZip indisponivel. Baixado JSON completo.','ok');
+      return;
+    }
+
+    const zip = new JSZip();
+    // Nucleo
+    zip.file('backup_completo.json', JSON.stringify(col,null,2));
+    zip.file('processos.json', JSON.stringify(col.processos,null,2));
+    zip.file('processos.csv', _cdGerarCsvProcessos(col.processos));
+    // Contatos CSV
+    const contatos = col.agenda_contatos||[];
+    const escCsv = (v)=>{ const s=String(v==null?'':v).replace(/"/g,'""'); return /[",;\n\r]/.test(s)?('"'+s+'"'):s; };
+    const colsCt = ['id','nome','telefone','telegram_id','cpf','email','processo_nome','obs','criado_em'];
+    const linhasCt = [colsCt.join(';')];
+    contatos.forEach(c=>{ linhasCt.push(colsCt.map(k=>escCsv(c[k])).join(';')); });
+    zip.file('contatos.csv', '\uFEFF'+linhasCt.join('\r\n'));
+    zip.file('contatos.json', JSON.stringify(contatos,null,2));
+    // Juizes e Preparacao
+    zip.file('juizes.json', JSON.stringify(col.juizes,null,2));
+    zip.file('preparacao.json', JSON.stringify(col.preparacao,null,2));
+    zip.file('pecas_geradas.json', JSON.stringify(col.pecas_geradas,null,2));
+    zip.file('chat_historico.json', JSON.stringify(col.chat_historico,null,2));
+    zip.file('juris_historico.json', JSON.stringify(col.juris_historico,null,2));
+    zip.file('pje_processos.json', JSON.stringify(col.pje_processos,null,2));
+    zip.file('pipelines.json', JSON.stringify(col.pipelines,null,2));
+    // Relatorios legiveis
+    zip.file('RELATORIO_GERAL.txt', _cdGerarRelatorioTxt(col));
+    zip.file('configuracoes.json', JSON.stringify({
+      escritorio: col.meta.escritorio,
+      whatsapp: col.whatsapp_config,
+      telegram: col.telegram_config,
+      pje_config: col.pje_config,
+      pje_adv_config: col.pje_adv_config,
+      pix: col.pix_dados
+    },null,2));
+    // Relatorio de encerramento por setor
+    const esc = col.meta.escritorio||{};
+    const dataAtual = new Date().toLocaleString('pt-BR');
+    const relEnc = [
+      '===================================================',
+      ' LEX JURIDICO - PACOTE DE ENCERRAMENTO DA ASSINATURA',
+      '===================================================',
+      '',
+      'Escritorio: '+(esc.nome||'Nao configurado'),
+      'Responsavel: '+(esc.responsavel||'-'),
+      'Registro OAB: '+(esc.registro||'-'),
+      'Data da exportacao: '+dataAtual,
+      '',
+      '---------------------------------------------------',
+      ' RESUMO GERAL',
+      '---------------------------------------------------',
+      'Total de processos..........: '+(col.processos||[]).length,
+      'Contatos na agenda..........: '+(col.agenda_contatos||[]).length,
+      'Juizes cadastrados..........: '+(col.juizes||[]).length,
+      'Pecas produzidas............: '+(col.pecas_geradas||[]).length,
+      'Casos em preparacao.........: '+(col.preparacao||[]).length,
+      'Processos no PJe............: '+(col.pje_processos||[]).length,
+      'Jurisprudencia guardada.....: '+(col.juris_historico||[]).length,
+      'Mensagens no chat...........: '+(col.chat_historico||[]).length,
+      '',
+      '---------------------------------------------------',
+      ' ARQUIVOS NESTE PACOTE (para restauracao posterior)',
+      '---------------------------------------------------',
+      '- backup_completo.json  -> importar no Lex ("Importar Backup")',
+      '- processos.json/.csv   -> listagem de todos os processos',
+      '- contatos.json/.csv    -> agenda completa',
+      '- juizes.json           -> perfis de juizes',
+      '- preparacao.json       -> casos em preparacao',
+      '- pecas_geradas.json    -> historico de pecas',
+      '- chat_historico.json   -> conversas com o assessor',
+      '- juris_historico.json  -> jurisprudencia salva',
+      '- pje_processos.json    -> espelho do PJe',
+      '- pipelines.json        -> versoes de pecas do pipeline',
+      '- configuracoes.json    -> dados do escritorio, SMTP, PJe',
+      '- RELATORIO_GERAL.txt   -> relatorio humano para consulta',
+      '',
+      '---------------------------------------------------',
+      ' DIREITOS DO TITULAR (LGPD Art. 18)',
+      '---------------------------------------------------',
+      'Este pacote garante a portabilidade dos dados (inciso V).',
+      'Os arquivos JSON podem ser importados em qualquer outro',
+      'sistema que siga o mesmo formato, ou usados para',
+      'backup permanente antes do cancelamento.',
+      '',
+      'Apos baixar este pacote:',
+      ' 1. Confira se o ZIP abriu sem erros no dispositivo.',
+      ' 2. Guarde em local seguro (HD externo, nuvem propria).',
+      ' 3. Proceda com o cancelamento da assinatura no Lex.',
+      '',
+      '==================================================='
+    ].join('\n');
+    zip.file('LEIAME_ENCERRAMENTO.txt', relEnc);
+
+    // Tenta incluir arquivo morto do backend (opcional)
+    try {
+      const tk = (typeof getAuthToken==='function'?getAuthToken():null);
+      if(tk){
+        const r = await fetch(SERVIDOR+'/api/arquivo-morto/exportar?tipo=todos', {
+          headers:{'Authorization':'Bearer '+tk}
+        });
+        if(r.ok){
+          const buf = await r.arrayBuffer();
+          zip.file('backend/arquivo_morto.zip', buf);
+        }
+      }
+    } catch(e){ console.warn('[Lex] encerramento: arquivo morto opcional falhou:', e.message); }
+
+    const blob = await zip.generateAsync({type:'blob', compression:'DEFLATE'});
+    _cdDownloadBlob(blob, nomeBase+'.zip');
+    localStorage.setItem('lex_backup_data', new Date().toISOString());
+    localStorage.setItem('lex_encerramento_exportado_em', new Date().toISOString());
+    toast('✓ Pacote de encerramento baixado. Guarde em local seguro.','ok');
+  } catch(e){
+    console.error('[CD] Erro encerramento:', e);
+    toast('Erro ao gerar pacote de encerramento: '+e.message,'erro');
+  } finally {
+    if(btn){ btn.disabled=false; btn.textContent='🚪 Baixar Pacote de Encerramento (ZIP)'; }
+  }
+}
+
+function fecharCentroDados(){
+  const ov = document.getElementById('centro-dados-overlay');
+  if(ov) ov.remove();
+}
+
+function _cdCard(label, valor){
+  return '<div style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:10px 8px;text-align:center">'+
+    '<div style="font-size:20px;font-weight:800;color:var(--accent)">'+valor+'</div>'+
+    '<div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px">'+label+'</div>'+
+  '</div>';
+}
+
+function abrirCentroDados(){
+  fecharCentroDados();
+  const col = _cdColetarTudo();
+  const stats = {
+    procs: (col.processos||[]).length,
+    contatos: (col.agenda_contatos||[]).length,
+    pecas: (col.pecas_geradas||[]).length,
+    juizes: (col.juizes||[]).length,
+    prep: (col.preparacao||[]).length,
+    chat: (col.chat_historico||[]).length,
+    juris: (col.juris_historico||[]).length,
+    pje: (col.pje_processos||[]).length
+  };
+  const ultimo = localStorage.getItem('lex_backup_data');
+  const ultimoTxt = ultimo ? new Date(ultimo).toLocaleString('pt-BR') : 'Nunca';
+
+  const ov = document.createElement('div');
+  ov.id = 'centro-dados-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto;';
+  ov.onclick = (e)=>{ if(e.target===ov) fecharCentroDados(); };
+  const cats = ['processos','contatos','pecas','chat','juizes','preparacao','juris','pje','configuracoes'];
+  ov.innerHTML =
+    '<div style="background:var(--surface);color:var(--text);max-width:720px;width:100%;max-height:92vh;overflow-y:auto;border-radius:14px;border:1px solid var(--border2);padding:22px 22px 18px;box-shadow:0 18px 60px rgba(0,0,0,.45)">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'+
+        '<div style="font-size:18px;font-weight:800">💾 Centro de Dados</div>'+
+        '<button onclick="fecharCentroDados()" style="background:transparent;border:1px solid var(--border2);color:var(--text2);border-radius:8px;padding:6px 10px;cursor:pointer">Fechar</button>'+
+      '</div>'+
+      '<div style="font-size:12px;color:var(--text3);margin-bottom:14px">Baixe todos os seus dados para o dispositivo. Seguro para migracao ou cancelamento da assinatura (LGPD Art. 18 V).</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:16px">'+
+        _cdCard('Processos',stats.procs)+_cdCard('Contatos',stats.contatos)+_cdCard('Pecas',stats.pecas)+_cdCard('Juizes',stats.juizes)+
+        _cdCard('Preparacao',stats.prep)+_cdCard('Chat',stats.chat)+_cdCard('Juris.',stats.juris)+_cdCard('PJe',stats.pje)+
+      '</div>'+
+      '<div style="background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:14px;margin-bottom:14px">'+
+        '<div style="font-size:13px;font-weight:700;margin-bottom:6px">📦 Backup COMPLETO (recomendado)</div>'+
+        '<div style="font-size:11px;color:var(--text3);margin-bottom:10px">Um unico ZIP com JSON tecnico + CSV + relatorio TXT + todas as categorias. Ideal para migrar ou ter copia de seguranca.</div>'+
+        '<button id="cd-btn-completo" onclick="_cdExportarCompleto()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:12px 18px;font-size:14px;font-weight:700;cursor:pointer;width:100%">📦 Baixar Backup Completo (ZIP)</button>'+
+      '</div>'+
+      '<div style="background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:14px;margin-bottom:14px">'+
+        '<div style="font-size:13px;font-weight:700;margin-bottom:8px">📄 Formatos individuais</div>'+
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px">'+
+          '<button onclick="_cdExportarJsonTecnico()" style="background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:10px;color:var(--text2);font-size:12px;cursor:pointer;font-weight:600">💾 JSON tecnico</button>'+
+          '<button onclick="_cdExportarProcessosCsv()" style="background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:10px;color:var(--text2);font-size:12px;cursor:pointer;font-weight:600">📊 CSV de processos</button>'+
+          '<button onclick="_cdExportarContatosCsv()" style="background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:10px;color:var(--text2);font-size:12px;cursor:pointer;font-weight:600">📇 CSV de contatos</button>'+
+          '<button onclick="_cdExportarRelatorioTxt()" style="background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:10px;color:var(--text2);font-size:12px;cursor:pointer;font-weight:600">📃 Relatorio TXT</button>'+
+        '</div>'+
+      '</div>'+
+      '<div style="background:color-mix(in srgb, var(--red-soft) 20%, var(--surface2));border:1px solid var(--red);border-radius:10px;padding:14px;margin-bottom:14px">'+
+        '<div style="font-size:13px;font-weight:700;margin-bottom:6px;color:var(--red)">🚪 Exportacao de Encerramento</div>'+
+        '<div style="font-size:11px;color:var(--text2);margin-bottom:10px;line-height:1.5">Pacote ZIP COMPLETO para cancelamento seguro da assinatura. Inclui todos os dados (JSON+CSV+TXT), relatorios por setor, contatos, processos, pecas e instrucoes LGPD (Art. 18 V - portabilidade). Baixe ANTES de cancelar.</div>'+
+        '<button id="cd-btn-encerramento" onclick="_cdExportarEncerramento()" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:12px 18px;font-size:13px;font-weight:700;cursor:pointer;width:100%">🚪 Baixar Pacote de Encerramento (ZIP)</button>'+
+      '</div>'+
+      '<div style="background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:14px;margin-bottom:14px">'+
+        '<div style="font-size:13px;font-weight:700;margin-bottom:8px">📁 Por categoria</div>'+
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px">'+
+          cats.map(function(c){ return '<button onclick="_cdExportarCategoria(\''+c+'\')" style="background:var(--surface);border:1px solid var(--border2);border-radius:6px;padding:8px 10px;color:var(--text3);font-size:11px;cursor:pointer;text-transform:capitalize">'+c+'</button>'; }).join('')+
+        '</div>'+
+      '</div>'+
+      '<div style="background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:12px;margin-bottom:12px">'+
+        '<div style="font-size:13px;font-weight:700;margin-bottom:6px">🔁 Importar backup</div>'+
+        '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">Ultimo backup: '+ultimoTxt+'</div>'+
+        '<button onclick="document.getElementById(\'import-file\').click()" style="background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:10px 14px;color:var(--text2);font-size:12px;cursor:pointer;font-weight:600;width:100%">📥 Selecionar arquivo JSON para importar</button>'+
+      '</div>'+
+      '<div style="font-size:10px;color:var(--text3);line-height:1.5;text-align:center;padding-top:6px;border-top:1px solid var(--border2)">'+
+        'Arquivos salvos automaticamente na pasta Downloads do dispositivo.<br>'+
+        'Celular: Downloads. Computador: dialog padrao do navegador.'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(ov);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// EXPORTAR PECAS — DOCX / PDF / Email / WhatsApp / Abrir no Word
+// Usado em TODO lugar que o Lex gera peca (chat, gestor, pipeline, redator, assessor)
+// ═══════════════════════════════════════════════════════════════════
+let _ep_cache = null;
+
+async function _epGerarDocxBlob(titulo, conteudo, tipo){
+  const tk = (typeof getAuthToken==='function'?(getAuthToken()||''):'');
+  const resp = await fetch(SERVIDOR+'/api/pecas/gerar-docx',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},
+    body:JSON.stringify({titulo, conteudo, tipo: tipo||'peticao'})
+  });
+  if(!resp.ok) throw new Error('Falha DOCX ('+resp.status+')');
+  return await resp.blob();
+}
+
+async function _epGerarPdfBlob(titulo, conteudo, tipo){
+  const tk = (typeof getAuthToken==='function'?(getAuthToken()||''):'');
+  const resp = await fetch(SERVIDOR+'/api/pecas/gerar-pdf',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},
+    body:JSON.stringify({titulo, conteudo, tipo: tipo||'peticao'})
+  });
+  if(!resp.ok) throw new Error('Falha PDF ('+resp.status+')');
+  return await resp.blob();
+}
+
+function _epNomeSafe(base, ext){
+  const nome = String(base||'peca').replace(/[^a-zA-Z0-9\u00C0-\u00FF_-]+/g,'_').replace(/_+/g,'_').replace(/^_+|_+$/g,'').slice(0,80)||'peca';
+  return nome + (ext||'');
+}
+
+function _epRegistrarAndamento(procId, acao, titulo, tipo){
+  if(!procId) return;
+  try {
+    const ps = getProcs();
+    const idx = ps.findIndex(p=>p.id===procId || String(p.id)===String(procId));
+    if(idx<0) return;
+    if(!ps[idx].pecasProduzidas) ps[idx].pecasProduzidas = [];
+    ps[idx].pecasProduzidas.unshift({
+      id: Date.now(),
+      tipo: tipo||'Peca Juridica',
+      titulo: titulo||tipo||'Peca',
+      data: new Date().toLocaleDateString('pt-BR'),
+      acao: acao,
+      exportado_em: new Date().toISOString()
+    });
+    if(!ps[idx].andamentos) ps[idx].andamentos = [];
+    const descAcao = {
+      baixado_docx:'Peca baixada em DOCX',
+      baixado_pdf:'Peca baixada em PDF',
+      enviado_email:'Peca enviada por email',
+      enviado_whatsapp:'Peca enviada por WhatsApp',
+      aberto_word:'Peca aberta no Word'
+    }[acao] || ('Peca exportada ('+acao+')');
+    ps[idx].andamentos.unshift({
+      data: new Date().toISOString().slice(0,10),
+      txt: descAcao+': '+(titulo||tipo||'Peca')
+    });
+    saveProcs(ps);
+    try { if(typeof sincronizarComBot==='function') sincronizarComBot(); } catch(e){}
+    try { if(typeof cicloStatus==='function') cicloStatus(ps[idx].id,'andamento'); } catch(e){}
+  } catch(e){ console.warn('[EP] vincular processo falhou:', e.message); }
+}
+
+function fecharExportarPeca(){
+  const ov = document.getElementById('ep-overlay');
+  if(ov) ov.remove();
+}
+
+function exportarPecaLex(titulo, conteudo, opts){
+  opts = opts||{};
+  const tipo = opts.tipo||'peticao';
+  const procId = opts.procId||null;
+  if(!conteudo || String(conteudo).trim().length<10){
+    toast('Nada para exportar.','erro');
+    return;
+  }
+  _ep_cache = { titulo:(titulo||'Peca_'+new Date().toISOString().slice(0,10)), conteudo:String(conteudo), tipo, procId, docxBlob:null, pdfBlob:null };
+
+  fecharExportarPeca();
+  const proc = procId ? getProcs().find(p=>p.id===procId || String(p.id)===String(procId)) : null;
+  const procInfo = proc ? ('Vinculado ao processo: <b>'+String(proc.nome||'').replace(/</g,'&lt;')+'</b>'+(proc.numero?' ('+proc.numero+')':'')) : '<span style="color:var(--text3)">Sem processo vinculado - peca nao sera registrada no historico.</span>';
+
+  const ov = document.createElement('div');
+  ov.id = 'ep-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto;';
+  ov.onclick = (e)=>{ if(e.target===ov) fecharExportarPeca(); };
+  ov.innerHTML =
+    '<div style="background:var(--surface);color:var(--text);max-width:620px;width:100%;max-height:92vh;overflow-y:auto;border-radius:14px;border:1px solid var(--border2);padding:22px;box-shadow:0 18px 60px rgba(0,0,0,.5)">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">'+
+        '<div style="font-size:17px;font-weight:800">📤 Exportar Peca</div>'+
+        '<button onclick="fecharExportarPeca()" style="background:transparent;border:1px solid var(--border2);color:var(--text2);border-radius:8px;padding:6px 10px;cursor:pointer">Fechar</button>'+
+      '</div>'+
+      '<div style="font-size:12px;color:var(--text2);margin-bottom:4px">'+String(_ep_cache.titulo).replace(/</g,'&lt;')+'</div>'+
+      '<div style="font-size:11px;color:var(--text3);margin-bottom:14px">'+procInfo+'</div>'+
+      '<div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px">Baixar no dispositivo</div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">'+
+        '<button id="ep-btn-docx" onclick="_epBaixarDocx()" style="background:#1a73e8;border:none;border-radius:8px;padding:12px;color:#fff;font-size:13px;cursor:pointer;font-weight:700">📥 Baixar DOCX</button>'+
+        '<button id="ep-btn-pdf" onclick="_epBaixarPdf()" style="background:#d93025;border:none;border-radius:8px;padding:12px;color:#fff;font-size:13px;cursor:pointer;font-weight:700">📄 Baixar PDF</button>'+
+      '</div>'+
+      '<div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px">Abrir direto</div>'+
+      '<div style="margin-bottom:14px">'+
+        '<button id="ep-btn-word" onclick="_epAbrirNoWord()" style="background:var(--accent);border:none;border-radius:8px;padding:12px;color:#fff;font-size:13px;cursor:pointer;font-weight:700;width:100%">📝 Abrir no Word / App de Documentos</button>'+
+      '</div>'+
+      '<div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px">Enviar por email</div>'+
+      '<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">'+
+        '<input id="ep-email-to" type="email" placeholder="cliente@email.com" style="flex:1;min-width:180px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:10px;color:var(--text);font-size:13px">'+
+        '<button id="ep-btn-email" onclick="_epEnviarEmail()" style="background:#34a853;border:none;border-radius:8px;padding:10px 16px;color:#fff;font-size:13px;cursor:pointer;font-weight:700">📧 Enviar</button>'+
+      '</div>'+
+      '<div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px">Enviar por WhatsApp</div>'+
+      '<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">'+
+        '<input id="ep-wa-to" type="tel" placeholder="DDD+numero (ex: 61999999999)" style="flex:1;min-width:180px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:10px;color:var(--text);font-size:13px">'+
+        '<button id="ep-btn-wa" onclick="_epEnviarWhatsapp()" style="background:#25d366;border:none;border-radius:8px;padding:10px 16px;color:#fff;font-size:13px;cursor:pointer;font-weight:700">💬 WhatsApp</button>'+
+      '</div>'+
+      '<div style="font-size:10px;color:var(--text3);margin-bottom:14px">O WhatsApp abre com a peca como mensagem. O DOCX e baixado para voce anexar manualmente.</div>'+
+      '<div id="ep-status" style="font-size:11px;color:var(--text3);min-height:18px;text-align:center"></div>'+
+    '</div>';
+  document.body.appendChild(ov);
+
+  try {
+    if(proc && proc.telefone){ const el=document.getElementById('ep-wa-to'); if(el) el.value=String(proc.telefone).replace(/\D/g,''); }
+    if(proc && proc.email){ const el=document.getElementById('ep-email-to'); if(el) el.value=proc.email; }
+  } catch(e){}
+}
+
+function _epSetStatus(txt, cor){
+  const el = document.getElementById('ep-status');
+  if(el){ el.textContent = txt||''; el.style.color = cor||'var(--text3)'; }
+}
+
+async function _epGetDocxBlob(){
+  if(_ep_cache.docxBlob) return _ep_cache.docxBlob;
+  _ep_cache.docxBlob = await _epGerarDocxBlob(_ep_cache.titulo, _ep_cache.conteudo, _ep_cache.tipo);
+  return _ep_cache.docxBlob;
+}
+
+async function _epGetPdfBlob(){
+  if(_ep_cache.pdfBlob) return _ep_cache.pdfBlob;
+  _ep_cache.pdfBlob = await _epGerarPdfBlob(_ep_cache.titulo, _ep_cache.conteudo, _ep_cache.tipo);
+  return _ep_cache.pdfBlob;
+}
+
+async function _epBaixarDocx(){
+  const btn = document.getElementById('ep-btn-docx');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Gerando...'; }
+  try {
+    const blob = await _epGetDocxBlob();
+    _cdDownloadBlob(blob, _epNomeSafe(_ep_cache.titulo,'.docx'));
+    _epRegistrarAndamento(_ep_cache.procId,'baixado_docx',_ep_cache.titulo,_ep_cache.tipo);
+    _epSetStatus('✓ DOCX baixado em Downloads','var(--accent)');
+  } catch(e){ _epSetStatus('Erro: '+e.message,'var(--red)'); }
+  finally { if(btn){ btn.disabled=false; btn.textContent='📥 Baixar DOCX'; } }
+}
+
+async function _epBaixarPdf(){
+  const btn = document.getElementById('ep-btn-pdf');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Gerando...'; }
+  try {
+    const blob = await _epGetPdfBlob();
+    _cdDownloadBlob(blob, _epNomeSafe(_ep_cache.titulo,'.pdf'));
+    _epRegistrarAndamento(_ep_cache.procId,'baixado_pdf',_ep_cache.titulo,_ep_cache.tipo);
+    _epSetStatus('✓ PDF baixado em Downloads','var(--accent)');
+  } catch(e){ _epSetStatus('Erro: '+e.message,'var(--red)'); }
+  finally { if(btn){ btn.disabled=false; btn.textContent='📄 Baixar PDF'; } }
+}
+
+async function _epAbrirNoWord(){
+  const btn = document.getElementById('ep-btn-word');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Abrindo...'; }
+  try {
+    const blob = await _epGetDocxBlob();
+    const url = URL.createObjectURL(new Blob([await blob.arrayBuffer()],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}));
+    const filename = _epNomeSafe(_ep_cache.titulo,'.docx');
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.target = '_blank'; a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ try { URL.revokeObjectURL(url); a.remove(); } catch(e){} }, 3000);
+    _epRegistrarAndamento(_ep_cache.procId,'aberto_word',_ep_cache.titulo,_ep_cache.tipo);
+    _epSetStatus('✓ Arquivo gerado. No celular, seu app de Documentos/Word deve abrir.','var(--accent)');
+  } catch(e){ _epSetStatus('Erro: '+e.message,'var(--red)'); }
+  finally { if(btn){ btn.disabled=false; btn.textContent='📝 Abrir no Word / App de Documentos'; } }
+}
+
+async function _epEnviarEmail(){
+  const to = (document.getElementById('ep-email-to')?.value||'').trim();
+  if(!to || !/.+@.+\..+/.test(to)){ _epSetStatus('Informe um email valido.','var(--red)'); return; }
+  const btn = document.getElementById('ep-btn-email');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Enviando...'; }
+  try {
+    const tk = (typeof getAuthToken==='function'?(getAuthToken()||''):'');
+    const resp = await fetch(SERVIDOR+'/api/pecas/enviar-email',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},
+      body:JSON.stringify({
+        para: to,
+        titulo: _ep_cache.titulo,
+        conteudo: _ep_cache.conteudo,
+        tipo: _ep_cache.tipo,
+        processo_id: _ep_cache.procId||null
+      })
+    });
+    const j = await resp.json().catch(()=>({}));
+    if(!resp.ok || j.error){
+      if(resp.status===501 || /nodemailer/i.test(j.error||'') || /smtp/i.test(j.error||'') || /configur/i.test(j.error||'')){
+        const body = encodeURIComponent((_ep_cache.conteudo||'').slice(0,4000));
+        const subj = encodeURIComponent(_ep_cache.titulo||'Peca Juridica');
+        window.location.href = 'mailto:'+encodeURIComponent(to)+'?subject='+subj+'&body='+body;
+        _epSetStatus('SMTP nao configurado. Abrindo cliente de email local...','var(--orange)');
+      } else {
+        throw new Error(j.error||('HTTP '+resp.status));
+      }
+    } else {
+      _epSetStatus('✓ Email enviado para '+to,'var(--accent)');
+    }
+    _epRegistrarAndamento(_ep_cache.procId,'enviado_email',_ep_cache.titulo,_ep_cache.tipo);
+  } catch(e){ _epSetStatus('Erro: '+e.message,'var(--red)'); }
+  finally { if(btn){ btn.disabled=false; btn.textContent='📧 Enviar'; } }
+}
+
+async function _epEnviarWhatsapp(){
+  const raw = (document.getElementById('ep-wa-to')?.value||'').replace(/\D/g,'');
+  if(!raw || raw.length<10){ _epSetStatus('Informe um telefone valido (DDD+numero).','var(--red)'); return; }
+  const btn = document.getElementById('ep-btn-wa');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Abrindo...'; }
+  try {
+    try {
+      const blob = await _epGetDocxBlob();
+      _cdDownloadBlob(blob, _epNomeSafe(_ep_cache.titulo,'.docx'));
+    } catch(e){ console.warn('[EP] WA: DOCX falhou:', e.message); }
+
+    const tel = raw.startsWith('55') ? raw : ('55'+raw);
+    const preview = (_ep_cache.conteudo||'').slice(0,1200);
+    const msg = _ep_cache.titulo + '\n\n' + preview + (_ep_cache.conteudo.length>1200?'\n\n[...peca completa em anexo - DOCX baixado em Downloads]':'');
+    const url = 'https://wa.me/'+tel+'?text='+encodeURIComponent(msg);
+    window.open(url,'_blank','noopener');
+
+    _epRegistrarAndamento(_ep_cache.procId,'enviado_whatsapp',_ep_cache.titulo,_ep_cache.tipo);
+    _epSetStatus('✓ WhatsApp aberto. DOCX baixado para anexar.','var(--accent)');
+  } catch(e){ _epSetStatus('Erro: '+e.message,'var(--red)'); }
+  finally { if(btn){ btn.disabled=false; btn.textContent='💬 WhatsApp'; } }
 }
 
 function getTgConfig(){
@@ -10711,8 +11851,32 @@ async function baixarPecaPdf(){
     a.click();
     URL.revokeObjectURL(url);
     toast('✓ PDF baixado!','ok');
+    // registra andamento se houver processo
+    try {
+      const pidEl = document.getElementById('pet-proc2');
+      const pid = pidEl ? parseInt(pidEl.value,10) : null;
+      if(pid && typeof _epRegistrarAndamento==='function') _epRegistrarAndamento(pid,'baixado_pdf',titulo,tipo);
+    } catch(e){}
   } catch(e){
     toast('Erro ao baixar PDF: ' + e.message,'erro');
+  }
+}
+
+// Abre modal completo de exportar peca (DOCX/PDF/Email/WhatsApp) do redator
+function _redatorExportarPeca(){
+  const conteudo = _conteudoPecaAtual();
+  if(!conteudo){ toast('Gere a peça primeiro','erro'); return; }
+  const titulo = _tituloPecaAtual();
+  const tipo = _tipoPecaAtual();
+  let procId = null;
+  try {
+    const pidEl = document.getElementById('pet-proc2');
+    if(pidEl && pidEl.value) procId = parseInt(pidEl.value,10);
+  } catch(e){}
+  if(typeof exportarPecaLex === 'function'){
+    exportarPecaLex(titulo, conteudo, { tipo, procId });
+  } else {
+    toast('Exportador indisponivel. Use Baixar PDF/DOX.','erro');
   }
 }
 async function baixarPecaDox(){
@@ -10736,6 +11900,12 @@ async function baixarPecaDox(){
     a.click();
     URL.revokeObjectURL(url);
     toast('✓ DOX baixado!','ok');
+    // registra andamento se houver processo
+    try {
+      const pidEl = document.getElementById('pet-proc2');
+      const pid = pidEl ? parseInt(pidEl.value,10) : null;
+      if(pid && typeof _epRegistrarAndamento==='function') _epRegistrarAndamento(pid,'baixado_docx',titulo,tipo);
+    } catch(e){}
   } catch(e){
     toast('Erro ao baixar DOX: ' + e.message,'erro');
   }

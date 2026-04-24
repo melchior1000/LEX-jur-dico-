@@ -22,13 +22,27 @@
 'use strict';
 
 // =====================================================================
+// HIERARQUIA DE MODELOS (OTIMIZAÇÃO DE CUSTO — abr/2026)
+// ---------------------------------------------------------------------
+// Opus  : 15/75 USD por M tokens (CARO)   — só pra tarefas críticas.
+// Sonnet: 3/15  USD por M tokens (5x +barato) — intermediário.
+// Haiku : 0.25/1.25 USD por M tokens (60x +barato) — tarefas simples.
+// =====================================================================
+const MODELO_TOP = 'claude-opus-4-20250514';       // Opus 4 — top/caro
+const MODELO_MID = 'claude-sonnet-4-20250514';     // Sonnet 4 — intermediário
+const MODELO_ECO = 'claude-3-5-haiku-20241022';    // Haiku 3.5 — barato
+
+// =====================================================================
 // CONFIGURAÇÃO DE MODELOS POR FUNCIONÁRIO
 // =====================================================================
-const MODELO_GESTOR          = 'claude-opus-4-20250514';       // gestor do Lex — Opus 4
-const MODELO_REDATOR         = 'claude-opus-4-20250514';       // redator de peças — Opus 4
-const MODELO_PESQUISADOR     = 'claude-opus-4-20250514';       // agentes de pesquisa — Opus 4
-const MODELO_DEFAULT_PESADO  = 'claude-opus-4-20250514';       // retrocompat — Opus 4
-const MODELO_DEFAULT_LEVE    = 'claude-opus-4-20250514';       // retrocompat — Opus 4
+// Regra: só mantém Opus onde qualidade é crítica (chat Lex, redação de peças,
+// perícia). Pesquisa/juizes migra para Sonnet — contexto grande mas raciocínio
+// de síntese é suportado bem por Sonnet 4.
+const MODELO_GESTOR          = MODELO_TOP;   // chat Lex principal — Opus
+const MODELO_REDATOR         = MODELO_TOP;   // redator de peças/perícia — Opus
+const MODELO_PESQUISADOR     = MODELO_MID;   // pesquisa juízes/jurisprudência — Sonnet
+const MODELO_DEFAULT_PESADO  = MODELO_TOP;   // retrocompat
+const MODELO_DEFAULT_LEVE    = MODELO_MID;   // retrocompat (leve = Sonnet agora)
 
 // =====================================================================
 // LIMITES E CONFIGURAÇÕES
@@ -218,8 +232,8 @@ Fluxo esperado:
 6) Você pode fazer múltiplas buscas antes de consolidar — vá refinando.
 7) A CADA MOVIMENTAÇÃO do processo onde o magistrado decide, atualize o perfil. Isso é trabalho CONTÍNUO.
 
-O que entregar — perfil decisório completo:
-- Nome completo, tribunal, vara/câmara/turma
+O que entregar — perfil decisório COMPLETO e PROFUNDO (todos os itens obrigatórios):
+- Nome completo, tribunal, UF, MUNICÍPIO/COMARCA, vara/câmara/turma
 - Tendência: conservador/progressista/formalista/pragmático
 - Taxa estimada de procedência no tema do caso
 - Teses que ACEITA (com exemplos reais)
@@ -229,12 +243,23 @@ O que entregar — perfil decisório completo:
 - Score de probabilidade de êxito (0-100%) com justificativa
 - Estratégia recomendada de argumentação para este julgador
 
+— ALÉM DISSO, obrigatoriamente pesquise e entregue:
+- AUTORES JURÍDICOS / JURISTAS citados pelo magistrado em suas decisões (ex: Alexandre de Moraes, Fredie Didier, Humberto Theodoro Jr., Cassio Scarpinella Bueno etc.). Liste nomes reais aparecendo em sentenças/votos.
+- DOUTRINADORES preferidos — quem citar nas peças para "falar a mesma língua" do juiz.
+- JURISPRUDÊNCIA / TEMAS / SÚMULAS que o magistrado reiteradamente segue (STF, STJ, TST, tribunal do estado).
+- COMPORTAMENTO EM AUDIÊNCIA: como o advogado deve se portar diante deste juiz (tom de voz, formalidade, objetividade, tempo de sustentação, uso de apartes, postura física, como conduzir testemunhas).
+- DESPACHO PESSOAL (quando o advogado sobe ao gabinete ou marca audiência com o juiz): como tratar, protocolo, nível de formalidade, o que evita, o que gosta de ouvir.
+- ARGUMENTOS PARA PEÇAS: que tipo de argumento (técnico-positivista, principiológico, consequencialista, humanitário) funciona melhor para este julgador.
+- CAMINHOS ESTRATÉGICOS: rota processual recomendada (conciliar? instruir rápido? tutela? recorrer cedo? prequestionar desde o início?).
+- GATILHOS POSITIVOS e NEGATIVOS específicos.
+
 Regras:
-- NUNCA invente decisão. Se não achar, diga "não achei material público deste magistrado".
+- NUNCA invente decisão, citação de doutrina ou nome de jurista. Se não achar, diga "não achei material público deste magistrado".
 - Cite fonte com URL sempre que possível.
 - Seja específico: "em 3 decisões recentes sobre X, rejeitou por Y" > "costuma rejeitar".
 - Se o magistrado tiver posicionamento controvertido ou mudança recente de entendimento, destaque.
 - Vale pra JUIZ, DESEMBARGADOR e MINISTRO — qualquer instância.
+- Se o Kleuber fornecer PDFs de decisões/despachos do processo, EXTRAIA tudo: doutrinadores citados, súmulas mencionadas, estilo de redação, tom, formalidade, modo como trata as partes.
 
 Seu tom: pesquisador objetivo e crítico. Sem bajulação. Sem generalização.
 
@@ -362,7 +387,16 @@ const TOOL_CONSOLIDAR_PERFIL = {
       justificativa_score:      { type: 'string', description: 'Justificativa objetiva do score: em quais casos decidiu a favor/contra e por quê.' },
       gatilhos_positivos:       { type: 'array', items: { type: 'string' }, description: 'O que faz este juiz decidir a favor: linguagem, argumentos, postura, formalidades.' },
       gatilhos_negativos:       { type: 'array', items: { type: 'string' }, description: 'O que irrita ou faz este juiz decidir contra: informalidade, teses específicas, petições longas, etc.' },
-      estrategia_redacao:       { type: 'string', description: 'Como redigir a peça especificamente para este julgador.' }
+      estrategia_redacao:       { type: 'string', description: 'Como redigir a peça especificamente para este julgador.' },
+      autores_juridicos_citados: { type: 'array', items: { type: 'string' }, description: 'Autores/juristas que o magistrado cita em decisões (ex: Fredie Didier, Humberto Theodoro Jr., Alexandre de Moraes). Apenas nomes realmente observados em decisões.' },
+      doutrinadores_para_citar: { type: 'array', items: { type: 'string' }, description: 'Doutrinadores que o advogado deve citar nas peças para "falar a mesma língua" deste juiz.' },
+      jurisprudencia_seguida: { type: 'array', items: { type: 'string' }, description: 'Súmulas, temas de repercussão geral e julgados que o magistrado segue reiteradamente.' },
+      comportamento_em_audiencia: { type: 'string', description: 'Como o advogado deve se portar em audiência com este juiz: tom, formalidade, objetividade, sustentação oral, postura física.' },
+      despacho_pessoal: { type: 'string', description: 'Como o advogado deve tratar este juiz em despacho pessoal no gabinete ou contato direto: protocolo, formalidade, o que evita, o que gosta.' },
+      argumentos_para_peticoes: { type: 'array', items: { type: 'string' }, description: 'Tipos de argumentos que funcionam melhor nas peças (técnico-positivista, principiológico, consequencialista, humanitário).' },
+      caminhos_estrategicos: { type: 'array', items: { type: 'string' }, description: 'Rota processual recomendada (conciliar, instruir rápido, pedir tutela, recorrer cedo, prequestionar).' },
+      municipio: { type: 'string', description: 'Município/comarca de atuação.' },
+      uf: { type: 'string', description: 'UF de atuação.' }
     },
     required: ['nome', 'resumo', 'material_suficiente']
   }

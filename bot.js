@@ -114,6 +114,21 @@ const CHAT_ID = process.env.TELEGRAM_ADMIN || '696337324';
 const AK = process.env.ANTHROPIC_KEY || '';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 
+// ════════════════════════════════════════════════════════════════════════════
+// HIERARQUIA DE MODELOS ANTHROPIC (OTIMIZAÇÃO DE CUSTO — abr/2026)
+// ────────────────────────────────────────────────────────────────────────────
+// Opus  : 15/75 USD por M tokens (CARO)       — só pra tarefas críticas.
+// Sonnet: 3/15  USD por M tokens (5x +barato) — intermediário.
+// Haiku : 0.25/1.25 USD por M tokens (60x +barato) — tarefas simples.
+//
+// Regra: manter Opus somente em chat Lex principal, perícia, petição e redação
+// de peças. Roteador/Cadastrador/Intake/Gestor-aplicar/Prazos/Proativo → Sonnet.
+// Resumos/classificações rápidas/confirmações → Haiku.
+// ════════════════════════════════════════════════════════════════════════════
+const MODELO_TOP = 'claude-opus-4-20250514';       // Opus 4 — top/caro
+const MODELO_MID = 'claude-sonnet-4-20250514';     // Sonnet 4 — intermediário
+const MODELO_ECO = 'claude-3-5-haiku-20241022';    // Haiku 3.5 — barato
+
 const SB_URL = process.env.SUPABASE_URL || '';
 const SB_KEY = process.env.SUPABASE_KEY || '';
 
@@ -151,7 +166,7 @@ const SECRETARIO_WHATSAPP_CONFIG = {
     }
   },
   max_perguntas_cliente: 6,
-  modelo_ia: 'claude-opus-4-20250514',
+  modelo_ia: MODELO_MID, // Secretário WhatsApp = Intake → Sonnet (era Opus)
   prompt_base: [
     'Você é o Secretário WhatsApp da Camargos Advocacia.',
     'Contexto institucional: CEO Kleuber Melchior (analista jurídico, NÃO advogado).',
@@ -1151,9 +1166,11 @@ async function envArq(buf, nome, ctx, mimetype) {
 // IA + SYSTEM PROMPTS
 // ════════════════════════════════════════════════════════════════════════════
 // FIX-03: verificação de API key + retry automático em sobrecarga + erro claro
-async function ia(messages, system, maxTok) {
+// 2026-04-24: parâmetro `modelo` (opcional) para seleção de tier (TOP/MID/ECO).
+//             Default = MODELO_TOP (mantém comportamento antigo).
+async function ia(messages, system, maxTok, modelo) {
   if(!AK) throw new Error('ANTHROPIC_KEY não configurada. Defina a variável de ambiente.');
-const pay={model:'claude-opus-4-20250514', max_tokens:maxTok||2000, messages};
+const pay={model: modelo || MODELO_TOP, max_tokens:maxTok||2000, messages};
   if(system) pay.system=system;
   try {
     const r=await httpsPost('api.anthropic.com','/v1/messages',pay,
@@ -1174,6 +1191,87 @@ const pay={model:'claude-opus-4-20250514', max_tokens:maxTok||2000, messages};
     }
     throw e;
   }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// IA COM WEB SEARCH NATIVA DA ANTHROPIC — usada pelo Pesquisador de Juízes
+// Faz chamadas com tool `web_search_20250305`, resolve loops de busca e retorna
+// texto final + lista de buscas realizadas + citações.
+// Anthropic cobra por busca (USD 10 / 1.000) — use só quando for necessário.
+// ════════════════════════════════════════════════════════════════════════════
+async function iaComWebSearch(messages, system, maxTok, opts) {
+  if(!AK) throw new Error('ANTHROPIC_KEY não configurada.');
+  opts = opts || {};
+  const maxLoops = opts.maxLoops || 4;
+  const allowedDomains = opts.allowedDomains || null;
+  const maxUses = Number.isFinite(opts.maxUses) ? opts.maxUses : 5;
+  const modelo = opts.modelo || MODELO_MID; // pesquisa web = Sonnet (era Opus)
+
+  const webTool = { type: 'web_search_20250305', name: 'web_search', max_uses: maxUses };
+  if(allowedDomains && Array.isArray(allowedDomains) && allowedDomains.length) {
+    webTool.allowed_domains = allowedDomains;
+  }
+
+  let conv = messages.slice();
+  const buscas = [];
+  const textosFinais = [];
+  let loops = 0;
+  let lastResp = null;
+
+  while(loops < maxLoops) {
+    loops++;
+    const pay = {
+      model: modelo,
+      max_tokens: maxTok || 4000,
+      tools: [webTool],
+      messages: conv
+    };
+    if(system) pay.system = system;
+
+    let r;
+    try {
+      r = await httpsPost('api.anthropic.com','/v1/messages',pay,
+        {'x-api-key':AK,'anthropic-version':'2023-06-01'});
+    } catch(e) {
+      const msg = String(e.message||'').toLowerCase();
+      if(msg.includes('overloaded') || msg.includes('529')) {
+        await new Promise(res => setTimeout(res, 8000));
+        r = await httpsPost('api.anthropic.com','/v1/messages',pay,
+          {'x-api-key':AK,'anthropic-version':'2023-06-01'});
+      } else { throw e; }
+    }
+    if(r && r.error) throw new Error(r.error.message || JSON.stringify(r.error));
+    if(!r || !Array.isArray(r.content)) throw new Error('Resposta vazia da IA (web_search).');
+    lastResp = r;
+
+    // Coleta blocos de texto e buscas web feitas
+    for(const blk of r.content) {
+      if(blk.type === 'text' && blk.text) textosFinais.push(blk.text);
+      if(blk.type === 'server_tool_use' && blk.name === 'web_search') {
+        buscas.push({ query: (blk.input && blk.input.query) || '', id: blk.id });
+      }
+    }
+
+    // web_search é server-tool: Anthropic já executou e devolveu web_search_tool_result
+    // no MESMO content[]. Quando stop_reason='end_turn' ou 'max_tokens', terminou.
+    if(r.stop_reason === 'end_turn' || r.stop_reason === 'max_tokens' || r.stop_reason === 'stop_sequence') break;
+
+    // Para `tool_use` (não server_tool_use), teríamos que responder — mas só temos
+    // web_search aqui, que é server-side. Se chegou aqui com tool_use, algo estranho.
+    if(r.stop_reason === 'tool_use') {
+      // Anexa assistant turn e encerra — não temos outras tools para resolver
+      conv.push({ role: 'assistant', content: r.content });
+      break;
+    }
+    break;
+  }
+
+  return {
+    texto: textosFinais.join('\n\n'),
+    buscas,
+    stop_reason: lastResp ? lastResp.stop_reason : null,
+    raw: lastResp
+  };
 }
 
 // FIX-04: usa toLocaleString+timezone (robusto, sem depender de offset manual -3h)
@@ -1442,7 +1540,7 @@ async function analisarDoc(buffer, isPdf, nome) {
     ? [{type:'document',source:{type:'base64',media_type:'application/pdf',data:base64}},{type:'text',text:prompt}]
     : [{type:'text',text:'[Arquivo: '+nomeSafe+']\n\n'+String(txtArq||'').substring(0,50000)+'\n\n'+prompt}];
 
-  const txt=await ia([{role:'user',content}],null,3000);
+  const txt=await ia([{role:'user',content}],null,3000, MODELO_MID); // Roteador/classificar doc → Sonnet
   // FIX-05: try/catch para dar erro legível se IA retornar JSON inválido
   const m=txt.replace(/```json|```/g,'').trim().match(/\{[\s\S]*\}/);
   try { return JSON.parse(m?m[0]:txt); }
@@ -2965,7 +3063,7 @@ REGRAS CRÍTICAS:
   const resposta = await ia([{role:'user', content:[
     { type:'image', source:{ type:'base64', media_type:mimeType||'image/jpeg', data:base64 }},
     { type:'text', text: prompt }
-  ]}], null, 2000);
+  ]}], null, 2000, MODELO_MID); // Cadastrador/extrair dados de foto → Sonnet
 
   const m = resposta.replace(/```json|```/g,'').trim().match(/\{[\s\S]*\}/);
   if(!m) throw new Error('IA não retornou JSON válido');
@@ -5428,7 +5526,7 @@ async function _responderCumprimento(ctx, mem, txt) {
 CUMPRIMENTO RECEBIDO. Responda naturalmente para o período (${periodo}). Se houver prazo urgente acima, mencione em 1 linha. Senão, responda e AGUARDE. Máximo 2-3 linhas.${ctxPrazos}`;
 
   try {
-    const resp = await ia([{role:'user', content:txt||'oi'}], sys, 200);
+    const resp = await ia([{role:'user', content:txt||'oi'}], sys, 200, MODELO_ECO); // Cumprimento curto → Haiku
     mem.hist.push({role:'user', content:txt||'oi'});
     mem.hist.push({role:'assistant', content:resp});
     salvarMemoria(ctx.chatId, ctx.threadId);
@@ -5503,7 +5601,7 @@ async function _detectarIntencaoProcesso(txt, ctx, mem) {
   ].join('\n');
   
   try {
-    const respIA = await ia([{role:'user', content: txt}], system, 900);
+    const respIA = await ia([{role:'user', content: txt}], system, 900, MODELO_MID); // Gestor IA aplicar ordens → Sonnet
     const acoes = await _processarMarcadoresChat(respIA, 'admin');
     let msgLimpa = respIA.replace(/\[(ATUALIZAR|ANDAMENTO|PRAZO):[^\]]+\]/g, '').trim();
     
@@ -5628,7 +5726,8 @@ async function _conversaInteligente(ctx, mem, txt, low) {
     const resposta = await ia(
       [{ role:'user', content: promptCtx+'\n\nSolicitacao da secretaria/advogado: '+txt+'\n\nResponda de forma objetiva e tecnica, no contexto deste processo.' }],
       null,
-      900
+      900,
+      MODELO_MID // conversa rápida sobre processo ativo → Sonnet
     );
     // Processa marcadores de atualização na resposta
     await _processarMarcadoresChat(resposta, validarToken(getToken({headers:ctx.headers||{}}))||'assessor').catch(()=>{});
@@ -9593,6 +9692,78 @@ if(url==='/api/memoria' && req.method==='GET') {
     return;
   }
 
+  // POST /api/pecas/enviar-email  {para, titulo, conteudo, tipo, formato?, processo_id?}
+  // Envia a peca gerada como anexo DOCX (default) ou PDF via SMTP (nodemailer)
+  // Requer variaveis LEX_SMTP_HOST / LEX_SMTP_PORT / LEX_SMTP_USER / LEX_SMTP_PASS
+  if(url==='/api/pecas/enviar-email' && req.method==='POST') {
+    try {
+      const pfEmail = validarToken(getToken(req));
+      if(!pfEmail) { res.writeHead(401,corsHeaders(req)); res.end(JSON.stringify({error:'Não autenticado'})); return; }
+      const b = await lerBody(req);
+      const para = String(b.para||'').trim();
+      if(!para || !/.+@.+\..+/.test(para)){ res.writeHead(400,corsHeaders(req)); res.end(JSON.stringify({error:'email destino invalido'})); return; }
+      const tipo = String((b.tipo||'peticao')).toLowerCase();
+      if(!['peticao','pericia'].includes(tipo)) { res.writeHead(400,corsHeaders(req)); res.end(JSON.stringify({error:'tipo deve ser peticao|pericia'})); return; }
+      const titulo = String(b.titulo || (tipo==='pericia'?'Laudo Pericial':'Peça Jurídica'));
+      const conteudo = String(b.conteudo||'').trim();
+      if(!conteudo) { res.writeHead(400,corsHeaders(req)); res.end(JSON.stringify({error:'conteudo obrigatório'})); return; }
+      const formato = String((b.formato||'docx')).toLowerCase();
+      if(!nodemailer){ res.writeHead(501,corsHeaders(req)); res.end(JSON.stringify({error:'nodemailer indisponivel no servidor'})); return; }
+      const host = process.env.LEX_SMTP_HOST || '';
+      const port = parseInt(process.env.LEX_SMTP_PORT || '587', 10);
+      const user = process.env.LEX_SMTP_USER || '';
+      const pass = process.env.LEX_SMTP_PASS || '';
+      if(!host || !user || !pass){ res.writeHead(501,corsHeaders(req)); res.end(JSON.stringify({error:'SMTP nao configurado no servidor (LEX_SMTP_HOST/USER/PASS)'})); return; }
+
+      let anexoBuf, anexoNome, anexoType;
+      if(formato==='pdf'){
+        anexoBuf = await _gerarPecaPdfBuffer(titulo, conteudo, tipo);
+        anexoNome = _nomeArquivoSeguro(titulo, '.pdf');
+        anexoType = 'application/pdf';
+      } else {
+        anexoBuf = _gerarDocxBufferPeca(titulo, conteudo, tipo);
+        anexoNome = _nomeArquivoSeguro(titulo, '.docx');
+        anexoType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      }
+
+      const transporter = nodemailer.createTransport({
+        host, port, secure: port===465,
+        auth:{ user, pass }
+      });
+
+      const escNome = (typeof ESCRITORIO!=='undefined' && ESCRITORIO && ESCRITORIO.nome) ? ESCRITORIO.nome : 'Lex Juridico';
+      const preview = conteudo.slice(0, 1800);
+      const truncado = conteudo.length>1800;
+
+      await transporter.sendMail({
+        from: user,
+        to: para,
+        subject: '['+escNome+'] '+titulo,
+        text:
+          'Prezado(a),\n\n' +
+          'Segue em anexo a peca juridica "'+titulo+'".\n\n' +
+          '-----------------------------\n' +
+          preview + (truncado?'\n\n[...conteudo truncado. Documento completo no anexo.]':'') + '\n' +
+          '-----------------------------\n\n' +
+          'Atenciosamente,\n' + escNome + '\n' +
+          '(mensagem automatica via Lex Juridico)',
+        attachments: [{
+          filename: anexoNome,
+          content: Buffer.isBuffer(anexoBuf) ? anexoBuf : Buffer.from(anexoBuf),
+          contentType: anexoType
+        }]
+      });
+
+      res.writeHead(200,corsHeaders(req));
+      res.end(JSON.stringify({ ok:true, enviado_para: para, anexo: anexoNome, formato }));
+    } catch(e){
+      console.error('[enviar-email peca] erro:', e.message);
+      res.writeHead(500,corsHeaders(req));
+      res.end(JSON.stringify({error:e.message}));
+    }
+    return;
+  }
+
   // POST /api/docx — fallback simples
   if(url==='/api/docx' && req.method==='POST') {
     try {
@@ -9978,6 +10149,45 @@ if(url==='/api/memoria' && req.method==='GET') {
       res.writeHead(200, corsHeaders(req));
       res.end(JSON.stringify({ ok:true, processo_id: b.processoId, juiz: processos[idx].juiz_relator }));
     } catch(e) { res.writeHead(500,corsHeaders(req)); res.end(JSON.stringify({error:e.message})); }
+    return;
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  // REFORM: Gerar modelo de petição ajustado ao perfil do magistrado
+  // POST /api/perfil-juiz/peca-modelo
+  // Body: { perfil: object (obrigatorio) | processoId (p/ ler do processo),
+  //         tipo_peca: string, descricao_caso: string, processoId?: string }
+  // ════════════════════════════════════════════════════════════════════════
+  if(url==='/api/perfil-juiz/peca-modelo' && req.method==='POST') {
+    try {
+      const pfMp = validarToken(getToken(req));
+      if(!pfMp) { res.writeHead(401,corsHeaders(req)); res.end(JSON.stringify({error:'Não autenticado'})); return; }
+      if(pfMp==='secretaria') { res.writeHead(403,corsHeaders(req)); res.end(JSON.stringify({error:'Sem permissão'})); return; }
+      const b = await lerBody(req);
+
+      let perfil = (b.perfil && typeof b.perfil === 'object') ? b.perfil : null;
+      let processoObj = null;
+      if(b.processoId) {
+        const pIdx = processos.findIndex(p => String(p.id) === String(b.processoId));
+        if(pIdx >= 0) {
+          processoObj = processos[pIdx];
+          if(!perfil && processoObj.perfil_juiz) perfil = processoObj.perfil_juiz;
+        }
+      }
+      if(!perfil) { res.writeHead(400,corsHeaders(req)); res.end(JSON.stringify({error:'perfil do juiz obrigatório (envie em body.perfil ou vincule a processo com perfil)'})); return; }
+
+      const tipoPeca = b.tipo_peca || b.tipoPeca || 'Petição';
+      const descricaoCaso = b.descricao_caso || b.descricaoCaso || (processoObj ? processoObj.descricao : '') || '';
+
+      const modelo = await _gerarModeloPecaParaJuiz(perfil, tipoPeca, descricaoCaso, processoObj);
+      _auditarAcao(pfMp, 'peca_modelo_juiz_gerado', { juiz: perfil.nome||'', tipo: tipoPeca, processo_id: b.processoId||null });
+
+      res.writeHead(200, corsHeaders(req));
+      res.end(JSON.stringify(modelo));
+    } catch(e) {
+      console.warn('[peca-modelo-juiz] erro:', e.message);
+      res.writeHead(500,corsHeaders(req)); res.end(JSON.stringify({error:e.message}));
+    }
     return;
   }
 
@@ -11073,6 +11283,66 @@ async function _analisarPerfilJuiz(nomeJuiz, tribunal, processoId, decisoesTexto
 
   const localStr = [municipio, uf, comarca].filter(Boolean).join(' / ');
 
+  // ──────────────────────────────────────────────────────────────────
+  // FASE 1 — PESQUISA NA INTERNET (web_search nativo da Anthropic)
+  // Busca decisões públicas do magistrado em JusBrasil, sites dos
+  // tribunais (TJMG, TJSP, STJ, STF, etc.), ConJur, Migalhas.
+  // ──────────────────────────────────────────────────────────────────
+  let dossieWeb = '';
+  let buscasFeitas = [];
+  try {
+    const queryWeb = `Você é um pesquisador jurídico. Sua missão: descobrir o MÁXIMO de informações públicas sobre o magistrado brasileiro abaixo, PARA MONTAR PERFIL DECISÓRIO.
+
+MAGISTRADO ALVO: ${nomeJuiz}
+TRIBUNAL/VARA: ${tribunal||comarca||'não informado'}
+LOCALIZAÇÃO: ${localStr||'não informada'}
+${numeroProcesso ? 'Nº do processo do caso: '+numeroProcesso : ''}
+
+INSTRUÇÕES OBRIGATÓRIAS:
+1. Use a ferramenta web_search AGORA, múltiplas vezes, com queries como:
+   - "${nomeJuiz}" decisões ${tribunal||''} site:jusbrasil.com.br
+   - "${nomeJuiz}" julgado ${tribunal||''} ${uf||''}
+   - "${nomeJuiz}" sentença OR acórdão OR voto
+   - "${nomeJuiz}" ${tribunal||''} site:tjmg.jus.br OR site:stj.jus.br OR site:stf.jus.br OR site:jusbrasil.com.br
+   - "${nomeJuiz}" currículo biografia magistratura
+   - "${nomeJuiz}" conjur OR migalhas
+2. Leia trechos de ementas, votos e matérias jornalísticas.
+3. Extraia EVIDÊNCIAS CONCRETAS (não invente): teses que aceita/rejeita, autores/doutrinadores que cita, tempo médio de decisão, reforma em 2ª instância, casos emblemáticos, biografia acadêmica.
+4. Se não encontrar material, DIGA EXPLICITAMENTE "não encontrei material público suficiente sobre este magistrado na web".
+
+ENTREGA (texto livre, fluido, sem JSON — é um DOSSIÊ de pesquisa):
+- Biografia resumida (formação, carreira).
+- Padrão decisório (o que aceita, o que rejeita, com exemplos REAIS achados).
+- Autores/doutrinadores que cita em votos/sentenças.
+- Súmulas e temas que segue (STF/STJ/TST).
+- Reputação de comportamento em audiência, se houver.
+- Casos notórios recentes.
+- Fontes (URLs) ao final.
+
+Seja factual. Se não tem evidência, não cite.`;
+
+    const wsRes = await iaComWebSearch(
+      [{role:'user', content: queryWeb}],
+      null,
+      5000,
+      { maxUses: 6, maxLoops: 3 }
+    );
+    dossieWeb = (wsRes.texto || '').substring(0, 14000);
+    buscasFeitas = wsRes.buscas || [];
+    console.log('[perfil-juiz] Web search concluído — buscas:', buscasFeitas.length, 'texto:', dossieWeb.length, 'chars');
+  } catch(e) {
+    console.warn('[perfil-juiz] web_search falhou:', e.message);
+    dossieWeb = '(web_search indisponível: '+e.message+')';
+  }
+
+  const ctxWeb = dossieWeb
+    ? `\n\nDOSSIÊ DE PESQUISA NA INTERNET (via web_search — ${buscasFeitas.length} busca(s)):\n${dossieWeb}`
+    : '';
+
+  // ──────────────────────────────────────────────────────────────────
+  // FASE 2 — CONSOLIDAÇÃO ESTRUTURADA (JSON final)
+  // ──────────────────────────────────────────────────────────────────
+
   const prompt = `Você é um estrategista jurídico especializado em "judicial profiling" — análise PROFUNDA do perfil decisório de magistrados para otimizar estratégias processuais do advogado.
 
 MAGISTRADO ALVO: ${nomeJuiz}
@@ -11082,17 +11352,19 @@ ${ctxProcVinc}
 ${ctxLocal}
 ${ctxDecisoes}
 ${ctxPdfs}
+${ctxWeb}
 
-Com base em TODAS as informações disponíveis (processos locais, PDFs anexados, decisões fornecidas, e seu conhecimento geral sobre magistrados brasileiros), elabore um perfil ESTRATÉGICO-OPERACIONAL que o advogado possa usar IMEDIATAMENTE para:
+Com base em TODAS as informações disponíveis (dossiê de pesquisa na internet, processos locais, PDFs anexados, decisões fornecidas, e seu conhecimento geral), elabore um perfil ESTRATÉGICO-OPERACIONAL que o advogado possa usar IMEDIATAMENTE para:
 (a) redigir petições neste processo,
 (b) se portar em audiência,
 (c) despachar pessoalmente com o juiz,
 (d) escolher caminhos processuais.
 
 REGRAS:
+- PRIORIZE evidências do DOSSIÊ WEB. Se encontrou autor/súmula/caso real na pesquisa, CITE.
 - Se os PDFs foram analisados, CITE doutrinadores e súmulas REAIS que apareceram neles.
-- Se não há material suficiente, marque nivel_confianca_perfil como "baixo" e explique na advertencia.
-- NUNCA invente autor jurídico, súmula ou decisão.
+- Se não há material suficiente NEM na web NEM nos PDFs, marque nivel_confianca_perfil como "baixo" e explique na advertencia.
+- NUNCA invente autor jurídico, súmula ou decisão. É PROIBIDO.
 
 Responda em JSON ÚNICO e válido:
 {
@@ -11122,17 +11394,23 @@ Responda em JSON ÚNICO e válido:
   "autores_juridicos_citados": ["lista de autores/juristas que o magistrado cita em decisões — nomes REAIS observados"],
   "doutrinadores_para_citar": ["doutrinadores que o advogado deve citar nas peças para 'falar a mesma língua' deste juiz"],
   "jurisprudencia_seguida": ["súmulas, temas de repercussão geral e julgados que o magistrado segue reiteradamente"],
+  "teses_aceita": ["teses que o juiz costuma acolher, com um exemplo real citado se possível"],
+  "teses_rejeita": ["teses que o juiz costuma rejeitar, com um exemplo real citado se possível"],
+  "indice_reforma_estimado": "baixo|médio|alto|desconhecido — estimativa de reforma em 2ª instância",
+  "tempo_medio_decisao": "rápido|médio|lento|desconhecido — celeridade percebida",
+  "tendencia_ideologica": "conservador|progressista|pragmático|técnico|indefinido",
   "comportamento_em_audiencia": "orientação prática: tom de voz, formalidade, tempo de sustentação, postura, uso de apartes, como conduzir testemunhas",
   "despacho_pessoal": "como tratar o juiz em despacho pessoal no gabinete: protocolo, formalidade, o que evitar, o que gosta de ouvir",
   "argumentos_para_peticoes": ["tipos de argumento que funcionam (técnico-positivista, principiológico, consequencialista, humanitário) — com breve exemplo"],
   "caminhos_estrategicos": ["rota processual recomendada: conciliar? instruir rápido? tutela? recorrer cedo? prequestionar?"],
   "nivel_confianca_perfil": "alto|médio|baixo",
-  "base_analise": "pdfs+local+conhecimento|só_local|só_conhecimento_geral",
+  "base_analise": "web+pdfs+local|web+local|web+conhecimento|pdfs+local|só_local|só_conhecimento_geral",
   "advertencia": "aviso de limitações da análise se nível de confiança for baixo",
-  "orientacao_advogado": "resumo executivo em 4-6 linhas direcionado ao advogado: como agir neste processo especificamente, considerando o perfil do juiz"
+  "orientacao_advogado": "resumo executivo em 4-6 linhas direcionado ao advogado: como agir neste processo especificamente, considerando o perfil do juiz",
+  "modelo_peticao_sugerido": "estrutura resumida de petição alinhada ao perfil deste juiz (seções: preliminar, mérito, pedido) com tom e argumentos específicos para ele"
 }`;
 
-  const txt = await ia([{role:'user', content: prompt}], null, 4000);
+  const txt = await ia([{role:'user', content: prompt}], null, 4500);
   const m = txt.replace(/```json|```/g,'').trim().match(/\{[\s\S]*\}/);
   try {
     const perfil = JSON.parse(m ? m[0] : txt);
@@ -11141,6 +11419,9 @@ Responda em JSON ÚNICO e válido:
     perfil._pdfs_analisados = analisesPdfs.length;
     perfil._processo_vinculado = processoId || null;
     perfil._gerado_em = new Date().toLocaleString('pt-BR');
+    perfil._buscas_web = buscasFeitas.length;
+    perfil._buscas_web_queries = buscasFeitas.map(b => b.query).filter(Boolean).slice(0, 20);
+    perfil._dossie_web_excerto = dossieWeb ? dossieWeb.substring(0, 2000) : '';
     return perfil;
   } catch(e) {
     return {
@@ -11149,9 +11430,82 @@ Responda em JSON ÚNICO e válido:
       erro_parse: true,
       texto_bruto: txt.substring(0, 2000),
       _pdfs_analisados: analisesPdfs.length,
+      _buscas_web: buscasFeitas.length,
+      _buscas_web_queries: buscasFeitas.map(b => b.query).filter(Boolean).slice(0, 20),
+      _dossie_web_excerto: dossieWeb ? dossieWeb.substring(0, 2000) : '',
       _gerado_em: new Date().toLocaleString('pt-BR')
     };
   }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// GERADOR DE MODELO DE PEÇA BASEADO NO PERFIL DO JUIZ
+// Recebe: perfil já consolidado + tipo de peça + descrição do caso
+// Retorna: modelo completo de petição com tom, doutrinadores e jurisprudência
+// ajustados ao magistrado específico.
+// ════════════════════════════════════════════════════════════════════════════
+async function _gerarModeloPecaParaJuiz(perfil, tipoPeca, descricaoCaso, processo) {
+  if(!perfil || typeof perfil !== 'object') {
+    throw new Error('Perfil do juiz inválido.');
+  }
+  const autores = Array.isArray(perfil.doutrinadores_para_citar) ? perfil.doutrinadores_para_citar.join(', ') : '';
+  const autoresCitados = Array.isArray(perfil.autores_juridicos_citados) ? perfil.autores_juridicos_citados.join(', ') : '';
+  const juris = Array.isArray(perfil.jurisprudencia_seguida) ? perfil.jurisprudencia_seguida.join('; ') : '';
+  const tesesAceita = Array.isArray(perfil.teses_aceita) ? perfil.teses_aceita.join('; ') : '';
+  const tesesRejeita = Array.isArray(perfil.teses_rejeita) ? perfil.teses_rejeita.join('; ') : '';
+  const argumentos = Array.isArray(perfil.argumentos_para_peticoes) ? perfil.argumentos_para_peticoes.join('; ') : '';
+  const caminhos = Array.isArray(perfil.caminhos_estrategicos) ? perfil.caminhos_estrategicos.join('; ') : '';
+
+  const ctxProc = processo
+    ? `\n\nPROCESSO:\nNome: ${processo.nome||'—'}\nÁrea: ${processo.area||'—'}\nTribunal: ${processo.tribunal||'—'}\nPartes: ${processo.partes||'—'}\nNº CNJ: ${processo.numero||'—'}\nDescrição: ${(processo.descricao||'').substring(0,800)}`
+    : '';
+
+  const prompt = `Você é um redator jurídico sênior. Sua missão é produzir um MODELO DE PETIÇÃO ajustado ao perfil decisório do magistrado abaixo.
+
+════════════ PERFIL DO MAGISTRADO ════════════
+Nome: ${perfil.nome||'—'}
+Tribunal: ${perfil.tribunal||'—'}
+Postura geral: ${perfil.postura_geral||'—'}
+Estilo decisório: ${perfil.estilo_decisorio||'—'}
+Extensão preferida: ${perfil.extensao_decisoes||'—'}
+Tendência ideológica: ${perfil.tendencia_ideologica||'—'}
+Linguagem recomendada: ${perfil.linguagem_recomendada||'—'}
+Estratégia ouro: ${perfil.estrategia_ouro||'—'}
+Argumentos que aceita: ${tesesAceita||'—'}
+Argumentos que rejeita: ${tesesRejeita||'—'}
+Doutrinadores a citar: ${autores||'—'}
+Autores que o juiz costuma citar: ${autoresCitados||'—'}
+Jurisprudência que segue: ${juris||'—'}
+Argumentos que funcionam: ${argumentos||'—'}
+Caminhos estratégicos: ${caminhos||'—'}
+
+════════════ PEÇA A REDIGIR ════════════
+Tipo de peça: ${tipoPeca||'Petição Inicial / Peça processual'}
+Descrição do caso / objeto da peça:
+${(descricaoCaso||'— sem descrição, monte modelo genérico para o tipo de peça —').substring(0, 3000)}
+${ctxProc}
+
+════════════ INSTRUÇÕES ════════════
+1. Produza um MODELO COMPLETO da peça, no formato e tom que MAXIMIZA chances de acolhimento por este juiz específico.
+2. Use a linguagem recomendada (formalidade, extensão, tom).
+3. Cite OBRIGATORIAMENTE 2-4 dos doutrinadores listados acima (só os REAIS, nunca invente).
+4. Ataque argumentos que o juiz costuma rejeitar de forma indireta ou preventiva.
+5. Enfatize argumentos que ele aceita.
+6. Se a jurisprudência seguida incluir súmula/tema, mencione.
+7. Estrutura tradicional: cabeçalho, endereçamento, qualificação, fatos, direito (com subtópicos), pedidos, valor da causa.
+8. Use placeholders [COLOCAR NOME DA PARTE], [DATA], [VALOR] onde não souber.
+9. Acrescente ao final uma seção "🎯 RECOMENDAÇÕES TÁTICAS" com: (a) tom a usar no despacho pessoal, (b) como se portar em eventual audiência, (c) riscos a evitar.
+
+Responda SOMENTE o texto da peça + recomendações (sem JSON).`;
+
+  const texto = await ia([{role:'user', content: prompt}], null, 6000);
+  return {
+    peca: texto,
+    tipo_peca: tipoPeca,
+    juiz: perfil.nome || '',
+    tribunal: perfil.tribunal || '',
+    gerado_em: new Date().toLocaleString('pt-BR')
+  };
 }
 
 // ════════════════════════════════════════════════════════════════════════════
