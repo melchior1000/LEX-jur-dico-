@@ -4722,6 +4722,8 @@ function confirmarAndamento(id, btn){
   btn.closest('div[style*=fixed]').remove();
   toast('✓ Andamento registrado!');
   abrirProc(id);
+  // Lex Consciência — analisa o andamento
+  lexConsciencia(id, txt, 'Andamento manual');
 }
 
 // ═══════════════ CADASTRO/EDIÇÃO ═══════════════
@@ -4782,7 +4784,12 @@ function salvarProc(){
     ps.push({id:Date.now(),...dados,andamentos:[],arquivos:[],atualizado_em:hoje,ultima_atualizacao:hoje,dias_parado:0});
   }
   const _editedId=document.getElementById('modal').getAttribute('data-edit');saveProcs(ps); atualizarUrgentes(); fecharModal(); setTimeout(sincronizarComBot,500);
-  if(_editedId) registrarAcaoSalvar(parseInt(_editedId),'Processo editado');
+  if(_editedId) {
+    registrarAcaoSalvar(parseInt(_editedId),'Processo editado');
+    // Lex Consciência — analisa a edição
+    const _ep=ps.find(x=>x.id==_editedId);
+    lexConsciencia(parseInt(_editedId), 'Processo editado: '+nome+' | Área: '+(document.getElementById('f-area')?.value||'?')+' | Setor: '+(document.getElementById('f-setor')?.value||'?')+' | Status: '+(_ep?.status||'?'), 'Edição de processo');
+  }
   toast('✓ Processo salvo com sucesso!');
   renderProcessos(); ir('processos',document.querySelector('.nav-btn[onclick*="processos"]'));
 }
@@ -6945,6 +6952,9 @@ function _pDistrConfirm(id){
     const ps=getProcs();
     ps.push({id:Date.now(),nome:c.nome,grupo:c.area||'Outros',numero:num||'',partes:c.partes||'',area:c.area||'Cível',tipo:tipo,setor:setorFinal,tribunal:c.tribunal||'',status:status,prazo:'',prazoReal:'',proxacao:setor==='entregue'?'Acompanhar satisfação do cliente':'Acompanhar — setor '+(setorLabel[setor]||setor),valor:c.valor||'',descricao:(c.obs||'')+(c.tipo?'\nTipo original: '+c.tipo:''),frentes:c.frentes||[],provas:c.provas||[],atualizado_em:new Date().toISOString().slice(0,10),ultima_atualizacao:new Date().toISOString().slice(0,10),dias_parado:0,andamentos:[{data:hoje,txt:'📤 DISTRIBUÍDO → Setor '+(setorLabel[setor]||setor)+(num?' · Nº '+num:'')+(c.previsao?'\nPrevisão original: '+c.previsao:'')}],arquivos:[]});
     saveProcs(ps);atualizarUrgentes();toast('✓ Distribuído → '+(setorLabel[setor]||setor)+'!','ok');
+    // Lex Consciência — analisa a distribuição
+    const _novoProcId = ps[ps.length-1]?.id;
+    if(_novoProcId) lexConsciencia(_novoProcId, 'Processo distribuído da preparação para setor '+(setorLabel[setor]||setor)+'. Cliente: '+c.nome+'. Área: '+(c.area||'?')+'. Tipo: '+(c.tipo||'?'), 'Distribuição');
   }catch(e){toast('Erro ao distribuir.','erro');}
   renderPreparacao();ir('processos',document.querySelector('.nav-btn[onclick*="processos"]'));
 }
@@ -8041,6 +8051,203 @@ function registrarAcaoSalvar(procId,acao){
   renderPainel(); renderProcessos();
   toast(p.status==='ATIVO'?'✓ Processo salvo — status ATIVO':'✓ Processo salvo','ok');
   if(typeof renderPainel==='function'&&document.getElementById('page-title')?.textContent==='Painel Geral')renderPainel();
+}
+
+// ═══════════════ LEX CONSCIÊNCIA — INTERCEPTOR INTELIGENTE ═══════════════
+// Após qualquer andamento/edição, o Lex analisa e sugere setor/status/próxima ação
+async function lexConsciencia(procId, textoAndamento, tipoAcao){
+  if(!procId) return;
+  const ps=getProcs();
+  const p=ps.find(x=>x.id===procId||x.id==procId);
+  if(!p) return;
+  
+  // Montar contexto do processo
+  const ultimosAnd = (p.andamentos||[]).slice(0,5).map(a=>a.data+': '+a.txt).join('\n');
+  const ctx = `PROCESSO: ${p.nome}
+ÁREA: ${p.area||'?'} | TIPO: ${p.tipo||'?'} | SETOR ATUAL: ${p.setor||'?'}
+STATUS ATUAL: ${p.status||'?'}
+PARTES: ${p.partes||'?'}
+TRIBUNAL: ${p.tribunal||'?'}
+PRÓXIMA AÇÃO ANTERIOR: ${p.proxacao||'nenhuma'}
+ÚLTIMOS ANDAMENTOS:
+${ultimosAnd||'Nenhum'}
+
+AÇÃO FEITA AGORA (${tipoAcao||'atualização'}):
+${textoAndamento}`;
+
+  try {
+    const resp = await chamarIA([{role:'user',content:ctx}],
+`Você é o Lex, gerente jurídico ELITE do escritório Camargos Advocacia.
+O funcionário acabou de fazer uma ação no processo. Sua missão:
+1. LEIA e INTERPRETE o andamento — entenda O QUE foi feito
+2. DETERMINE o setor correto (administrativo/judicial/autuacao)
+3. DETERMINE o status correto (ATIVO/DISTRIBUIDO/AGUARDANDO/URGENTE/CONCLUIDO/ENTREGUE)
+4. SUGIRA a próxima ação concreta
+5. Se o processo deve MUDAR de setor, explique por quê
+
+REGRAS DE CLASSIFICAÇÃO DE SETOR:
+- "Petição protocolada", "Audiência marcada", "Sentença", "Citação", "Mandado" → JUDICIAL
+- "Recurso ao CARF", "Impugnação DRJ", "Auto de infração", "Notificação fiscal" → ADMINISTRATIVO  
+- "Cadastro inicial", "Documentos pendentes", "Análise preliminar" → AUTUAÇÃO (preparação)
+- "Entregue ao cliente", "Parecer finalizado", "Concluído" → CONCLUIDO/ENTREGUE
+
+REGRAS DE STATUS:
+- Trabalho ativo, andamento normal → ATIVO
+- Distribuído a um setor, aguardando → DISTRIBUIDO
+- Prazo correndo, urgência → URGENTE
+- Aguardando resposta do tribunal/cliente → AGUARDANDO
+- Finalizado → CONCLUIDO
+- Entregue ao cliente → ENTREGUE
+
+Responda APENAS JSON puro (sem markdown):
+{
+  "interpretacao": "o que o funcionário fez (1 linha)",
+  "setor_sugerido": "judicial|administrativo|autuacao",
+  "mudar_setor": true/false,
+  "motivo_setor": "por que mudar (ou 'manter — já está correto')",
+  "status_sugerido": "ATIVO|DISTRIBUIDO|URGENTE|AGUARDANDO|CONCLUIDO|ENTREGUE",
+  "mudar_status": true/false,
+  "proxima_acao": "próxima ação concreta e específica",
+  "alerta": "aviso importante se houver (prazo, risco, etc) ou null"
+}`, 500);
+
+    // Parse JSON
+    let dados;
+    try { 
+      const clean = resp.replace(/```json?|```/g,'').trim();
+      dados = JSON.parse(clean); 
+    } catch(e) { console.warn('[Lex Consciência] parse falhou:', e); return; }
+    
+    // Se não precisa mudar nada relevante, atualizar silenciosamente a próxima ação
+    if(!dados.mudar_setor && !dados.mudar_status && dados.proxima_acao){
+      const ps2=getProcs();
+      const idx=ps2.findIndex(x=>x.id===procId||x.id==procId);
+      if(idx>=0){
+        ps2[idx].proxacao = dados.proxima_acao;
+        saveProcs(ps2);
+      }
+      return;
+    }
+    
+    // Mostrar modal de sugestão do Lex
+    _lexMostrarSugestao(procId, dados, p);
+    
+  } catch(e) {
+    console.warn('[Lex Consciência] erro:', e);
+  }
+}
+
+function _lexMostrarSugestao(procId, dados, proc){
+  document.getElementById('_lexSugOv')?.remove();
+  const ov=document.createElement('div');ov.id='_lexSugOv';
+  ov.style.cssText='position:fixed;inset:0;background:#00000088;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:800;display:flex;align-items:center;justify-content:center;padding:14px;animation:fadeIn .2s ease';
+  
+  const setorIcons={'judicial':'⚖️','administrativo':'🏛️','autuacao':'📋'};
+  const setorLabels={'judicial':'Judicial','administrativo':'Administrativo','autuacao':'Preparação'};
+  const statusIcons={'ATIVO':'🔵','DISTRIBUIDO':'📤','URGENTE':'🔴','AGUARDANDO':'🟡','CONCLUIDO':'✅','ENTREGUE':'🟢'};
+  
+  let html=`<div style="background:var(--surface);border:1px solid var(--accent)30;border-radius:20px;padding:28px;max-width:480px;width:100%;box-shadow:0 30px 80px rgba(0,0,0,.5),0 0 40px var(--accent)10">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--purple));display:flex;align-items:center;justify-content:center;font-size:18px;color:#fff">⚡</div>
+      <div>
+        <div style="font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:800;color:var(--text)">Lex — Análise Inteligente</div>
+        <div style="font-size:11px;color:var(--text3)">Li o andamento e tenho sugestões</div>
+      </div>
+    </div>
+    
+    <div style="background:var(--surface2);border-radius:12px;padding:14px;margin:16px 0;font-size:13px;color:var(--text2);line-height:1.6">
+      <strong style="color:var(--text)">📖 Interpretei:</strong> ${dados.interpretacao||'—'}
+    </div>`;
+  
+  // Sugestão de setor
+  if(dados.mudar_setor){
+    html+=`<div style="background:var(--accent)08;border:1px solid var(--accent)20;border-radius:12px;padding:14px;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📤 Sugestão de Setor</div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text)">
+        <span style="opacity:.5">${setorIcons[proc.setor]||'❓'} ${setorLabels[proc.setor]||proc.setor||'?'}</span>
+        <span style="color:var(--accent);font-weight:700">→</span>
+        <span style="font-weight:700">${setorIcons[dados.setor_sugerido]||'❓'} ${setorLabels[dados.setor_sugerido]||dados.setor_sugerido}</span>
+      </div>
+      <div style="font-size:12px;color:var(--text3);margin-top:6px">${dados.motivo_setor||''}</div>
+    </div>`;
+  }
+  
+  // Sugestão de status
+  if(dados.mudar_status){
+    html+=`<div style="background:var(--green)08;border:1px solid var(--green)20;border-radius:12px;padding:14px;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">🔄 Sugestão de Status</div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text)">
+        <span style="opacity:.5">${statusIcons[proc.status]||'❓'} ${proc.status||'?'}</span>
+        <span style="color:var(--green);font-weight:700">→</span>
+        <span style="font-weight:700">${statusIcons[dados.status_sugerido]||'❓'} ${dados.status_sugerido}</span>
+      </div>
+    </div>`;
+  }
+  
+  // Próxima ação
+  if(dados.proxima_acao){
+    html+=`<div style="background:var(--gold)08;border:1px solid var(--gold)20;border-radius:12px;padding:14px;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">📋 Próxima Ação</div>
+      <div style="font-size:13px;color:var(--text);font-weight:600">${dados.proxima_acao}</div>
+    </div>`;
+  }
+  
+  // Alerta
+  if(dados.alerta){
+    html+=`<div style="background:var(--red)08;border:1px solid var(--red)20;border-radius:12px;padding:12px;margin-bottom:12px;display:flex;align-items:flex-start;gap:8px">
+      <span style="font-size:16px;flex-shrink:0">⚠️</span>
+      <div style="font-size:12px;color:var(--red);font-weight:600;line-height:1.5">${dados.alerta}</div>
+    </div>`;
+  }
+  
+  // Botões
+  html+=`<div style="display:flex;gap:8px;margin-top:18px;flex-wrap:wrap">
+    <button class="btn-cancel" style="flex:1" onclick="document.getElementById('_lexSugOv')?.remove()">Manter como está</button>
+    <button style="flex:2;padding:12px 20px;border:none;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 4px 15px var(--accent)40;transition:all .2s" onclick="_lexAplicarSugestao(${procId},${JSON.stringify(dados).replace(/"/g,'&quot;')})">✓ Aplicar sugestões do Lex</button>
+  </div></div>`;
+  
+  ov.innerHTML=html;
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  document.body.appendChild(ov);
+}
+
+function _lexAplicarSugestao(procId, dados){
+  document.getElementById('_lexSugOv')?.remove();
+  const ps=getProcs();
+  const idx=ps.findIndex(x=>x.id===procId||x.id==procId);
+  if(idx<0) return;
+  
+  let mudancas=[];
+  if(dados.mudar_setor && dados.setor_sugerido){
+    ps[idx].setor=dados.setor_sugerido;
+    mudancas.push('Setor → '+dados.setor_sugerido);
+  }
+  if(dados.mudar_status && dados.status_sugerido){
+    ps[idx].status=dados.status_sugerido;
+    mudancas.push('Status → '+dados.status_sugerido);
+  }
+  if(dados.proxima_acao){
+    ps[idx].proxacao=dados.proxima_acao;
+    mudancas.push('Próx. ação atualizada');
+  }
+  
+  // Registrar no andamento que o Lex sugeriu
+  if(mudancas.length){
+    if(!ps[idx].andamentos) ps[idx].andamentos=[];
+    ps[idx].andamentos.unshift({
+      data:new Date().toLocaleDateString('pt-BR'),
+      txt:'🤖 Lex analisou e aplicou: '+mudancas.join(' | ')
+    });
+  }
+  
+  saveProcs(ps);
+  atualizarUrgentes();
+  renderPainel();renderProcessos();
+  toast('✓ Lex aplicou as sugestões!','ok');
+  
+  // Re-abrir processo se estava aberto
+  const detModal=document.querySelector('div[style*="position: fixed"][style*="z-index"]');
+  if(!detModal) abrirProc(procId);
 }
 
 function cicloAtualizacaoInteligente(){
@@ -9191,6 +9398,8 @@ async function atualizarAndamentoProcessoExistente(){
     await sincronizarComBot();
     toast('Andamento salvo localmente. Falha de rede ao enviar ao bot.','ok');
   }
+  // Lex Consciência — analisa o andamento do chat
+  lexConsciencia(chatCtx.id, txt, 'Andamento via chat');
 }
 
 function criarNovoCasoViaChat(){
