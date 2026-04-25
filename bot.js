@@ -8714,6 +8714,181 @@ function _extrairTextoPdf(pdfBase64) {
   }
 }
 
+function _docEhPdfPericia(doc) {
+  const nome = String(doc?.nome || '').toLowerCase();
+  const mime = String(doc?.mimeType || doc?.mime || '').toLowerCase();
+  return mime.includes('pdf') || nome.endsWith('.pdf');
+}
+
+function _extrairTextoBasicoBufferPdf(buffer, maxChars) {
+  try {
+    const lim = Math.max(2000, Number(maxChars || 120000));
+    const bruto = buffer.toString('latin1');
+    const blocos = bruto.match(/[\x20-\x7E\xA0-\xFF]{4,}/g) || [];
+    return blocos.join(' ').replace(/\s+/g, ' ').trim().substring(0, lim);
+  } catch(_) {
+    return '';
+  }
+}
+
+function _parseJsonResposta(texto) {
+  const txt = String(texto || '').replace(/```json|```/gi, '').trim();
+  const m = txt.match(/\{[\s\S]*\}/);
+  if(!m) return null;
+  try { return JSON.parse(m[0]); } catch(_) { return null; }
+}
+
+function _normalizarQualidadeLegibilidade(v) {
+  const q = String(v || '').toLowerCase().trim();
+  if(['alta','media','baixa','ilegivel'].includes(q)) return q;
+  if(q.includes('alta')) return 'alta';
+  if(q.includes('media')) return 'media';
+  if(q.includes('baixa')) return 'baixa';
+  if(q.includes('ileg')) return 'ilegivel';
+  return 'media';
+}
+
+async function _verificarLegibilidadeDocsPericia(docs) {
+  const lista = Array.isArray(docs) ? docs.slice(0, 50) : [];
+  const verificacao = [];
+
+  for(let i = 0; i < lista.length; i++) {
+    const d = lista[i] || {};
+    const nome = String(d.nome || ('doc_'+(i+1)+'.pdf'));
+    const isPdf = _docEhPdfPericia(d);
+
+    if(!isPdf) {
+      verificacao.push({
+        nome,
+        legivel: true,
+        motivo: 'Documento nao-PDF considerado legivel para triagem.',
+        paginas_legiveis: 1,
+        paginas_total: 1,
+        qualidade: 'alta'
+      });
+      continue;
+    }
+
+    let paginasTotal = 0;
+    let textoExtraido = '';
+    try {
+      if(typeof d.texto === 'string' && d.texto.trim()) {
+        textoExtraido = d.texto.trim();
+      } else if(typeof d.conteudo === 'string' && d.conteudo.trim()) {
+        textoExtraido = d.conteudo.trim();
+      } else if(typeof d.base64 === 'string' && d.base64.trim()) {
+        const b64 = String(d.base64).replace(/^data:application\/pdf;base64,?/i, '');
+        const buffer = Buffer.from(b64, 'base64');
+        paginasTotal = await _contarPaginas(buffer);
+
+        let chunks = [];
+        try {
+          chunks = await _dividirPDFEmChunks(buffer, {});
+        } catch(_) {
+          chunks = [{ buffer, paginas: paginasTotal > 0 ? paginasTotal : 1, chunkIdx: 1, totalChunks: 1 }];
+        }
+
+        for(let c = 0; c < chunks.length; c++) {
+          const chunk = chunks[c];
+          try {
+            const b = _bufferDoChunk(chunk);
+            const restante = Math.max(0, 180000 - textoExtraido.length);
+            if(restante > 0) {
+              const trecho = _extrairTextoBasicoBufferPdf(b, Math.min(50000, restante));
+              if(trecho) textoExtraido += (textoExtraido ? '\n' : '') + trecho;
+            }
+          } finally {
+            _liberarChunk(chunk);
+          }
+          if(textoExtraido.length >= 180000) break;
+        }
+
+        if((!paginasTotal || paginasTotal < 1) && Array.isArray(chunks) && chunks.length) {
+          paginasTotal = chunks.reduce((s, c) => s + (Number(c?.paginas) || 0), 0);
+        }
+      }
+
+      const trecho = String(textoExtraido || '').replace(/\s+/g, ' ').trim().substring(0, 12000);
+      if(!paginasTotal || paginasTotal < 1) {
+        paginasTotal = Math.max(1, Math.round((String(textoExtraido || '').length || 0) / 2500));
+      }
+
+      if(!trecho) {
+        verificacao.push({
+          nome,
+          legivel: false,
+          motivo: 'Nao foi possivel extrair texto legivel do PDF.',
+          paginas_legiveis: 0,
+          paginas_total: paginasTotal || 0,
+          qualidade: 'ilegivel'
+        });
+        continue;
+      }
+
+      const prompt = [
+        'Este PDF esta legivel? O texto foi extraido corretamente?',
+        'Responda SOMENTE em JSON valido com este formato:',
+        '{"legivel":true/false,"motivo":"...","paginas_legiveis":0,"paginas_total":0,"qualidade":"alta|media|baixa|ilegivel"}',
+        '',
+        'NOME DO ARQUIVO: '+nome,
+        'PAGINAS TOTAIS ESTIMADAS: '+paginasTotal,
+        '',
+        'TRECHO EXTRAIDO:',
+        '"""',
+        trecho,
+        '"""'
+      ].join('\n');
+
+      const resp = await ia(
+        [{ role:'user', content: prompt }],
+        'Voce e um verificador de legibilidade de PDF. Responda apenas JSON.',
+        350,
+        MODELO_ECO
+      );
+      const obj = _parseJsonResposta(resp) || {};
+      const qualidade = _normalizarQualidadeLegibilidade(obj.qualidade);
+      const legivel = (typeof obj.legivel === 'boolean')
+        ? obj.legivel
+        : (qualidade === 'alta' || qualidade === 'media');
+      const motivo = String(obj.motivo || (legivel ? 'Texto extraido com qualidade suficiente.' : 'Texto extraido insuficiente ou corrompido.'));
+      let paginasLegiveis = Number(obj.paginas_legiveis);
+      if(!Number.isFinite(paginasLegiveis)) {
+        paginasLegiveis = legivel ? Math.max(1, Math.min(paginasTotal, Math.round((trecho.length / 12000) * paginasTotal) || 1)) : 0;
+      }
+      paginasLegiveis = Math.max(0, Math.min(paginasTotal || paginasLegiveis, paginasLegiveis));
+      let paginasTotOut = Number(obj.paginas_total);
+      if(!Number.isFinite(paginasTotOut) || paginasTotOut < 1) paginasTotOut = paginasTotal || 1;
+
+      verificacao.push({
+        nome,
+        legivel: !!legivel,
+        motivo,
+        paginas_legiveis: paginasLegiveis,
+        paginas_total: paginasTotOut,
+        qualidade
+      });
+    } catch(e) {
+      verificacao.push({
+        nome,
+        legivel: false,
+        motivo: 'Falha na verificacao: '+(e?.message || e),
+        paginas_legiveis: 0,
+        paginas_total: paginasTotal || 0,
+        qualidade: 'ilegivel'
+      });
+    }
+  }
+
+  const todosLegiveis = verificacao.every(v => !!v.legivel);
+  return {
+    ok: true,
+    verificacao,
+    todos_legiveis: todosLegiveis,
+    prontos_para_pericia: verificacao.filter(v => v.legivel).length,
+    total: verificacao.length
+  };
+}
+
 const ETAPAS_PIPELINE = {
   INTAKE: 'intake',
   ANALISE: 'analise',
@@ -10998,21 +11173,79 @@ if(url==='/api/memoria' && req.method==='GET') {
 
   // ═══════════════════════════════════════════════════════════════════
   // [SETOR_PERICIA] Endpoints do Setor de Pericia
+  // - POST /api/pericia/verificar-pdfs : valida legibilidade dos PDFs (MODELO_ECO)
   // - POST /api/pericia/triagem : varredura preliminar dos docs (MODELO_MID, mais economico)
   // - POST /api/pericia/gerar   : gera laudo pericial minimo 8 paginas (MODELO_TOP, Opus 4)
   // - POST /api/pericia/anexar  : anexa laudo a andamento + pecas de um processo existente
   // - POST /api/pericia/baixar  : gera DOCX ou PDF do laudo para download
   // ═══════════════════════════════════════════════════════════════════
+  if(url==='/api/pericia/verificar-pdfs' && req.method==='POST') {
+    try {
+      const pf = validarToken(getToken(req));
+      if(!pf) { res.writeHead(401,corsHeaders(req)); res.end(JSON.stringify({error:'Nao autenticado'})); return; }
+      if(!AK) { res.writeHead(500,corsHeaders(req)); res.end(JSON.stringify({error:'ANTHROPIC_KEY nao configurada no servidor'})); return; }
+      const b = await lerBody(req);
+      const docs = Array.isArray(b.docs) ? b.docs.slice(0,50) : [];
+      if(!docs.length) { res.writeHead(400,corsHeaders(req)); res.end(JSON.stringify({error:'docs[] obrigatorio (ate 50 PDFs)'})); return; }
+      const vr = await _verificarLegibilidadeDocsPericia(docs);
+      res.writeHead(200,corsHeaders(req)); res.end(JSON.stringify(vr));
+    } catch(e) {
+      console.error('[pericia/verificar-pdfs] erro:', e?.message||e);
+      res.writeHead(500,corsHeaders(req)); res.end(JSON.stringify({error:e.message||'falha verificacao'}));
+    }
+    return;
+  }
+
   if(url==='/api/pericia/triagem' && req.method==='POST') {
     try {
       const pf = validarToken(getToken(req));
       if(!pf) { res.writeHead(401,corsHeaders(req)); res.end(JSON.stringify({error:'Nao autenticado'})); return; }
       if(!AK) { res.writeHead(500,corsHeaders(req)); res.end(JSON.stringify({error:'ANTHROPIC_KEY nao configurada no servidor'})); return; }
       const b = await lerBody(req);
-      const docs = Array.isArray(b.docs) ? b.docs : [];
+      const docs = Array.isArray(b.docs) ? b.docs.slice(0,50) : [];
       const objetivo = (b.objetivo||'').trim();
       if(!docs.length && !objetivo) { res.writeHead(400,corsHeaders(req)); res.end(JSON.stringify({error:'Envie docs[] e/ou objetivo da pericia'})); return; }
-      const blocos = docs.slice(0,8).map((d,i)=>`--- DOC ${i+1}: ${d.nome||'sem_nome'} ---\n${String(d.texto||d.conteudo||'').slice(0,8000)}`).join('\n\n');
+
+      const docsNaoVerificados = docs.filter(d => !d || d.verificado !== true);
+      let verificacao = null;
+      if(docsNaoVerificados.length) {
+        verificacao = await _verificarLegibilidadeDocsPericia(docs);
+      } else {
+        verificacao = {
+          ok: true,
+          verificacao: docs.map((d)=>({
+            nome: d?.nome || 'sem_nome',
+            legivel: true,
+            motivo: 'Marcado como verificado pelo cliente.',
+            paginas_legiveis: Number(d?.paginas_legiveis)||1,
+            paginas_total: Number(d?.paginas_total)||1,
+            qualidade: 'alta'
+          })),
+          todos_legiveis: true,
+          prontos_para_pericia: docs.length,
+          total: docs.length
+        };
+      }
+
+      if(!verificacao.todos_legiveis) {
+        res.writeHead(200,corsHeaders(req));
+        res.end(JSON.stringify({
+          ok: true,
+          triagem: null,
+          texto: 'Triagem bloqueada: existem PDFs ilegiveis.',
+          verificacao: verificacao.verificacao,
+          todos_legiveis: false,
+          prontos_para_pericia: verificacao.prontos_para_pericia,
+          total: verificacao.total,
+          motivo: 'Corrija os PDFs ilegiveis antes de prosseguir com a pericia.'
+        }));
+        return;
+      }
+
+      const blocoVerificacao = (verificacao.verificacao||[]).map((v,i)=>(
+        `- DOC ${i+1}: ${v.nome} | legivel=${v.legivel} | qualidade=${v.qualidade} | paginas=${v.paginas_legiveis}/${v.paginas_total} | motivo=${v.motivo}`
+      )).join('\n');
+      const blocos = docs.slice(0,50).map((d,i)=>`--- DOC ${i+1}: ${d.nome||'sem_nome'} ---\n${String(d.texto||d.conteudo||'').slice(0,8000)}`).join('\n\n');
       const sys = `Voce e o Triador Pericial — varredura preliminar dos documentos recebidos para uma pericia.
 Objetivo da pericia: ${objetivo||'(nao informado)'}
 
@@ -11035,11 +11268,19 @@ Responda em JSON puro:
   "motivo": "explicacao curta caso nao pronto"
 }`;
       // Triagem usa MODELO_MID (economico)
-      const txt = await ia([{role:'user',content:'Objetivo: '+objetivo+'\n\nDocumentos:\n\n'+(blocos||'(nenhum doc anexado)')}], sys, 2500, MODELO_MID);
+      const txt = await ia([{role:'user',content:'Objetivo: '+objetivo+'\n\nVerificacao de legibilidade (obrigatoria):\n'+(blocoVerificacao||'(sem verificacao)')+'\n\nDocumentos:\n\n'+(blocos||'(nenhum doc anexado)')}], sys, 2500, MODELO_MID);
       let dados = null;
       try { const m = txt.match(/\{[\s\S]*\}/); if(m) dados = JSON.parse(m[0]); } catch(_){ }
       res.writeHead(200,corsHeaders(req));
-      res.end(JSON.stringify({ok:true, triagem: dados, texto: txt}));
+      res.end(JSON.stringify({
+        ok:true,
+        triagem: dados,
+        texto: txt,
+        verificacao: verificacao.verificacao,
+        todos_legiveis: verificacao.todos_legiveis,
+        prontos_para_pericia: verificacao.prontos_para_pericia,
+        total: verificacao.total
+      }));
     } catch(e) {
       console.error('[pericia/triagem] erro:', e?.message||e);
       res.writeHead(500,corsHeaders(req)); res.end(JSON.stringify({error:e.message||'falha triagem'}));
@@ -11053,12 +11294,48 @@ Responda em JSON puro:
       if(!pf) { res.writeHead(401,corsHeaders(req)); res.end(JSON.stringify({error:'Nao autenticado'})); return; }
       if(!AK) { res.writeHead(500,corsHeaders(req)); res.end(JSON.stringify({error:'ANTHROPIC_KEY nao configurada no servidor'})); return; }
       const b = await lerBody(req);
-      const docs = Array.isArray(b.docs) ? b.docs : [];
+      const docs = Array.isArray(b.docs) ? b.docs.slice(0,50) : [];
       const objetivo = (b.objetivo||'').trim();
       const tipo = (b.tipo_pericia||b.tipo||'contabil').trim();
       const dadosProc = b.processo || {};
       if(!objetivo) { res.writeHead(400,corsHeaders(req)); res.end(JSON.stringify({error:'objetivo da pericia obrigatorio'})); return; }
-      const blocos = docs.slice(0,12).map((d,i)=>`=== DOC ${i+1}: ${d.nome||'sem_nome'} ===\n${String(d.texto||d.conteudo||'').slice(0,12000)}`).join('\n\n');
+
+      const docsNaoVerificados = docs.filter(d => !d || d.verificado !== true);
+      let verificacao = null;
+      if(docsNaoVerificados.length) {
+        verificacao = await _verificarLegibilidadeDocsPericia(docs);
+      } else {
+        verificacao = {
+          ok: true,
+          verificacao: docs.map((d)=>({
+            nome: d?.nome || 'sem_nome',
+            legivel: true,
+            motivo: 'Marcado como verificado pelo cliente.',
+            paginas_legiveis: Number(d?.paginas_legiveis)||1,
+            paginas_total: Number(d?.paginas_total)||1,
+            qualidade: 'alta'
+          })),
+          todos_legiveis: true,
+          prontos_para_pericia: docs.length,
+          total: docs.length
+        };
+      }
+      if(!verificacao.todos_legiveis) {
+        res.writeHead(400,corsHeaders(req));
+        res.end(JSON.stringify({
+          error:'Pericia bloqueada: existem PDFs ilegiveis. Corrija e tente novamente.',
+          verificacao: verificacao.verificacao,
+          todos_legiveis:false,
+          prontos_para_pericia: verificacao.prontos_para_pericia,
+          total: verificacao.total
+        }));
+        return;
+      }
+
+      const blocoVerificacao = (verificacao.verificacao||[]).map((v,i)=>(
+        `- DOC ${i+1}: ${v.nome} | legivel=${v.legivel} | qualidade=${v.qualidade} | paginas=${v.paginas_legiveis}/${v.paginas_total} | motivo=${v.motivo}`
+      )).join('\n');
+      const blocos = docs.slice(0,50).map((d,i)=>`=== DOC ${i+1}: ${d.nome||'sem_nome'} ===\n${String(d.texto||d.conteudo||'').slice(0,12000)}`).join('\n\n');
       const sys = `Voce e o Perito Judicial ELITE de Camargos Advocacia — perito contabil, financeiro e de calculo judicial.
 Este e um LAUDO PERICIAL formal que sera anexado aos autos. Qualidade maxima, linguagem tecnica, fundamentado.
 
@@ -11076,6 +11353,9 @@ EXIGENCIAS OBRIGATORIAS:
 - Use marcadores claros: "### 1. IDENTIFICACAO", "### 2. QUESITOS", etc
 - Termine com "${'#'}## ASSINATURA" com placeholder para perito responsavel
 
+VERIFICACAO OBRIGATORIA DE LEGIBILIDADE (todos os docs aprovados):
+${blocoVerificacao || '(sem docs)'}
+
 NAO INVENTE numeros. Se um valor nao consta nos documentos, diga "nao foi possivel apurar com os documentos entregues — recomenda-se solicitar X".`;
       // Pericia usa MODELO_TOP (Opus 4) — qualidade maxima para laudo formal
       const laudo = await ia([{role:'user',content:'Gere o LAUDO PERICIAL COMPLETO (minimo 8 paginas) para o seguinte caso:\n\nOBJETIVO: '+objetivo+'\n\nDOCUMENTOS ANALISADOS:\n\n'+(blocos||'(apenas a descricao do objetivo — faca laudo com ressalvas de documentos faltantes)')}], sys, 8192, MODELO_TOP);
@@ -11083,7 +11363,17 @@ NAO INVENTE numeros. Se um valor nao consta nos documentos, diga "nao foi possiv
       const palavrasAprox = (laudo||'').split(/\s+/).filter(Boolean).length;
       const paginasAprox = Math.max(1, Math.round(palavrasAprox/500));
       res.writeHead(200,corsHeaders(req));
-      res.end(JSON.stringify({ok:true, laudo, estatisticas:{caracteres, palavras:palavrasAprox, paginas_aprox:paginasAprox}, tipo, objetivo}));
+      res.end(JSON.stringify({
+        ok:true,
+        laudo,
+        estatisticas:{caracteres, palavras:palavrasAprox, paginas_aprox:paginasAprox},
+        tipo,
+        objetivo,
+        verificacao: verificacao.verificacao,
+        todos_legiveis: verificacao.todos_legiveis,
+        prontos_para_pericia: verificacao.prontos_para_pericia,
+        total: verificacao.total
+      }));
     } catch(e) {
       console.error('[pericia/gerar] erro:', e?.message||e);
       res.writeHead(500,corsHeaders(req)); res.end(JSON.stringify({error:e.message||'falha pericia'}));
@@ -12081,11 +12371,58 @@ async function _analisarPerfilJuiz(nomeJuiz, tribunal, processoId, decisoesTexto
     ? `\n\nDECISÕES/DESPACHOS EXTRAÍDOS DOS PDFs ANEXADOS (${pdfs.length}):${resumoPdfs.substring(0, 12000)}`
     : '';
 
-  // 3) Processo vinculado (se passado processoId)
+  // 3) Processo vinculado (se passado processoId) — contexto COMPLETO
   const procVinc = processoId ? processos.find(p => String(p.id) === String(processoId)) : null;
-  const ctxProcVinc = procVinc
-    ? `\n\nPROCESSO VINCULADO À ANÁLISE:\nNome: ${procVinc.nome||'—'} | Nº: ${procVinc.numero||numeroProcesso||'—'} | Área: ${procVinc.area||'—'} | Tribunal: ${procVinc.tribunal||tribunal||'—'} | Status: ${procVinc.status||'—'}\nDescrição: ${(procVinc.descricao||'').substring(0,300)}`
-    : (numeroProcesso ? `\n\nPROCESSO INFORMADO (sem vínculo no Lex): Nº ${numeroProcesso}` : '');
+  let ctxProcVinc = '';
+  if(procVinc) {
+    const autorStr = procVinc.autor && typeof procVinc.autor === 'object'
+      ? `Nome: ${procVinc.autor.nome||'?'}, CPF: ${procVinc.autor.cpf||'?'}, Advogado: ${procVinc.autor.advogado||'?'} OAB: ${procVinc.autor.oab||'?'}`
+      : (procVinc.autor || '?');
+    const reuStr = procVinc.reu && typeof procVinc.reu === 'object'
+      ? `Nome: ${procVinc.reu.nome||'?'}, CPF/CNPJ: ${procVinc.reu.cpf_cnpj||'?'}, Advogado: ${procVinc.reu.advogado||'?'} OAB: ${procVinc.reu.oab||'?'}`
+      : (procVinc.reu || '?');
+    const demandaStr = procVinc.demanda && typeof procVinc.demanda === 'object'
+      ? `Tipo: ${procVinc.demanda.tipo||'?'}\nFatos: ${procVinc.demanda.resumo_fatos||'?'}\nPedidos: ${(procVinc.demanda.pedidos||[]).join('; ')}\nDefesa réu: ${(procVinc.demanda.defesa_reu||[]).join('; ')}`
+      : '';
+    ctxProcVinc = `\n\n════ PROCESSO VINCULADO À ANÁLISE (FOCO PRINCIPAL) ════
+Nome: ${procVinc.nome||'—'}
+Número CNJ: ${procVinc.numero||procVinc.cnj||numeroProcesso||'—'}
+Área: ${procVinc.area||procVinc.area_direito||'—'}
+Tipo de ação: ${procVinc.tipo_acao||procVinc.tipo||'—'}
+Tribunal/Vara: ${procVinc.tribunal||tribunal||'—'} / ${procVinc.vara||'—'}
+Comarca: ${procVinc.comarca||'—'}
+Status: ${procVinc.status||'—'}
+Valor da causa: ${procVinc.valor||'—'}
+Partes: ${procVinc.partes||'—'}
+AUTOR: ${autorStr}
+RÉU: ${reuStr}
+${demandaStr ? 'DEMANDA:\n'+demandaStr : ''}
+Descrição: ${(procVinc.descricao||procVinc.resumo||'').substring(0,500)}
+Observações: ${(procVinc.observacoes||'').substring(0,300)}
+════════════════════════════════════════════════════════
+ATENÇÃO: A análise do perfil decisório DEVE ser contextualizada a ESTE PROCESSO ESPECÍFICO.
+Analise como este juiz tende a decidir casos COM ESTAS CARACTERÍSTICAS (área, tipo, partes, pedidos).
+Se o juiz atua em outros processos do escritório, COMPARE como age em cada um.`;
+  } else if(numeroProcesso) {
+    ctxProcVinc = `\n\nPROCESSO INFORMADO (sem vínculo no Lex): Nº ${numeroProcesso}`;
+  }
+
+  // 3b) Se o juiz atua em MÚLTIPLOS processos, montar comparativo POR PROCESSO
+  let ctxComparativo = '';
+  if(processosDoJuiz.length > 1) {
+    ctxComparativo = `\n\n════ COMPARATIVO: COMO ESTE JUIZ AGE EM CADA PROCESSO ════
+Este juiz atua em ${processosDoJuiz.length} processo(s) do escritório. Analise o comportamento dele em CADA UM:
+`;
+    processosDoJuiz.slice(0,10).forEach((p, i) => {
+      const isVinc = procVinc && String(p.id) === String(procVinc.id);
+      ctxComparativo += `\n[Processo ${i+1}${isVinc?' ★ FOCO':''}] ${p.nome||'?'}
+  Nº: ${p.numero||'?'} | Área: ${p.area||'?'} | Tipo: ${p.tipo_acao||p.tipo||'?'}
+  Partes: ${p.partes||'?'} | Status: ${p.status||'?'}
+  Valor: ${p.valor||'?'} | Descrição: ${(p.descricao||'').substring(0,200)}
+  Perfil anterior: ${p.perfil_juiz ? 'SIM (gerado em '+p.perfil_juiz_em+')' : 'NÃO'}`;
+    });
+    ctxComparativo += `\n\nINSTRUÇÃO: No campo "analise_por_processo", gere uma análise ESPECÍFICA para cada processo, mostrando como o juiz tende a agir naquele caso particular.`;
+  }
 
   const localStr = [municipio, uf, comarca].filter(Boolean).join(' / ');
 
@@ -12155,6 +12492,7 @@ MAGISTRADO ALVO: ${nomeJuiz}
 TRIBUNAL: ${tribunal||'não informado'}
 LOCALIZAÇÃO: ${localStr||'não informada'}
 ${ctxProcVinc}
+${ctxComparativo}
 ${ctxLocal}
 ${ctxDecisoes}
 ${ctxPdfs}
@@ -12213,7 +12551,19 @@ Responda em JSON ÚNICO e válido:
   "base_analise": "web+pdfs+local|web+local|web+conhecimento|pdfs+local|só_local|só_conhecimento_geral",
   "advertencia": "aviso de limitações da análise se nível de confiança for baixo",
   "orientacao_advogado": "resumo executivo em 4-6 linhas direcionado ao advogado: como agir neste processo especificamente, considerando o perfil do juiz",
-  "modelo_peticao_sugerido": "estrutura resumida de petição alinhada ao perfil deste juiz (seções: preliminar, mérito, pedido) com tom e argumentos específicos para ele"
+  "modelo_peticao_sugerido": "estrutura resumida de petição alinhada ao perfil deste juiz (seções: preliminar, mérito, pedido) com tom e argumentos específicos para ele",
+  "analise_por_processo": [
+    {
+      "processo_id": "id do processo",
+      "numero": "número CNJ",
+      "nome": "nome do processo",
+      "area": "área do direito",
+      "como_juiz_tende_decidir": "análise de como este juiz tende a decidir NESTE caso específico, considerando área, tipo, partes e pedidos",
+      "estrategia_especifica": "o que fazer NESTE processo para ter sucesso com este juiz",
+      "riscos_especificos": "riscos particulares deste caso com este juiz",
+      "tom_recomendado": "tom e abordagem da petição para ESTE caso"
+    }
+  ]
 }`;
 
   const txt = await ia([{role:'user', content: prompt}], null, 4500, MODELO_MID); // Perfil juiz (JSON estruturado) → Sonnet
@@ -12228,6 +12578,28 @@ Responda em JSON ÚNICO e válido:
     perfil._buscas_web = buscasFeitas.length;
     perfil._buscas_web_queries = buscasFeitas.map(b => b.query).filter(Boolean).slice(0, 20);
     perfil._dossie_web_excerto = dossieWeb ? dossieWeb.substring(0, 2000) : '';
+
+    // ═══ SALVAR perfil do juiz NO PROCESSO vinculado (para consulta futura) ═══
+    if(procVinc) {
+      procVinc.perfil_juiz = perfil;
+      procVinc.perfil_juiz_em = new Date().toISOString();
+      procVinc.atualizado_em = new Date().toISOString();
+      try { await _persistirProcessosCache(); } catch(_){}
+    }
+    // Salvar nos outros processos do juiz (referência cruzada)
+    if(processosDoJuiz.length > 1) {
+      for(const p of processosDoJuiz) {
+        if(procVinc && String(p.id) === String(procVinc.id)) continue;
+        if(!p.perfil_juiz_refs) p.perfil_juiz_refs = [];
+        p.perfil_juiz_refs.push({
+          gerado_para_processo: processoId,
+          gerado_em: new Date().toISOString(),
+          nome_juiz: nomeJuiz
+        });
+        // Não salvar o perfil completo em cada processo — só a referência
+      }
+    }
+
     return perfil;
   } catch(e) {
     return {
