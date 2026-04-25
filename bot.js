@@ -2939,6 +2939,584 @@ function _detectarTipoCaso(texto) {
   return null; // indefinido, Lex vai perguntar
 }
 
+const AREAS_DIREITO_INTAKE = ['trabalhista','previdenciario','civil','familia','penal','tributario','administrativo','comercial'];
+const SUBAREAS_PREVIDENCIARIAS = [
+  'auxilio_doenca',
+  'aposentadoria_invalidez',
+  'aposentadoria_tempo',
+  'aposentadoria_idade',
+  'aposentadoria_rural',
+  'bpc_loas',
+  'pensao_morte',
+  'auxilio_acidente',
+  'auxilio_maternidade',
+  'revisao_beneficio'
+];
+
+function _clampNum(n, min, max) { return Math.max(min, Math.min(max, Number(n)||0)); }
+
+function _normalizarAreaDireito(v) {
+  const t = _normTexto(v || '').replace(/[^a-z0-9_ ]/g, '').trim();
+  if(!t) return '';
+  if(t.includes('trabalh')) return 'trabalhista';
+  if(t.includes('previd')) return 'previdenciario';
+  if(t.includes('famil')) return 'familia';
+  if(t.includes('penal') || t.includes('criminal')) return 'penal';
+  if(t.includes('tribut')) return 'tributario';
+  if(t.includes('admin')) return 'administrativo';
+  if(t.includes('comerc') || t.includes('empresar')) return 'comercial';
+  if(t.includes('civil') || t.includes('civel')) return 'civil';
+  return '';
+}
+
+function _normalizarSubareaPrevidenciaria(v) {
+  const t = _normTexto(v || '').replace(/[^a-z0-9_ ]/g, '').trim();
+  if(!t) return '';
+  if(/auxili.*doenc|b31|incapacidade temporaria/.test(t)) return 'auxilio_doenca';
+  if(/aposentadoria.*invalidez|b32|incapacidade permanente/.test(t)) return 'aposentadoria_invalidez';
+  if(/aposentadoria.*tempo|tempo.*contribuicao|regra de transicao/.test(t)) return 'aposentadoria_tempo';
+  if(/aposentadoria.*idade|62|65/.test(t)) return 'aposentadoria_idade';
+  if(/aposentadoria.*rural|segurado especial/.test(t)) return 'aposentadoria_rural';
+  if(/bpc|loas|beneficio de prestacao continuada/.test(t)) return 'bpc_loas';
+  if(/pensao.*morte|obito/.test(t)) return 'pensao_morte';
+  if(/auxili.*acidente|sequela/.test(t)) return 'auxilio_acidente';
+  if(/auxili.*matern|salario.*matern/.test(t)) return 'auxilio_maternidade';
+  if(/revisao|recalculo|readequacao/.test(t)) return 'revisao_beneficio';
+  return '';
+}
+
+function _normalizarConfianca01(v, padrao) {
+  let n = Number(v);
+  if(!isFinite(n)) {
+    const t = _normTexto(v||'');
+    if(t === 'alta') n = 0.85;
+    else if(t === 'media' || t === 'med') n = 0.65;
+    else if(t === 'baixa') n = 0.45;
+    else n = Number(padrao)||0.55;
+  }
+  if(n > 1) n = n / 100;
+  return _clampNum(n, 0, 1);
+}
+
+function _textoClassificacaoDireito(fatos, dados) {
+  const d = dados || {};
+  const partes = [
+    String(fatos || ''),
+    String(d.resumo || ''),
+    String(d.descricao || ''),
+    String(d.tipo_acao || ''),
+    String(d.area || ''),
+    String(d.area_direito || ''),
+    String(d.demanda?.tipo || ''),
+    String(d.demanda?.resumo_fatos || ''),
+    String(d.nome_caso || ''),
+    String(d.observacoes || ''),
+    String(d.autor?.nome || ''),
+    String(d.reu?.nome || ''),
+    String(d.documentos_necessarios || ''),
+    Array.isArray(d.docs_identificados) ? d.docs_identificados.join(' ; ') : ''
+  ].filter(Boolean);
+  return partes.join('\n').substring(0, 6000);
+}
+
+function _pontuarAreaDireitoHeuristica(texto) {
+  const t = _normTexto(texto || '');
+  const regras = {
+    trabalhista: ['clt','demissao','demitido','rescis','fgts','ctps','aviso previo','hora extra','patrao','vinculo empreg'],
+    previdenciario: ['inss','beneficio','aposentadoria','auxilio','pensao','bpc','loas','incapacidade','segurado','carencia','cnis','ec 103'],
+    civil: ['indenizacao','danos morais','danos materiais','contrato','inadimplemento','cobranca','obrigacao de fazer','responsabilidade civil'],
+    familia: ['divorcio','guarda','pensao aliment','uniao estavel','inventario','partilha','visitas','paternidade'],
+    penal: ['prisao','flagrante','delegacia','inquerito','denuncia','habeas corpus','crime','audiencia de custodia'],
+    tributario: ['tributo','icms','iss','irpf','irpj','receita federal','auto de infracao','darf','execucao fiscal','carf'],
+    administrativo: ['processo administrativo','portaria','licitacao','edital','servidor publico','ato administrativo','improbidade'],
+    comercial: ['contrato social','socio','empresa','franquia','duplicata','titulo de credito','fornecedor','relacao empresarial']
+  };
+  const score = {};
+  const hits = {};
+  Object.keys(regras).forEach(a => { score[a] = 0; hits[a] = []; });
+  Object.entries(regras).forEach(([area, kws]) => {
+    kws.forEach(k => {
+      if(t.includes(k)) { score[area] += 1; hits[area].push(k); }
+    });
+  });
+  const ordem = Object.entries(score).sort((a,b)=>b[1]-a[1]);
+  const area = ordem[0]?.[1] > 0 ? ordem[0][0] : '';
+  const max = ordem[0]?.[1] || 0;
+  const second = ordem[1]?.[1] || 0;
+  const confianca = area ? _clampNum((0.50 + Math.min(0.35, max*0.08) + Math.min(0.10, (max-second)*0.05)), 0.45, 0.95) : 0.35;
+  return { area, confianca, termos: hits[area] || [] };
+}
+
+function _detectarSubareaPrevidenciariaHeuristica(texto, dados) {
+  const base = _normTexto((texto||'') + ' ' + JSON.stringify(dados||{}));
+  const mapa = {
+    auxilio_doenca: ['auxilio doenca','auxilio por incapacidade temporaria','b31','incapacidade temporaria'],
+    aposentadoria_invalidez: ['aposentadoria por invalidez','aposentadoria por incapacidade permanente','b32','incapacidade permanente'],
+    aposentadoria_tempo: ['aposentadoria por tempo','tempo de contribuicao','pedagio 50','pedagio 100','regra de transicao'],
+    aposentadoria_idade: ['aposentadoria por idade','65 anos','62 anos','idade minima'],
+    aposentadoria_rural: ['aposentadoria rural','segurado especial','atividade rural'],
+    bpc_loas: ['bpc','loas','beneficio de prestacao continuada','renda per capita'],
+    pensao_morte: ['pensao por morte','obito','dependente'],
+    auxilio_acidente: ['auxilio-acidente','auxilio acidente','sequela','reducao da capacidade'],
+    auxilio_maternidade: ['auxilio maternidade','salario maternidade','gestante','parto'],
+    revisao_beneficio: ['revisao de beneficio','recalculo','readequacao da renda mensal','rmi']
+  };
+  let best = '';
+  let bestScore = 0;
+  Object.entries(mapa).forEach(([sub, kws]) => {
+    const s = kws.reduce((acc, k) => acc + (base.includes(k) ? 1 : 0), 0);
+    if(s > bestScore) { best = sub; bestScore = s; }
+  });
+  return { subarea: best, confianca: best ? _clampNum(0.50 + bestScore*0.10, 0.50, 0.92) : 0.35 };
+}
+
+async function _classificarAreaDireito(fatos, dados) {
+  const textoBase = _textoClassificacaoDireito(fatos, dados);
+  const heur = _pontuarAreaDireitoHeuristica(textoBase);
+  let areaIA = '';
+  let subIA = '';
+  let confIA = 0;
+  let fundIA = '';
+  try {
+    const prompt = [
+      'Classifique a area do direito do caso em JSON puro.',
+      'Areas permitidas: trabalhista, previdenciario, civil, familia, penal, tributario, administrativo, comercial.',
+      'Se area for previdenciario, informe subarea em uma das opcoes:',
+      SUBAREAS_PREVIDENCIARIAS.join(', ') + '.',
+      'Retorne SOMENTE JSON: {"area":"","subarea":"","confianca":0-1,"fundamentacao_inicial":""}.',
+      'Nao invente fatos. Se incerto, reduza confianca.',
+      '',
+      'FATOS/DADOS:',
+      textoBase.substring(0, 5500)
+    ].join('\n');
+    const txt = await ia([{role:'user', content:prompt}], null, 700, MODELO_ECO);
+    const m = String(txt||'').replace(/```json|```/g,'').match(/\{[\s\S]*\}/);
+    const j = JSON.parse(m ? m[0] : txt);
+    areaIA = _normalizarAreaDireito(j?.area);
+    subIA = _normalizarSubareaPrevidenciaria(j?.subarea);
+    confIA = _normalizarConfianca01(j?.confianca, 0.55);
+    fundIA = String(j?.fundamentacao_inicial || '').trim();
+  } catch(e) {
+    areaIA = '';
+  }
+  let area = areaIA || heur.area || _normalizarAreaDireito(dados?.area) || _normalizarAreaDireito(dados?.area_direito) || 'civil';
+  if(!AREAS_DIREITO_INTAKE.includes(area)) area = 'civil';
+  const subHeur = _detectarSubareaPrevidenciariaHeuristica(textoBase, dados);
+  let subarea = '';
+  if(area === 'previdenciario') {
+    subarea = subIA || subHeur.subarea || '';
+    if(subarea && !SUBAREAS_PREVIDENCIARIAS.includes(subarea)) subarea = '';
+  }
+  const confianca = areaIA
+    ? _clampNum((confIA * 0.75) + (_normalizarConfianca01(heur.confianca, 0.5) * 0.25), 0.35, 0.98)
+    : _clampNum(_normalizarConfianca01(heur.confianca, 0.5), 0.35, 0.92);
+  const termos = (heur.termos||[]).slice(0,5).join(', ');
+  const fundamentacao_inicial = fundIA || (termos ? ('Palavras-chave detectadas: '+termos+'.') : 'Classificacao automatica por heuristica textual.');
+  return { area, subarea, confianca: Number(confianca.toFixed(2)), fundamentacao_inicial };
+}
+
+function _idadePorDataNascimento(dataNascimentoBR) {
+  if(!dataNascimentoBR) return null;
+  const v = _validarDataBR(dataNascimentoBR);
+  if(!v.valido || !isFinite(v.anos)) return null;
+  return v.anos;
+}
+
+function _temDocumentoPerfil(perfil, ids) {
+  const wanted = new Set((ids||[]).map(x => _normTexto(x)));
+  const docs = []
+    .concat((perfil?.documentos_anexos||[]).map(d => d?.tipo))
+    .concat((perfil?.probatorios_anexos||[]).map(d => d?.tipo))
+    .concat((perfil?.probatorios_anexos||[]).map(d => d?.id));
+  return docs.some(d => wanted.has(_normTexto(d||'')));
+}
+
+function _textoPrevidenciarioContexto(perfil, fatos) {
+  const p = perfil || {};
+  const docs = []
+    .concat((p.documentos_anexos||[]).map(d => d?.tipo||''))
+    .concat((p.probatorios_anexos||[]).map(d => d?.tipo||d?.id||''));
+  return [
+    String(fatos||''),
+    String(p.caso_descricao||''),
+    String(p.demanda_extraida||''),
+    String(p.tipo_acao||''),
+    String(p.numero_processo||''),
+    docs.join(' ; ')
+  ].join('\n').substring(0, 7000);
+}
+
+function _detectarDocumentoPrevidenciario(tipoDocumento, nomeArquivo, dados) {
+  const t = _normTexto(tipoDocumento||'');
+  const n = _normTexto(nomeArquivo||'');
+  const ctx = _normTexto(JSON.stringify(dados||{}));
+  if(/cnis|laudo medico|laudo|indeferimento_inss|inss|ctps|carteira trabalho/.test(t)) return true;
+  if(/cnis|laudo|inss|beneficio|bpc|loas|aposentadoria|auxilio/.test(n)) return true;
+  if(/cnis|laudo|inss|beneficio|incapacidade|aposentadoria/.test(ctx)) return true;
+  return false;
+}
+
+function _detectarDocsPrevidenciariosFaltantes(perfil, beneficioProvavel) {
+  const faltam = [];
+  const pushSeFaltar = (id, nome) => { if(!_temDocumentoPerfil(perfil, [id])) faltam.push(nome); };
+  pushSeFaltar('cnis', 'Extrato CNIS atualizado');
+  pushSeFaltar('indeferimento_inss', 'Carta de indeferimento ou comprovante de requerimento no INSS');
+  pushSeFaltar('carteiras_trabalho', 'CTPS (todas, inclusive antigas)');
+  if(/auxilio_doenca|aposentadoria_invalidez|auxilio_acidente/.test(beneficioProvavel||'')) {
+    pushSeFaltar('laudos_medicos', 'Laudos medicos com CID e prognostico');
+    if(!_temDocumentoPerfil(perfil, ['receitas'])) faltam.push('Receitas, exames e relatorios clinicos recentes');
+  }
+  if((beneficioProvavel||'') === 'aposentadoria_rural') pushSeFaltar('comprovantes_atividade_rural', 'Provas de atividade rural por 15 anos');
+  if((beneficioProvavel||'') === 'pensao_morte') {
+    if(!_temDocumentoPerfil(perfil, ['certidao_obito'])) faltam.push('Certidao de obito do segurado');
+    if(!_temDocumentoPerfil(perfil, ['prova_dependencia'])) faltam.push('Provas de dependencia economica (quando exigivel)');
+  }
+  if((beneficioProvavel||'') === 'bpc_loas') {
+    if(!_temDocumentoPerfil(perfil, ['cadunico'])) faltam.push('Cadastro Unico (CadUnico) atualizado');
+    if(!_temDocumentoPerfil(perfil, ['comprovantes_renda'])) faltam.push('Comprovantes de renda de todos do grupo familiar');
+  }
+  if(!_temDocumentoPerfil(perfil, ['govbr'])) faltam.push('Acesso gov.br (usuario e senha) para consultas e protocolos');
+  return [...new Set(faltam)];
+}
+
+function _legislacaoPrevidenciariaBase(beneficioProvavel) {
+  const base = ['Lei 8.213/91 (Regime Geral de Previdencia Social)', 'EC 103/2019 (Reforma da Previdencia)'];
+  if(beneficioProvavel === 'bpc_loas') base.push('Lei 8.742/93 (LOAS) - art. 20');
+  if(beneficioProvavel === 'auxilio_doenca') base.push('Lei 8.213/91 - arts. 59 a 63');
+  if(beneficioProvavel === 'aposentadoria_invalidez') base.push('Lei 8.213/91 - arts. 42 a 47');
+  if(beneficioProvavel === 'aposentadoria_tempo') base.push('Lei 8.213/91 - art. 52 (regras anteriores) + transicoes EC 103/2019');
+  if(beneficioProvavel === 'aposentadoria_idade') base.push('Lei 8.213/91 - arts. 48 e 142');
+  if(beneficioProvavel === 'aposentadoria_rural') base.push('Lei 8.213/91 - arts. 48, 39 e 143');
+  if(beneficioProvavel === 'pensao_morte') base.push('Lei 8.213/91 - arts. 74 a 79');
+  if(beneficioProvavel === 'auxilio_acidente') base.push('Lei 8.213/91 - art. 86');
+  if(beneficioProvavel === 'auxilio_maternidade') base.push('Lei 8.213/91 - arts. 71 a 73');
+  if(beneficioProvavel === 'revisao_beneficio') base.push('Lei 8.213/91 - arts. 29 e 103');
+  return base;
+}
+
+function _fallbackAnalisePrevidenciaria(perfil, fatos) {
+  const contexto = _textoPrevidenciarioContexto(perfil, fatos);
+  const sub = _normalizarSubareaPrevidenciaria(perfil?.tipo_acao) || _detectarSubareaPrevidenciariaHeuristica(contexto, perfil).subarea || 'auxilio_doenca';
+  const beneficio_provavel = sub;
+  const requisitos_atendidos = [];
+  const requisitos_faltantes = [];
+  const idade = _idadePorDataNascimento(perfil?.data_nascimento);
+  const temCnis = _temDocumentoPerfil(perfil, ['cnis']);
+  const temLaudo = _temDocumentoPerfil(perfil, ['laudos_medicos','laudo_medico']);
+  const texto = _normTexto(contexto);
+  const mencaoTemporaria = /temporari|afastamento/.test(texto);
+  const mencaoPermanente = /permanent|irreversivel|definitiv/.test(texto);
+  const mencaoObito = /obito|falec/.test(texto);
+  const mencaoRural = /rural|segurado especial|lavrador/.test(texto);
+  const baixaRenda = /1\/4|um quarto|renda per capita|baixa renda|cadunico/.test(texto);
+  const qualidadeSegurado = temCnis || /segurado/.test(texto);
+  const carencia12 = temCnis || /12 contribu|carencia/.test(texto);
+
+  const addReq = (cond, okTxt, faltTxt) => { if(cond) requisitos_atendidos.push(okTxt); else requisitos_faltantes.push(faltTxt); };
+
+  switch(beneficio_provavel) {
+    case 'auxilio_doenca':
+      addReq(qualidadeSegurado, 'Qualidade de segurado com indicios documentais.', 'Comprovar qualidade de segurado (CNIS e vinculos).');
+      addReq(carencia12, 'Carencia minima de 12 contribuicoes com indicios no historico.', 'Comprovar carencia minima de 12 contribuicoes.');
+      addReq(temLaudo && mencaoTemporaria, 'Incapacidade temporaria indicada em laudos.', 'Laudo medico deve indicar incapacidade temporaria.');
+      break;
+    case 'aposentadoria_invalidez':
+      addReq(qualidadeSegurado, 'Qualidade de segurado com indicios documentais.', 'Comprovar qualidade de segurado.');
+      addReq(carencia12, 'Carencia minima de 12 contribuicoes com indicios no historico.', 'Comprovar carencia minima de 12 contribuicoes.');
+      addReq(temLaudo && mencaoPermanente, 'Incapacidade permanente total indicada em laudos.', 'Laudo medico deve indicar incapacidade permanente total.');
+      break;
+    case 'bpc_loas':
+      addReq(baixaRenda, 'Baixa renda familiar com indicios no contexto.', 'Comprovar renda per capita <= 1/4 do salario minimo.');
+      addReq((idade!=null && idade>=65) || /deficiencia|pcd|incapacidade de longo prazo/.test(texto), 'Requisito pessoal (idoso 65+ ou deficiencia) com indicios.', 'Comprovar idade 65+ ou deficiencia de longo prazo.');
+      break;
+    case 'aposentadoria_tempo':
+      addReq(temCnis, 'CNIS presente para apuracao de tempo de contribuicao.', 'Necessario CNIS e vinculos para calcular tempo de contribuicao.');
+      addReq(/ec 103|pedagio|regra de transicao|tempo de contribuicao/.test(texto), 'Ha indicios para enquadramento em regra de transicao/tempo.', 'Definir regra (pre ou pos EC 103/2019) e tempo minimo.');
+      break;
+    case 'aposentadoria_idade':
+      addReq(((idade!=null && idade>=62) || /65 anos|62 anos/.test(texto)), 'Idade minima com indicios no cadastro/contexto.', 'Comprovar idade minima (65 homem / 62 mulher).');
+      addReq(temCnis, 'CNIS presente para verificar 15 anos de contribuicao.', 'Comprovar 15 anos de contribuicao via CNIS.');
+      break;
+    case 'aposentadoria_rural':
+      addReq(((idade!=null && idade>=55) || /60 anos|55 anos/.test(texto)), 'Idade minima rural com indicios no contexto.', 'Comprovar idade minima rural (60 homem / 55 mulher).');
+      addReq(mencaoRural && _temDocumentoPerfil(perfil, ['comprovantes_atividade_rural']), 'Atividade rural por periodo relevante com indicios documentais.', 'Comprovar 15 anos de atividade rural (segurado especial).');
+      break;
+    case 'pensao_morte':
+      addReq(mencaoObito || _temDocumentoPerfil(perfil, ['certidao_obito']), 'Obito do segurado com indicios documentais/contextuais.', 'Comprovar obito do segurado (certidao).');
+      addReq(_temDocumentoPerfil(perfil, ['cnis']) || /qualidade de segurado/.test(texto), 'Qualidade de segurado do falecido com indicios.', 'Comprovar qualidade de segurado do falecido.');
+      addReq(/dependente|conjuge|filho|companheir/.test(texto), 'Dependencia presumida/indicada no contexto.', 'Comprovar condicao de dependente.');
+      break;
+    case 'auxilio_acidente':
+      addReq(temLaudo, 'Laudos medicos apresentados.', 'Apresentar laudos medicos detalhando sequelas.');
+      addReq(/acidente|sequela/.test(texto), 'Ha indicios de acidente com sequela.', 'Comprovar acidente e nexo das sequelas.');
+      addReq(/reducao da capacidade|reduziu a capacidade|limitacao funcional/.test(texto), 'Reducao da capacidade laborativa mencionada.', 'Comprovar reducao permanente da capacidade para o trabalho.');
+      break;
+    case 'auxilio_maternidade':
+      addReq(/gestante|parto|adocao|nascimento/.test(texto), 'Evento gerador (gestacao/parto/adocao) indicado.', 'Comprovar gestacao, parto ou adocao.');
+      addReq(qualidadeSegurado || /segurada especial/.test(texto), 'Qualidade de segurada com indicios.', 'Comprovar qualidade de segurada na data do fato gerador.');
+      break;
+    case 'revisao_beneficio':
+      addReq(_temDocumentoPerfil(perfil, ['cnis']), 'CNIS disponivel para revisao de calculo.', 'Apresentar CNIS completo para revisao do beneficio.');
+      addReq(/erro|revisao|rmi|tempo especial|tempo comum/.test(texto), 'Tese revisional indicada no contexto.', 'Definir tese revisional objetiva e periodo de apuracao.');
+      break;
+    default:
+      addReq(temCnis, 'CNIS disponivel para inicio da analise.', 'Enviar CNIS para analise de qualidade de segurado e carencia.');
+  }
+
+  const docs_necessarios = _detectarDocsPrevidenciariosFaltantes(perfil, beneficio_provavel);
+  const legislacao = _legislacaoPrevidenciariaBase(beneficio_provavel);
+  const fundamentacao = [
+    'Analise inicial automatica com foco na Lei 8.213/91 e nas regras de transicao da EC 103/2019.',
+    'A confirmacao final depende de prova documental (CNIS, requerimentos administrativos e laudos, quando houver incapacidade).'
+  ].join(' ');
+  return {
+    beneficio_provavel,
+    requisitos_atendidos,
+    requisitos_faltantes,
+    docs_necessarios,
+    fundamentacao,
+    legislacao,
+    jurisprudencia_sugerida: ['[VERIFICAR] Pesquisar precedentes da TNU/TRF sobre o beneficio identificado e os requisitos faltantes.'],
+    proximos_passos: [
+      'Consolidar documentos obrigatorios e atualizar cronologia dos fatos.',
+      'Protocolar ou complementar requerimento administrativo no Meu INSS.',
+      'Com documentos completos, revisar estrategia judicial com advogado responsavel.'
+    ]
+  };
+}
+
+function _normalizarLista(v) {
+  if(Array.isArray(v)) return v.map(x=>String(x||'').trim()).filter(Boolean);
+  if(typeof v === 'string') return v.split(/\n|;|,/g).map(x=>x.trim()).filter(Boolean);
+  return [];
+}
+
+function _normalizarJurisprudenciaSug(v) {
+  const arr = _normalizarLista(v);
+  return arr.map(x => x.startsWith('[VERIFICAR]') ? x : ('[VERIFICAR] '+x));
+}
+
+async function _analisePrevidenciaria(perfil, fatos) {
+  const fallback = _fallbackAnalisePrevidenciaria(perfil, fatos);
+  const contexto = _textoPrevidenciarioContexto(perfil, fatos);
+  try {
+    const prompt = [
+      'Voce e um analista juridico previdenciario senior.',
+      'Retorne SOMENTE JSON valido com os campos:',
+      '{"beneficio_provavel":"","requisitos_atendidos":[],"requisitos_faltantes":[],"docs_necessarios":[],"fundamentacao":"","legislacao":[],"jurisprudencia_sugerida":[],"proximos_passos":[]}.',
+      'Beneficios permitidos: '+SUBAREAS_PREVIDENCIARIAS.join(', ')+'.',
+      'Aplicar Lei 8.213/91 como base principal e considerar EC 103/2019 (regras de transicao).',
+      'NUNCA invente jurisprudencia: se nao tiver certeza, prefixe com [VERIFICAR].',
+      '',
+      'Checklist minimo por beneficio:',
+      '- auxilio_doenca (B31): qualidade segurado + carencia 12 + incapacidade temporaria',
+      '- aposentadoria_invalidez (B32): qualidade segurado + carencia 12 + incapacidade permanente total',
+      '- bpc_loas: renda per capita <= 1/4 salario minimo + deficiencia ou idoso 65+',
+      '- aposentadoria_tempo: tempo minimo contribuicao (pre/pós EC 103/2019)',
+      '- aposentadoria_idade: 65M/62F + 15 anos contribuicao',
+      '- aposentadoria_rural: 60M/55F + 15 anos atividade rural',
+      '- pensao_morte: dependentes + qualidade segurado + obito',
+      '- auxilio_acidente: sequela apos acidente + reducao capacidade',
+      '',
+      'PRE-ANALISE DETERMINISTICA (use como base e refine):',
+      JSON.stringify(fallback),
+      '',
+      'CONTEXTO DO CLIENTE:',
+      contexto.substring(0, 6500)
+    ].join('\n');
+    const txt = await ia([{role:'user', content: prompt}], null, 2200, MODELO_MID);
+    const m = String(txt||'').replace(/```json|```/g,'').match(/\{[\s\S]*\}/);
+    const j = JSON.parse(m ? m[0] : txt);
+    const beneficio = _normalizarSubareaPrevidenciaria(j?.beneficio_provavel) || fallback.beneficio_provavel;
+    return {
+      beneficio_provavel: beneficio,
+      requisitos_atendidos: _normalizarLista(j?.requisitos_atendidos).length ? _normalizarLista(j?.requisitos_atendidos) : fallback.requisitos_atendidos,
+      requisitos_faltantes: _normalizarLista(j?.requisitos_faltantes).length ? _normalizarLista(j?.requisitos_faltantes) : fallback.requisitos_faltantes,
+      docs_necessarios: _normalizarLista(j?.docs_necessarios).length ? _normalizarLista(j?.docs_necessarios) : fallback.docs_necessarios,
+      fundamentacao: String(j?.fundamentacao || '').trim() || fallback.fundamentacao,
+      legislacao: _normalizarLista(j?.legislacao).length ? _normalizarLista(j?.legislacao) : fallback.legislacao,
+      jurisprudencia_sugerida: _normalizarJurisprudenciaSug(j?.jurisprudencia_sugerida).length ? _normalizarJurisprudenciaSug(j?.jurisprudencia_sugerida) : fallback.jurisprudencia_sugerida,
+      proximos_passos: _normalizarLista(j?.proximos_passos).length ? _normalizarLista(j?.proximos_passos) : fallback.proximos_passos
+    };
+  } catch(e) {
+    return fallback;
+  }
+}
+
+function _montarResumoClassificacaoCliente(classificacao, analisePrev) {
+  const areaNome = EXIGENCIAS_POR_CASO[classificacao?.area]?.nome || classificacao?.area || 'Nao identificada';
+  let msg = 'Classificacao automatica: ' + areaNome;
+  if(classificacao?.subarea) msg += ' (' + classificacao.subarea + ')';
+  if(classificacao?.fundamentacao_inicial) msg += '\nBase inicial: ' + String(classificacao.fundamentacao_inicial).substring(0,180);
+  if(analisePrev) {
+    msg += '\nBeneficio previdenciario provavel: ' + (analisePrev.beneficio_provavel || 'a confirmar');
+    if((analisePrev.docs_necessarios||[]).length) {
+      msg += '\nDocumentos faltantes: ' + analisePrev.docs_necessarios.slice(0,4).join('; ');
+    }
+  }
+  return msg;
+}
+
+async function _processarClassificacaoIntakePerfil(perfil, fatos, dados, origem) {
+  const texto = String(fatos||'').trim();
+  const ehDocPrev = _detectarDocumentoPrevidenciario(dados?.tipo_documento || dados?.tipo, dados?.nome || '', dados);
+  if(!texto && !ehDocPrev) return { classificacao:null, analise_previdenciaria:null, mensagem_cliente:'' };
+  const classificacao = await _classificarAreaDireito(texto, dados||{});
+  if(classificacao?.area) perfil.caso_tipo = classificacao.area;
+  if(classificacao?.area === 'previdenciario' && classificacao?.subarea) perfil.tipo_acao = classificacao.subarea;
+  if(classificacao?.fundamentacao_inicial) {
+    _registrarHistoricoConversa(perfil, 'sistema', '[classificacao-'+(origem||'intake')+'] '+classificacao.area+' '+(classificacao.subarea||'')+' - '+classificacao.fundamentacao_inicial);
+  }
+  let analisePrev = null;
+  if(classificacao?.area === 'previdenciario' || perfil.caso_tipo === 'previdenciario' || ehDocPrev) {
+    if(!perfil.caso_tipo) perfil.caso_tipo = 'previdenciario';
+    analisePrev = await _analisePrevidenciaria(perfil, texto || perfil.caso_descricao || '');
+    if(analisePrev?.beneficio_provavel) perfil.tipo_acao = analisePrev.beneficio_provavel;
+    const docsPrev = _normalizarLista(analisePrev?.docs_necessarios);
+    if(docsPrev.length) {
+      perfil.docs_faltantes = docsPrev.join('; ');
+      perfil.campos_verificar = [...new Set([...(perfil.campos_verificar||[]), ...docsPrev.map(d => 'previdenciario: '+d)])].slice(0,20);
+    }
+    const dicasDocs = (analisePrev.docs_necessarios||[]).slice(0,5).map(d => 'Solicitar: '+d);
+    if(dicasDocs.length) {
+      perfil.perguntas_sugeridas_secretaria = [...new Set([...(perfil.perguntas_sugeridas_secretaria||[]), ...dicasDocs])].slice(0,8);
+    }
+    if((analisePrev.fundamentacao||'').trim()) {
+      perfil.direitos_orientados = [...new Set([...(perfil.direitos_orientados||[]), analisePrev.fundamentacao.substring(0,180)])].slice(0,6);
+    }
+    _registrarHistoricoConversa(perfil, 'sistema', '[analise-previdenciaria] beneficio='+(analisePrev.beneficio_provavel||'')+' faltantes='+(analisePrev.requisitos_faltantes||[]).slice(0,3).join(' | '));
+  }
+  return {
+    classificacao,
+    analise_previdenciaria: analisePrev,
+    mensagem_cliente: _montarResumoClassificacaoCliente(classificacao, analisePrev)
+  };
+}
+
+function _valorRel(v, fallback) {
+  const s = String(v==null ? '' : v).trim();
+  return s || (fallback || 'Nao informado');
+}
+
+function _listaTexto(arr, vazio) {
+  const a = _normalizarLista(arr);
+  if(!a.length) return vazio || 'Nao informado';
+  return a.join('; ');
+}
+
+function _nomeArquivoRelatorio(base) {
+  const raw = String(base||'cliente').toLowerCase().replace(/[^a-z0-9_-]+/g, '_').replace(/^_+|_+$/g,'');
+  const dt = new Date();
+  const stamp = dt.getFullYear()+String(dt.getMonth()+1).padStart(2,'0')+String(dt.getDate()).padStart(2,'0')+'_'+String(dt.getHours()).padStart(2,'0')+String(dt.getMinutes()).padStart(2,'0');
+  return 'relatorio_'+(raw||'cliente')+'_'+stamp+'.txt';
+}
+
+async function _gerarRelatorioCliente(chatId, processoId) {
+  let perfil = null;
+  let processo = null;
+  if(chatId) {
+    const rows = await sbGet('clientes_pendentes', { chat_id: String(chatId) }, { limit: 1 });
+    perfil = rows && rows[0] ? rows[0] : null;
+  }
+  if(processoId) {
+    processo = (processos||[]).find(p => String(p.id) === String(processoId) || String(p.numero||'') === String(processoId)) || null;
+    if(!perfil && processo?.cliente_origem_chat) {
+      const rows = await sbGet('clientes_pendentes', { chat_id: String(processo.cliente_origem_chat) }, { limit: 1 });
+      perfil = rows && rows[0] ? rows[0] : null;
+    }
+  }
+  if(!perfil && !processo) return { ok:false, erro:'Cliente/processo nao encontrado' };
+  const fatos = [
+    perfil?.caso_descricao || '',
+    processo?.descricao || '',
+    perfil?.demanda_extraida || '',
+    processo?.proxacao || ''
+  ].join('\n');
+  const dadosClassif = {
+    area: perfil?.caso_tipo || processo?.area || '',
+    tipo_acao: perfil?.tipo_acao || '',
+    resumo: processo?.descricao || '',
+    descricao: perfil?.caso_descricao || '',
+    demanda: perfil?.demanda_extraida || ''
+  };
+  const classificacao = await _classificarAreaDireito(fatos, dadosClassif);
+  if(!classificacao.area) classificacao.area = _normalizarAreaDireito(perfil?.caso_tipo || processo?.area) || 'civil';
+  if(classificacao.area !== 'previdenciario') classificacao.subarea = '';
+  const analisePrev = classificacao.area === 'previdenciario'
+    ? await _analisePrevidenciaria(perfil||{}, fatos)
+    : null;
+  const docsRecebidos = []
+    .concat((perfil?.documentos_anexos||[]).map(d => d?.tipo))
+    .concat((perfil?.probatorios_anexos||[]).map(d => d?.tipo||d?.id))
+    .concat((processo?.arquivos||[]).map(a => a))
+    .map(x => String(x||'').trim()).filter(Boolean);
+  const faltantesPerfil = perfil ? _faltantesProbatorios(perfil).map(x => x?.nome).filter(Boolean) : [];
+  const docsFaltantes = [...new Set([...(faltantesPerfil||[]), ...((analisePrev?.docs_necessarios)||[])])];
+  const proximosPassos = analisePrev?.proximos_passos?.length
+    ? analisePrev.proximos_passos
+    : [
+      _valorRel(perfil?.status || processo?.status, 'Validar pendencias'),
+      _valorRel(processo?.proxacao, 'Consolidar documentos e revisar estrategia inicial')
+    ];
+  const legislacao = analisePrev?.legislacao?.length
+    ? analisePrev.legislacao
+    : (classificacao.area === 'previdenciario'
+      ? _legislacaoPrevidenciariaBase(analisePrev?.beneficio_provavel || classificacao.subarea || '')
+      : ['Legislacao especifica a confirmar conforme a area do caso.']);
+  const linhas = [];
+  linhas.push('RELATORIO DO CLIENTE');
+  linhas.push('Gerado em: ' + new Date().toLocaleString('pt-BR'));
+  linhas.push('');
+  linhas.push('DADOS PESSOAIS');
+  linhas.push('- Nome: ' + _valorRel(perfil?.nome || processo?.cliente));
+  linhas.push('- CPF: ' + _valorRel(perfil?.cpf));
+  linhas.push('- RG: ' + _valorRel(perfil?.rg));
+  linhas.push('- Endereco: ' + _valorRel([perfil?.endereco_rua, perfil?.endereco_numero, perfil?.endereco_bairro, perfil?.endereco_cidade, perfil?.endereco_uf, perfil?.endereco_cep].filter(Boolean).join(', ')));
+  linhas.push('- Telefone: ' + _valorRel(perfil?.telefone));
+  linhas.push('- Email: ' + _valorRel(perfil?.email));
+  linhas.push('');
+  linhas.push('DADOS PROCESSUAIS');
+  linhas.push('- Numero: ' + _valorRel(processo?.numero || perfil?.numero_processo));
+  linhas.push('- Partes: ' + _valorRel(processo?.partes || [perfil?.nome, perfil?.reu_extraido].filter(Boolean).join(' vs ')));
+  linhas.push('- Tribunal: ' + _valorRel(processo?.tribunal || perfil?.tribunal));
+  linhas.push('- Vara: ' + _valorRel(processo?.vara));
+  linhas.push('- Area: ' + _valorRel(EXIGENCIAS_POR_CASO[classificacao.area]?.nome || classificacao.area));
+  linhas.push('');
+  linhas.push('RESUMO DOS FATOS');
+  linhas.push(_valorRel((perfil?.caso_descricao || processo?.descricao || '').substring(0,1800), 'Sem resumo disponivel.'));
+  linhas.push('');
+  linhas.push('CLASSIFICACAO JURIDICA');
+  linhas.push('- Area: ' + _valorRel(classificacao.area));
+  linhas.push('- Subarea: ' + _valorRel(classificacao.subarea || 'nao aplicavel'));
+  linhas.push('- Confianca: ' + Math.round((_normalizarConfianca01(classificacao.confianca, 0.5))*100) + '%');
+  linhas.push('- Fundamentacao inicial: ' + _valorRel(classificacao.fundamentacao_inicial));
+  linhas.push('');
+  linhas.push('ANALISE ESPECIFICA');
+  if(analisePrev) {
+    linhas.push('- Beneficio provavel: ' + _valorRel(analisePrev.beneficio_provavel));
+    linhas.push('- Requisitos atendidos: ' + _listaTexto(analisePrev.requisitos_atendidos, 'Nenhum requisito confirmado ate o momento.'));
+    linhas.push('- Requisitos faltantes: ' + _listaTexto(analisePrev.requisitos_faltantes, 'Sem faltas criticas identificadas nesta etapa.'));
+    linhas.push('- CNIS: ' + (_temDocumentoPerfil(perfil||{}, ['cnis']) ? 'Recebido' : 'Pendente'));
+    linhas.push('- Fundamentacao: ' + _valorRel(analisePrev.fundamentacao));
+    linhas.push('- Jurisprudencia sugerida: ' + _listaTexto(analisePrev.jurisprudencia_sugerida, '[VERIFICAR] Sem jurisprudencia validada automaticamente.'));
+  } else {
+    linhas.push('Nao se aplica (caso nao classificado como previdenciario).');
+  }
+  linhas.push('');
+  linhas.push('DOCUMENTOS RECEBIDOS e FALTANTES');
+  linhas.push('- Recebidos: ' + _listaTexto(docsRecebidos, 'Nenhum documento registrado.'));
+  linhas.push('- Faltantes: ' + _listaTexto(docsFaltantes, 'Sem pendencias documentais mapeadas automaticamente.'));
+  linhas.push('');
+  linhas.push('PROXIMOS PASSOS');
+  _normalizarLista(proximosPassos).forEach((p, idx) => linhas.push((idx+1)+'. '+p));
+  linhas.push('');
+  linhas.push('LEGISLACAO APLICAVEL');
+  _normalizarLista(legislacao).forEach((l) => linhas.push('- ' + l));
+  const relatorio = linhas.join('\n');
+  const nomeBase = perfil?.nome || processo?.nome || processo?.numero || chatId || processoId || 'cliente';
+  return { ok:true, relatorio, nome_arquivo: _nomeArquivoRelatorio(nomeBase) };
+}
+
 
 // ════════════════════════════════════════════════════════════════════════════
 //
@@ -8901,6 +9479,199 @@ const ETAPAS_PIPELINE = {
   LIBERACAO: 'liberacao',
   ARQUIVO: 'arquivo'
 };
+// ════════════════════════════════════════════════════════════════════════════
+// ASSISTENTE DE ATENDIMENTO INTELIGENTE — análise completa por área do direito
+// ════════════════════════════════════════════════════════════════════════════
+
+const CHECKLIST_POR_AREA = {
+  previdenciario: {
+    obrigatorios: ['RG/CPF','Comprovante de residência','CNIS (Cadastro Nacional de Informações Sociais)','CTPS (todas)','Senha gov.br'],
+    por_subtipo: {
+      auxilio_doenca: ['Laudo médico ATUALIZADO (< 30 dias)','Exames complementares','Receituário médico','Atestado de afastamento','CAT (se acidentário)'],
+      aposentadoria_invalidez: ['Laudo médico ATUALIZADO (< 30 dias)','Histórico médico completo','Exames de imagem','Parecer de especialista'],
+      aposentadoria_tempo: ['CNIS completo','CTPS (todas, inclusive antigas)','PPP (Perfil Profissiográfico)','Certidão de tempo de serviço','Carnês de contribuição (se autônomo)'],
+      aposentadoria_idade: ['CNIS completo','CTPS','Certidão de nascimento/casamento'],
+      aposentadoria_rural: ['Declaração do sindicato rural','Contratos de arrendamento','Bloco de notas do produtor','Certidão do INCRA','Testemunhas (mínimo 3)'],
+      bpc_loas: ['Laudo médico (se deficiente)','CadÚnico atualizado','Comprovante de renda familiar','Declaração de composição familiar'],
+      pensao_morte: ['Certidão de óbito','Certidão de casamento ou união estável','CNIS do falecido','Comprovante de dependência econômica'],
+      auxilio_acidente: ['CAT','Laudo médico comprovando sequela','Exames antes e depois do acidente'],
+      auxilio_maternidade: ['Certidão de nascimento da criança','CNIS','Atestado médico (se parto antecipado)'],
+      revisao: ['CNIS completo','Carta de concessão','Memória de cálculo do INSS','Holerites anteriores'],
+    },
+    alertas: ['LAUDO MÉDICO deve ser ATUALIZADO (< 30 dias)','Sem CNIS não é possível calcular tempo','Senha gov.br necessária para Meu INSS','PPP obrigatório para aposentadoria especial']
+  },
+  trabalhista: {
+    obrigatorios: ['RG/CPF','CTPS','Comprovante de residência','Holerites','Contrato de trabalho','TRCT'],
+    por_subtipo: {
+      rescisao_indireta: ['Provas do descumprimento','Testemunhas','Mensagens comprobatórias','Registros de ponto'],
+      horas_extras: ['Registros de ponto','Holerites','Testemunhas','Emails fora do horário'],
+      assedio_moral: ['Laudos médicos/psicológicos','Testemunhas','Mensagens/gravações','Atestados'],
+      acidente_trabalho: ['CAT','Laudo médico','Fotos do local','Testemunhas','PPP'],
+      verbas_rescisorias: ['TRCT','Holerites 12 meses','Extrato FGTS','Guias seguro-desemprego'],
+    },
+    alertas: ['Prescrição: 2 anos após rescisão, limite 5 anos retroativos','CTPS Digital: app Carteira de Trabalho Digital','Testemunhas: mínimo 2']
+  },
+  civil: {
+    obrigatorios: ['RG/CPF','Comprovante de residência','Contrato/documento base','Provas do dano/inadimplemento'],
+    por_subtipo: {
+      danos_morais: ['Provas do fato danoso','Laudos','Testemunhas','BO','Prints de mensagens'],
+      cobranca: ['Contrato','Notas fiscais','Notificação extrajudicial','Planilha de débito'],
+      consumidor: ['Nota fiscal','Protocolo Procon','Prints propaganda enganosa','Fotos produto defeituoso'],
+      indenizacao: ['Provas do dano','Orçamentos reparo','BO','Fotos','Laudos'],
+      usucapiao: ['Matrícula imóvel','Certidão negativa ônus','Comprovantes posse (IPTU)','Planta/croqui','Testemunhas 3+','ART engenheiro'],
+    },
+    alertas: ['Prescrição geral: 10 anos (art. 205 CC)','Notificação extrajudicial fundamental em cobranças','Prints devem ter data e contexto']
+  },
+  familia: {
+    obrigatorios: ['RG/CPF ambas partes','Certidão casamento/nascimento','Comprovante de residência','Declaração de bens'],
+    por_subtipo: {
+      divorcio: ['Certidão casamento atualizada','Partilha bens','Acordo guarda/visitação','Comprovante renda ambos'],
+      guarda: ['Certidão nascimento filhos','Comprovante renda','Relatório escolar','Laudos psicológicos'],
+      alimentos: ['Certidão nascimento','Comprovante renda alimentante','Despesas alimentando','3 holerites','IR'],
+      inventario: ['Certidão óbito','Casamento falecido','Nascimento herdeiros','Matrículas imóveis','Extratos bancários','IPVA/IPTU','IR falecido'],
+    },
+    alertas: ['Inventário: 60 dias para abertura (art. 611 CPC)','Alimentos: cabe liminar se urgente','Guarda: interesse da criança é absoluto (art. 227 CF)']
+  },
+  penal: {
+    obrigatorios: ['RG/CPF','Boletim de ocorrência','Provas do crime/defesa','Procuração poderes especiais'],
+    por_subtipo: {
+      defesa_reu: ['Inquérito/denúncia','Provas de álibi','Testemunhas defesa','Antecedentes','Comprovante trabalho'],
+      queixa_crime: ['BO','Provas (fotos/vídeos/prints)','Testemunhas','Laudos','Exame corpo delito'],
+      violencia_domestica: ['BO','Medida protetiva','Laudos médicos','Fotos lesões','Prints ameaças'],
+    },
+    alertas: ['Flagrante: audiência custódia 24h','Medida protetiva urgente em violência doméstica','Prescrição penal varia por pena (art. 109 CP)']
+  },
+  tributario: {
+    obrigatorios: ['CNPJ/CPF','CDA','Auto de infração','Guias pagamento','Declarações fiscais'],
+    por_subtipo: {
+      execucao_fiscal: ['CDA','Comprovantes pagamento','Defesa administrativa','Planilha débito'],
+      restituicao: ['Declarações retificadoras','DARFs pagos','Laudo contábil'],
+    },
+    alertas: ['Prescrição tributária: 5 anos (art. 174 CTN)','CDA deve cumprir requisitos art. 202 CTN']
+  }
+};
+
+async function _assistenteAtendimento(processo, fatos, area, subtipo) {
+  const autorStr = processo.autor && typeof processo.autor === 'object' ? JSON.stringify(processo.autor) : (processo.autor||'?');
+  const reuStr = processo.reu && typeof processo.reu === 'object' ? JSON.stringify(processo.reu) : (processo.reu||'?');
+  const demandaStr = processo.demanda && typeof processo.demanda === 'object' ? JSON.stringify(processo.demanda) : '';
+  const areaKey = (area || processo.area || processo.area_direito || 'civil').toLowerCase().replace(/[^a-z]/g,'');
+  const checkArea = CHECKLIST_POR_AREA[areaKey] || CHECKLIST_POR_AREA.civil;
+  const docsObrig = checkArea.obrigatorios || [];
+  const docsSub = (checkArea.por_subtipo||{})[subtipo||processo.tipo_acao||''] || [];
+  const alertas = checkArea.alertas || [];
+
+  const prompt = `Você é o ASSISTENTE DE ATENDIMENTO do escritório Camargos Advocacia (OAB/MG 118.237).
+Analise o caso e gere RELATÓRIO COMPLETO DE ATENDIMENTO.
+
+═══ DADOS DO CASO ═══
+Nome: ${processo.nome||'?'} | Número: ${processo.numero||'(sem número)'}
+Área: ${areaKey||'(detectar)'} | Subtipo: ${subtipo||processo.tipo_acao||'(detectar)'}
+Partes: ${processo.partes||'?'} | Autor: ${autorStr} | Réu: ${reuStr}
+${demandaStr?'Demanda: '+demandaStr:''}
+Fatos: ${fatos||processo.descricao||'(sem fatos)'}
+Valor: ${processo.valor||'?'} | Tribunal: ${processo.tribunal||'?'} | Vara: ${processo.vara||'?'}
+Docs recebidos: ${(processo.arquivos||[]).join(', ')||'nenhum'}
+
+═══ CHECKLIST ÁREA ═══
+Obrigatórios: ${docsObrig.join('; ')}
+Específicos: ${docsSub.join('; ')||'(sem subtipo)'}
+Alertas: ${alertas.join(' | ')}
+
+Gere JSON:
+{
+  "resumo_fatos": "Resumo claro dos fatos (max 500 palavras, linguagem jurídica acessível)",
+  "area_direito": "área confirmada",
+  "subtipo_acao": "tipo específico (ex: auxilio_doenca, danos_morais, divorcio...)",
+  "lei_aplicavel": [{"lei":"nome","artigos":"artigos","relevancia":"por que"}],
+  "fundamentacao_inicial": "Fundamentação jurídica — artigos, súmulas, teses. Ser ESPECÍFICO.",
+  "documentos_obrigatorios": ["docs obrigatórios"],
+  "documentos_probatorios": ["docs probatórios para fortalecer caso"],
+  "documentos_recebidos": ["docs já recebidos"],
+  "documentos_faltantes": ["docs que FALTAM"],
+  "alertas_urgentes": ["alertas — prazo, doc vencido, laudo necessário"],
+  "orientacoes_atendimento": ["O que perguntar ao cliente","O que solicitar","O que verificar","Próximos passos"],
+  "projecao_caso": {"viabilidade":"alta/media/baixa","fundamento_viabilidade":"","valor_estimado":"","tempo_estimado":"","riscos":[],"oportunidades":[]},
+  "proximos_passos": [{"passo":"","responsavel":"advogado/cliente","prazo":"urgente/7dias/30dias","prioridade":"alta/media/baixa"}]
+}
+
+REGRAS: Cite artigos e leis EXATOS. Para previdenciário: verificar carência, qualidade segurado, tipo benefício, laudo atualizado. Para cível: prescrição, legitimidade. Para trabalhista: prescrição 2/5 anos. NUNCA invente jurisprudência — marque [VERIFICAR].`;
+
+  const resposta = await ia([{role:'user',content:prompt}], null, 4000, MODELO_MID);
+  let rel = null;
+  try { const m = resposta.match(/\{[\s\S]*\}/); if(m) rel = JSON.parse(m[0]); } catch(_){}
+  if(!rel) rel = { resumo_fatos: resposta, erro_parse: true };
+  if(!rel.documentos_obrigatorios?.length && docsObrig.length) rel.documentos_obrigatorios = docsObrig;
+  if(!rel.documentos_probatorios?.length && docsSub.length) rel.documentos_probatorios = docsSub;
+  if(!rel.alertas_urgentes?.length && alertas.length) rel.alertas_urgentes = alertas;
+  rel._gerado_em = new Date().toISOString();
+  rel._processo_id = processo.id;
+  return rel;
+}
+
+function _formatarRelatorioAtendimento(rel, processo) {
+  const L = [];
+  L.push('═══════════════════════════════════════════════════════');
+  L.push('   RELATÓRIO DE ATENDIMENTO — CAMARGOS ADVOCACIA');
+  L.push('═══════════════════════════════════════════════════════');
+  L.push('Data: ' + new Date().toLocaleString('pt-BR'));
+  L.push('Processo: ' + (processo.nome||'—') + ' | Nº: ' + (processo.numero||'(sem número)'));
+  L.push('Cliente: ' + (processo.cliente||'—'));
+  L.push('Área: ' + (rel.area_direito||'—') + ' | Tipo: ' + (rel.subtipo_acao||'—'));
+  L.push('');
+  L.push('───── RESUMO DOS FATOS ─────');
+  L.push(rel.resumo_fatos||'(sem resumo)');
+  L.push('');
+  L.push('───── LEGISLAÇÃO APLICÁVEL ─────');
+  if(Array.isArray(rel.lei_aplicavel)) rel.lei_aplicavel.forEach((l,i) => { L.push((i+1)+'. '+l.lei+' — '+l.artigos); L.push('   '+l.relevancia); });
+  L.push('');
+  L.push('───── FUNDAMENTAÇÃO INICIAL ─────');
+  L.push(rel.fundamentacao_inicial||'(sem fundamentação)');
+  L.push('');
+  L.push('───── DOCUMENTOS OBRIGATÓRIOS ─────');
+  (rel.documentos_obrigatorios||[]).forEach((d,i) => L.push('  '+(i+1)+'. '+d));
+  L.push('');
+  L.push('───── DOCUMENTOS PROBATÓRIOS ─────');
+  (rel.documentos_probatorios||[]).forEach((d,i) => L.push('  '+(i+1)+'. '+d));
+  L.push('');
+  L.push('───── DOCUMENTOS RECEBIDOS ─────');
+  const rec = rel.documentos_recebidos||[];
+  rec.length ? rec.forEach(d => L.push('  ✓ '+d)) : L.push('  (nenhum)');
+  L.push('');
+  L.push('───── DOCUMENTOS FALTANTES ─────');
+  const falt = rel.documentos_faltantes||[];
+  falt.length ? falt.forEach(d => L.push('  ✗ '+d)) : L.push('  (todos recebidos)');
+  L.push('');
+  L.push('───── ALERTAS URGENTES ─────');
+  (rel.alertas_urgentes||[]).forEach(a => L.push('  ! '+a));
+  L.push('');
+  L.push('───── ORIENTAÇÕES PARA ATENDIMENTO ─────');
+  (rel.orientacoes_atendimento||[]).forEach((o,i) => L.push('  '+(i+1)+'. '+o));
+  L.push('');
+  L.push('───── PROJEÇÃO DO CASO ─────');
+  if(rel.projecao_caso) {
+    const p = rel.projecao_caso;
+    L.push('  Viabilidade: '+(p.viabilidade||'?').toUpperCase());
+    L.push('  Fundamento: '+(p.fundamento_viabilidade||'?'));
+    L.push('  Valor estimado: '+(p.valor_estimado||'?'));
+    L.push('  Tempo estimado: '+(p.tempo_estimado||'?'));
+    if(p.riscos?.length) { L.push('  Riscos:'); p.riscos.forEach(r => L.push('    - '+r)); }
+    if(p.oportunidades?.length) { L.push('  Oportunidades:'); p.oportunidades.forEach(o => L.push('    + '+o)); }
+  }
+  L.push('');
+  L.push('───── PRÓXIMOS PASSOS ─────');
+  if(Array.isArray(rel.proximos_passos)) rel.proximos_passos.forEach((p,i) => {
+    L.push('  '+(i+1)+'. '+p.passo);
+    L.push('     Resp: '+p.responsavel+' | Prazo: '+p.prazo+' | Prioridade: '+p.prioridade);
+  });
+  L.push('');
+  L.push('═══════════════════════════════════════════════════════');
+  L.push('Gerado por Lex — Escritório Virtual Camargos Advocacia');
+  L.push('OAB/MG 118.237 — ' + new Date().toLocaleString('pt-BR'));
+  L.push('═══════════════════════════════════════════════════════');
+  return L.join('\n');
+}
+
 const MAX_CICLOS_REANALISE = 3;
 
 function _normalizarAreaPipeline(area) {
@@ -9653,6 +10424,32 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(500, corsHeaders(req));
       res.end(JSON.stringify({ok:false, erro:e.message}));
     }
+    return;
+  }
+
+  // ═══ POST /api/atendimento/relatorio — Assistente de Atendimento Inteligente ═══
+  if(url==='/api/atendimento/relatorio' && req.method==='POST') {
+    try {
+      const pf = validarToken(getToken(req));
+      if(!pf) { res.writeHead(401,corsHeaders(req)); res.end(JSON.stringify({error:'Nao autenticado'})); return; }
+      const b = await lerBody(req);
+      const proc = b.processo_id ? processos.find(p => String(p.id) === String(b.processo_id)) : null;
+      if(!proc && !b.fatos) { res.writeHead(400,corsHeaders(req)); res.end(JSON.stringify({error:'processo_id ou fatos obrigatorio'})); return; }
+      const alvo = proc || { nome: b.nome||'Novo caso', id: Date.now(), partes: b.partes||'', area: b.area||'', descricao: b.fatos||'' };
+      const rel = await _assistenteAtendimento(alvo, b.fatos || alvo.descricao, b.area, b.subtipo);
+      // Salvar no processo
+      if(proc) {
+        proc.atendimento_relatorio = rel;
+        proc.atendimento_em = new Date().toISOString();
+        proc.atualizado_em = new Date().toISOString();
+        try { await _persistirProcessosCache(); } catch(_){}
+      }
+      // Gerar texto formatado para download
+      const textoDownload = _formatarRelatorioAtendimento(rel, alvo);
+      const nomeArq = 'Atendimento_' + (alvo.nome||'caso').replace(/[^a-zA-Z0-9]/g,'_').substring(0,30) + '_' + new Date().toISOString().substring(0,10) + '.txt';
+      res.writeHead(200,corsHeaders(req));
+      res.end(JSON.stringify({ ok:true, relatorio: rel, texto_download: textoDownload, nome_arquivo: nomeArq }));
+    } catch(e) { res.writeHead(500,corsHeaders(req)); res.end(JSON.stringify({error:e.message})); }
     return;
   }
 
