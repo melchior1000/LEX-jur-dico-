@@ -2929,18 +2929,31 @@ function _salvarSegmentoLocal(seg) {
 }
 
 // ─── Leitura dos dados de tempo para exibição ───────────────────
+// THROTTLE: máximo 1 chamada a cada 60s para evitar ERR_INSUFFICIENT_RESOURCES
+let _tempoUsoCache = null;
+let _tempoUsoCacheTs = 0;
+const _TEMPO_USO_TTL = 60000; // 60 segundos
 
 async function carregarTempoUso() {
+  // Retorna cache se ainda válido
+  if (_tempoUsoCache && (Date.now() - _tempoUsoCacheTs) < _TEMPO_USO_TTL) return _tempoUsoCache;
   try {
     const tk = getAuthToken();
     if (!tk) return null;
     const r = await fetchComTimeout(SERVIDOR + '/api/tempo-uso/relatorio', {
       headers: { 'Authorization': 'Bearer ' + tk }
     }, 10000);
-    if (r.ok) return await r.json();
+    if (r.ok) {
+      _tempoUsoCache = await r.json();
+      _tempoUsoCacheTs = Date.now();
+      return _tempoUsoCache;
+    }
   } catch(e) { console.warn('[Lex] Erro silenciado:', (e && e.message) ? e.message : e); }
   // Fallback: calcula do cache local
-  return _calcularRelatorioLocal();
+  const local = _calcularRelatorioLocal();
+  _tempoUsoCache = local;
+  _tempoUsoCacheTs = Date.now();
+  return local;
 }
 
 function _calcularRelatorioLocal() {
@@ -4154,7 +4167,20 @@ function badgePreparacao(p){
   return '<div style="font-size:11px;color:#9b6ef7;margin-top:4px;font-style:italic">📋 Em preparação'+prevDist+pendentes+'</div>';
 }
 
+// THROTTLE: renderPainel no máximo 1x a cada 5s para evitar loops de re-render
+let _renderPainelTimer = null;
+let _renderPainelUltimo = 0;
 function renderPainel(){
+  const agora = Date.now();
+  if (agora - _renderPainelUltimo < 5000) {
+    // Agenda para executar depois se não já agendado
+    if (!_renderPainelTimer) _renderPainelTimer = setTimeout(() => { _renderPainelTimer = null; _renderPainelReal(); }, 5000 - (agora - _renderPainelUltimo));
+    return;
+  }
+  _renderPainelReal();
+}
+function _renderPainelReal(){
+  _renderPainelUltimo = Date.now();
   const ps=getProcs(), alertas=alertasPrazo();
   const urgentes=ps.filter(p=>p.status==='URGENTE').length;
   const ativos=ps.filter(p=>p.status==='ATIVO').length;
