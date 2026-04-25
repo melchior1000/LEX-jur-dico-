@@ -491,21 +491,87 @@ function montarContextoProcesso(p) {
     return `  ${i + 1}. [${dt}]${cod ? ' [Cód. ' + cod + ']' : ''} ${desc}`;
   }).join('\n');
 
+  // ═══ DADOS COMPLETOS DO PROCESSO — extraídos dos PDFs ═══
+  // Autor/Réu podem ser objetos detalhados {nome, cpf, endereco...} ou strings simples
+  const autorObj = (p.autor && typeof p.autor === 'object') ? p.autor : null;
+  const reuObj = (p.reu && typeof p.reu === 'object') ? p.reu : null;
+
   const linhas = [
     'PROCESSO EM FOCO:',
     `- Nome interno: ${p.nome || p.titulo || '?'}`,
     `- Número CNJ: ${p.cnj || p.numero || '?'}`,
     `- Partes: ${partes}`,
-    `- Vara / Tribunal: ${p.vara || p.tribunal || '?'}`,
+    `- Cliente: ${p.cliente || '?'}`,
+    `- Área: ${p.area || p.area_direito || '?'}`,
+    `- Tipo: ${p.tipo || p.tipo_acao || '?'}`,
+    `- Setor: ${p.setor || '?'}`,
+    `- Vara / Tribunal: ${p.vara || '?'} / ${p.tribunal || '?'}`,
+    `- Comarca: ${p.comarca || '?'}`,
     `- Juiz/Relator: ${p.juiz || p.relator || 'não cadastrado'}`,
+    `- Instância: ${p.instancia || '?'}`,
     `- Status atual: ${p.status || '?'}`,
     `- Prazo atual: ${p.prazo || 'sem prazo'}`,
+    `- Valor da causa: ${p.valor || p.valor_causa || '?'}`,
     `- Dias parado: ${p.dias_parado != null ? p.dias_parado : (p.diasParado != null ? p.diasParado : '?')}`,
     `- Próxima ação: ${p.proxacao || p.proxima_acao || '—'}`,
     `- Tags/Temas: ${tags}`,
-    '- Últimos andamentos (mais recentes no fim):',
-    ultimos || '  (nenhum)'
+    `- Descrição: ${p.descricao || p.resumo || '—'}`,
   ];
+
+  // Dados detalhados do AUTOR (extraídos dos PDFs)
+  if (autorObj && typeof autorObj === 'object') {
+    linhas.push('');
+    linhas.push('AUTOR (dados extraídos do processo):');
+    if (autorObj.nome) linhas.push(`  - Nome: ${autorObj.nome}`);
+    if (autorObj.cpf) linhas.push(`  - CPF: ${autorObj.cpf}`);
+    if (autorObj.rg) linhas.push(`  - RG: ${autorObj.rg}`);
+    if (autorObj.endereco) linhas.push(`  - Endereço: ${autorObj.endereco}`);
+    if (autorObj.estado_civil) linhas.push(`  - Estado civil: ${autorObj.estado_civil}`);
+    if (autorObj.nacionalidade) linhas.push(`  - Nacionalidade: ${autorObj.nacionalidade}`);
+    if (autorObj.profissao) linhas.push(`  - Profissão: ${autorObj.profissao}`);
+    if (autorObj.email) linhas.push(`  - Email: ${autorObj.email}`);
+    if (autorObj.telefone) linhas.push(`  - Telefone: ${autorObj.telefone}`);
+    if (autorObj.advogado) linhas.push(`  - Advogado: ${autorObj.advogado}`);
+    if (autorObj.oab) linhas.push(`  - OAB: ${autorObj.oab}`);
+  } else if (p.autor && typeof p.autor === 'string') {
+    linhas.push(`- Autor: ${p.autor}`);
+  }
+
+  // Dados detalhados do RÉU
+  if (reuObj && typeof reuObj === 'object') {
+    linhas.push('');
+    linhas.push('RÉU (dados extraídos do processo):');
+    if (reuObj.nome) linhas.push(`  - Nome: ${reuObj.nome}`);
+    if (reuObj.cpf_cnpj) linhas.push(`  - CPF/CNPJ: ${reuObj.cpf_cnpj}`);
+    if (reuObj.endereco) linhas.push(`  - Endereço: ${reuObj.endereco}`);
+    if (reuObj.advogado) linhas.push(`  - Advogado: ${reuObj.advogado}`);
+    if (reuObj.oab) linhas.push(`  - OAB: ${reuObj.oab}`);
+  } else if (p.reu && typeof p.reu === 'string') {
+    linhas.push(`- Réu: ${p.reu}`);
+  }
+
+  // Demanda (fatos, pedidos, defesa)
+  const demanda = p.demanda || null;
+  if (demanda && typeof demanda === 'object') {
+    linhas.push('');
+    linhas.push('DEMANDA:');
+    if (demanda.tipo) linhas.push(`  - Tipo: ${demanda.tipo}`);
+    if (demanda.resumo_fatos) linhas.push(`  - Fatos: ${demanda.resumo_fatos}`);
+    if (Array.isArray(demanda.pedidos) && demanda.pedidos.length) linhas.push(`  - Pedidos: ${demanda.pedidos.join('; ')}`);
+    if (Array.isArray(demanda.defesa_reu) && demanda.defesa_reu.length) linhas.push(`  - Defesa do réu: ${demanda.defesa_reu.join('; ')}`);
+  }
+
+  // Frentes e documentos
+  if (p.frentes) linhas.push(`- Frentes: ${p.frentes}`);
+  if (p.documentos_necessarios) linhas.push(`- Docs necessários: ${p.documentos_necessarios}`);
+  if (Array.isArray(p.documentos_faltantes) && p.documentos_faltantes.length) linhas.push(`- Docs faltantes: ${p.documentos_faltantes.join(', ')}`);
+  if (p.resposta_sugerida) linhas.push(`- Peça sugerida: ${p.resposta_sugerida}`);
+  if (p.observacoes) linhas.push(`- Observações: ${p.observacoes}`);
+
+  linhas.push('');
+  linhas.push('- Últimos andamentos (mais recentes no fim):');
+  linhas.push(ultimos || '  (nenhum)');
+
   if (movPje.length > 0) {
     linhas.push('');
     linhas.push('- Últimos movimentos PJe importados (mais recentes no fim):');
