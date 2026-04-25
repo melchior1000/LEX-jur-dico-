@@ -3448,11 +3448,17 @@ async function _gerarRelatorioCliente(chatId, processoId) {
     descricao: perfil?.caso_descricao || '',
     demanda: perfil?.demanda_extraida || ''
   };
-  const classificacao = await _classificarAreaDireito(fatos, dadosClassif);
+  const classificacaoBase = perfil?.classificacao_juridica_auto || null;
+  const classificacao = classificacaoBase ? {
+    area: _normalizarAreaDireito(classificacaoBase.area),
+    subarea: _normalizarSubareaPrevidenciaria(classificacaoBase.subarea),
+    confianca: _normalizarConfianca01(classificacaoBase.confianca, 0.55),
+    fundamentacao_inicial: String(classificacaoBase.fundamentacao_inicial || '').trim()
+  } : await _classificarAreaDireito(fatos, dadosClassif);
   if(!classificacao.area) classificacao.area = _normalizarAreaDireito(perfil?.caso_tipo || processo?.area) || 'civil';
   if(classificacao.area !== 'previdenciario') classificacao.subarea = '';
   const analisePrev = classificacao.area === 'previdenciario'
-    ? await _analisePrevidenciaria(perfil||{}, fatos)
+    ? (perfil?.analise_previdenciaria || await _analisePrevidenciaria(perfil||{}, fatos))
     : null;
   const docsRecebidos = []
     .concat((perfil?.documentos_anexos||[]).map(d => d?.tipo))
@@ -5539,6 +5545,18 @@ async function _cadastradorRecebeu(ctx, tipoEntrada, conteudo) {
       _detectarUrgenciaLegal(perfil, conteudo);
     }
 
+    if(perfil.classificacao_juridica_auto?.fundamentacao_inicial) {
+      perfil.direitos_orientados = [...new Set([
+        ...(perfil.direitos_orientados||[]),
+        String(perfil.classificacao_juridica_auto.fundamentacao_inicial).substring(0,180)
+      ])].slice(0,6);
+    }
+
+    let resumoIntake = '';
+    if(perfil.classificacao_juridica_auto?.area) {
+      resumoIntake = _montarResumoClassificacaoCliente(perfil.classificacao_juridica_auto, perfil.analise_previdenciaria || null);
+    }
+
     _sugerirPerguntasSecretaria(perfil);
     _orientarDireitosBasicos(perfil);
     _atualizarStatusPerfil(perfil);
@@ -5549,7 +5567,7 @@ async function _cadastradorRecebeu(ctx, tipoEntrada, conteudo) {
 
     // Responde ao cliente a próxima ação
     const cobranca = _montarRespostaConversacional(perfil);
-    await env(cobranca, ctx);
+    await env((resumoIntake ? (resumoIntake + '\n\n') : '') + cobranca, ctx);
 
     logAtividade('juridico', ctx.chatId, 'cadastrador_'+tipoEntrada, perfil.status);
     return true;
@@ -6780,41 +6798,56 @@ async function _registrarCumprimento(ctx, mem, txt) {
 // ═══════════════ INTERCEPTOR INTELIGENTE — Entende linguagem natural sobre processos ═══════════════
 async function _detectarIntencaoProcesso(txt, ctx, mem) {
   const txtLow = txt.toLowerCase();
-  const palavrasChave = ['processo','andamento','decisão','decisao','publicação','publicacao','julgamento','audiência','audiencia','intimação','intimacao','sentença','sentenca','despacho','recurso','embargo','prazo','atualiza','cadastr','status','urgente','ganho','perdido','arquiv'];
+  const palavrasChave = ['processo','andamento','decisão','decisao','publicação','publicacao','julgamento','audiência','audiencia','intimação','intimacao','sentença','sentenca','despacho','recurso','embargo','prazo','atualiza','cadastr','status','urgente','ganho','perdido','arquiv','consulta','busca','informaç','dados','partes','autor','réu','reu','numero','número','qual','como','onde','meu','minha'];
   const temContexto = palavrasChave.some(p => txtLow.includes(p));
   if(!temContexto) return false;
   
-  const listaProcs = processos.map(p => 
-    'ID:'+p.id+' | '+p.nome+' | '+p.numero+' | '+(p.cliente||'')+' | Status:'+(p.status||'—')+' | Prazo:'+(p.prazo||'—')
-  ).join('\n');
+  // Lista ENRIQUECIDA — busca por qualquer campo
+  const listaProcs = processos.map(p => {
+    const autorN = p.autor && typeof p.autor === 'object' ? (p.autor.nome||'') : (p.autor||'');
+    const reuN = p.reu && typeof p.reu === 'object' ? (p.reu.nome||'') : (p.reu||'');
+    return 'ID:'+p.id+' | '+p.nome+' | Nº:'+(p.numero||'—')+' | Partes:'+(p.partes||'—')+' | Autor:'+(autorN||'—')+' | Réu:'+(reuN||'—')+' | Cliente:'+(p.cliente||'—')+' | Área:'+(p.area||p.area_direito||'—')+' | Tipo:'+(p.tipo_acao||p.tipo||'—')+' | Status:'+(p.status||'—')+' | Prazo:'+(p.prazo||'—')+' | Vara:'+(p.vara||'—')+' | Juiz:'+(p.juiz||p.juiz_relator||'—');
+  }).join('\n');
   
-  const system = [
-    'Você é o Lex, gestor inteligente do escritório Camargos Advocacia.',
-    'O CEO Kleuber mandou uma mensagem. Analise se ele quer atualizar, consultar ou agir sobre algum processo.',
-    '',
-    'PROCESSOS CADASTRADOS:',
-    listaProcs || '(nenhum)',
-    '',
-    'AÇÕES DISPONÍVEIS:',
-    '1. ATUALIZAR campo de processo: [ATUALIZAR:id:campo:valor] (campos: status, prazo, juiz, vara, proxacao, observacoes, setor)',
-    '2. ADICIONAR andamento: [ANDAMENTO:id:descricao]',
-    '3. ADICIONAR prazo: [PRAZO:id:descricao:YYYY-MM-DD:tipo] (tipos: conferencia, julgamento, audiencia, recurso, prazo_fatal)',
-    '4. PERGUNTAR se não ficou claro o que ele quer',
-    '',
-    'REGRAS:',
-    '- Identifique o processo pelo nome, número, cliente ou contexto.',
-    '- Se encontrou o processo E entendeu a ação: EXECUTE imediatamente com os marcadores + confirme em 1-2 linhas.',
-    '- Se encontrou o processo MAS não sabe qual ação: pergunte objetivamente "O que você quer que eu faça no processo X? (atualizar status, registrar andamento, novo prazo...)"',
-    '- Se NÃO encontrou o processo: diga qual processo e liste os mais parecidos.',
-    '- Cada atualização/andamento gera prazo automático de 5 dias pra conferência.',
-    '- EXCEÇÃO: julgamento/audiência — o prazo é a data do julgamento, sem os 5 dias.',
-    '- Seja DIRETO, curto, objetivo. Não enrole.',
-    '',
-    'Responda como o Lex (profissional, direto, confiante).'
-  ].join('\n');
+  const system = `Você é o Lex, gestor inteligente do escritório Camargos Advocacia.
+O usuário mandou mensagem via ${ctx.canal||'telegram'}. Analise se quer consultar, atualizar ou agir sobre algum processo.
+
+PROCESSOS CADASTRADOS (busque por QUALQUER campo: nome, número, partes, autor, réu, cliente, área, tipo):
+${listaProcs || '(nenhum)'}
+
+AÇÕES DISPONÍVEIS:
+1. CONSULTAR — quer informações: responda com TODOS os dados formatados
+2. ATUALIZAR campo: [ATUALIZAR:id:campo:valor] (campos: status, prazo, juiz, vara, proxacao, observacoes, setor)
+3. ADICIONAR andamento: [ANDAMENTO:id:descricao]
+4. ADICIONAR prazo: [PRAZO:id:descricao:YYYY-MM-DD:tipo]
+5. PERGUNTAR se não ficou claro
+
+REGRAS DE BUSCA:
+- "processo da Maria" → busca Maria em Partes, Autor, Réu, Cliente
+- "processo 0012345" → busca em Nº
+- "meus trabalhistas" → busca em Área
+- "caso de alimentos" → busca em Tipo
+- "processo do INSS" → busca INSS em Réu, Partes
+- Se encontrou E é CONSULTA: responda dados completos (use formato abaixo)
+- Se encontrou E entendeu ação: EXECUTE com marcadores
+- Se encontrou VÁRIOS: liste todos numerados e pergunte qual
+- Se NÃO encontrou: diga e liste os 3 mais parecidos
+- Cada atualização gera prazo de 5 dias p/ conferência (exceto julgamento/audiência)
+- Seja DIRETO, curto, objetivo.
+
+FORMATO CONSULTA (quando encontrar processo):
+📋 [Nome do processo]
+🔢 Nº: [número]
+⚖️ Partes: [autor vs réu]
+📂 Área: [área] | Tipo: [tipo]
+🏛️ Vara: [vara] | Juiz: [juiz]
+📊 Status: [status]
+📅 Prazo: [prazo]
+💰 Valor: [valor]
+➡️ Próxima ação: [ação]`;
   
   try {
-    const respIA = await ia([{role:'user', content: txt}], system, 900, MODELO_MID); // Gestor IA aplicar ordens → Sonnet
+    const respIA = await ia([{role:'user', content: txt}], system, 1200, MODELO_MID);
     const acoes = await _processarMarcadoresChat(respIA, 'admin');
     let msgLimpa = respIA.replace(/\[(ATUALIZAR|ANDAMENTO|PRAZO):[^\]]+\]/g, '').trim();
     
@@ -6827,6 +6860,22 @@ async function _detectarIntencaoProcesso(txt, ctx, mem) {
         return '';
       }).filter(Boolean).join('\n');
       msgLimpa = msgLimpa + (msgLimpa ? '\n\n' : '') + resumoAcoes;
+    }
+    
+    // Enriquecer com dados reais do banco se achou o processo
+    const matchId = respIA.match(/ID[:\s]*(\d+)/);
+    if(matchId) {
+      const proc = processos.find(p => String(p.id) === matchId[1]);
+      if(proc && !acoes.length) {
+        const extra = [];
+        const ands = Array.isArray(proc.andamentos) ? proc.andamentos.slice(-3) : [];
+        if(ands.length) {
+          extra.push('\n📜 Últimos andamentos:');
+          ands.forEach(a => extra.push('  • [' + (a.data||'?') + '] ' + (a.texto||a.descricao||a.txt||'?')));
+        }
+        if(proc.observacoes) extra.push('\n📝 Obs: ' + proc.observacoes);
+        if(extra.length) msgLimpa += '\n' + extra.join('\n');
+      }
     }
     
     if(msgLimpa) {
@@ -10535,6 +10584,35 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ═══ POST /api/cliente/relatorio — Relatório de intake do cliente ═══
+  if(url==='/api/cliente/relatorio' && req.method==='POST') {
+    try {
+      const tk = getToken(req);
+      const pf = validarToken(tk);
+      if(!pf) { res.writeHead(401,corsHeaders(req)); res.end(JSON.stringify({error:'Não autenticado'})); return; }
+      const b = await lerBody(req);
+      const chatId = String(b.chat_id || '').trim();
+      const processoId = String(b.processo_id || '').trim();
+      if(!chatId && !processoId) {
+        res.writeHead(400,corsHeaders(req));
+        res.end(JSON.stringify({error:'chat_id ou processo_id obrigatório'}));
+        return;
+      }
+      const rel = await _gerarRelatorioCliente(chatId || null, processoId || null);
+      if(!rel?.ok) {
+        res.writeHead(404,corsHeaders(req));
+        res.end(JSON.stringify({ok:false, error: rel?.erro || 'Cliente/processo não encontrado'}));
+        return;
+      }
+      res.writeHead(200,corsHeaders(req));
+      res.end(JSON.stringify({ ok: true, relatorio: rel.relatorio, nome_arquivo: rel.nome_arquivo }));
+    } catch(e) {
+      res.writeHead(500,corsHeaders(req));
+      res.end(JSON.stringify({ok:false,error:e.message}));
+    }
+    return;
+  }
+
   // ═══ POST /api/atendimento/relatorio — Assistente de Atendimento Inteligente ═══
   if(url==='/api/atendimento/relatorio' && req.method==='POST') {
     try {
@@ -10608,34 +10686,6 @@ const server = http.createServer(async (req, res) => {
     } catch(e) {
       console.error('[analisar] ERRO:', e.message||e);
       res.writeHead(500,corsHeaders(req)); res.end(JSON.stringify({error:e.message}));
-    }
-    return;
-  }
-
-  if(url==='/api/cliente/relatorio' && req.method==='POST') {
-    try {
-      const tk = getToken(req);
-      const pf = validarToken(tk);
-      if(!pf) { res.writeHead(401,corsHeaders(req)); res.end(JSON.stringify({error:'Não autenticado'})); return; }
-      const b = await lerBody(req);
-      const chatId = String(b.chat_id || '').trim();
-      const processoId = String(b.processo_id || '').trim();
-      if(!chatId && !processoId) {
-        res.writeHead(400,corsHeaders(req));
-        res.end(JSON.stringify({error:'chat_id ou processo_id obrigatório'}));
-        return;
-      }
-      const rel = await _gerarRelatorioCliente(chatId || null, processoId || null);
-      if(!rel?.ok) {
-        res.writeHead(404,corsHeaders(req));
-        res.end(JSON.stringify({ok:false, error: rel?.erro || 'Cliente/processo não encontrado'}));
-        return;
-      }
-      res.writeHead(200,corsHeaders(req));
-      res.end(JSON.stringify({ ok: true, relatorio: rel.relatorio, nome_arquivo: rel.nome_arquivo }));
-    } catch(e) {
-      res.writeHead(500,corsHeaders(req));
-      res.end(JSON.stringify({ok:false,error:e.message}));
     }
     return;
   }
