@@ -171,7 +171,7 @@ const SECRETARIO_WHATSAPP_CONFIG = {
   operadores: {
     kleuber: {
       whatsapp: '5561999917171',
-      telegram_chat_id: '696337324',
+      telegram_chat_id: String(CHAT_ID),
       perfil: 'admin',
       pode_autorizar: true,
       pode_responder: true
@@ -587,7 +587,7 @@ function _gerarDocxBufferPeca(titulo, conteudo, tipo) {
 }
 
 const USUARIOS = {
-  '696337324': { nome:'Kleuber Melchior', perfil:'admin', ok:true, historico:[] }
+  [String(CHAT_ID)]: { nome:'Kleuber Melchior', perfil:'admin', ok:true, historico:[] }
 };
 const AUTORIZADOS = USUARIOS;
 
@@ -6087,7 +6087,7 @@ async function _detectarIntencaoProcesso(txt, ctx, mem) {
   const temContexto = palavrasChave.some(p => txtLow.includes(p));
   if(!temContexto) return false;
   
-  const listaProcs = processos.slice(0,30).map(p => 
+  const listaProcs = processos.map(p => 
     'ID:'+p.id+' | '+p.nome+' | '+p.numero+' | '+(p.cliente||'')+' | Status:'+(p.status||'—')+' | Prazo:'+(p.prazo||'—')
   ).join('\n');
   
