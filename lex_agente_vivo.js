@@ -686,9 +686,15 @@ async function persistirProcesso(deps, processo_atualizado) {
   try {
     if (deps.sbPatch) {
       const updateData = {};
-      const campos = ['status','juiz','vara','proxacao','observacoes','area','cliente','prazo','nome','numero','tipo','setor','atualizado_em','dias_parado','ultima_atualizacao'];
+      const campos = ['status','juiz','vara','proxacao','observacoes','area','cliente','prazo','nome','numero','tipo','setor','atualizado_em','dias_parado','ultima_atualizacao','comarca','instancia','valor','area_direito','tipo_acao','confianca_extracao'];
       for(const c of campos) { if(processo_atualizado[c] !== undefined) updateData[c] = processo_atualizado[c]; }
       if(processo_atualizado.andamentos) updateData.andamentos = JSON.stringify(processo_atualizado.andamentos);
+      // Preserva dados completos extraídos dos PDFs (autor, réu, demanda, evidências)
+      if(processo_atualizado.autor) updateData.autor_json = JSON.stringify(processo_atualizado.autor);
+      if(processo_atualizado.reu) updateData.reu_json = JSON.stringify(processo_atualizado.reu);
+      if(processo_atualizado.demanda) updateData.demanda_json = JSON.stringify(processo_atualizado.demanda);
+      if(processo_atualizado.processo) updateData.processo_json = JSON.stringify(processo_atualizado.processo);
+      if(processo_atualizado.evidencias) updateData.evidencias_json = JSON.stringify(processo_atualizado.evidencias);
       if(processo_atualizado.integracao_parecer) updateData.resumo = processo_atualizado.integracao_parecer;
       if(processo_atualizado.descricao) updateData.resumo = processo_atualizado.descricao;
       await deps.sbPatch('processos', updateData, { id: 'eq.' + processo_atualizado.id });

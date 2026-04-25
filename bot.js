@@ -7786,6 +7786,9 @@ function _cadastrarProcessoNovo(analise, arq, opcoes) {
     tribunal: analise.tribunal || '',
     juiz_relator: analise.juiz_relator || '',   // v3.0 — NOVO
     instancia: analise.instancia || '',          // v3.0 — NOVO
+    comarca: analise.comarca || '',
+    orgao: analise.orgao || '',
+    cliente: analise.nome_cliente || '',
     status: setorProcesso === 'autuacao' ? 'EM_PREP' : (analise.status || 'ATIVO'),
     prazo: analise.prazo || '',
     prazoReal: '',
@@ -7798,6 +7801,18 @@ function _cadastrarProcessoNovo(analise, arq, opcoes) {
     andamentos: analise.andamentos || [],
     arquivos: [arq.nome],
     docsFaltantes: analise.documentos_necessarios || '',
+    documentos_faltantes: analise.documentos_faltantes || [],
+    resposta_sugerida: analise.resposta_sugerida || '',
+    tipo_acao: analise.tipo_acao || analise.tipo || '',
+    area_direito: analise.area_direito || analise.area || '',
+    // ═══ DADOS COMPLETOS EXTRAÍDOS DOS PDFs — preservados para cálculos e perícia ═══
+    autor: analise.autor || null,          // {nome, cpf, rg, endereco, estado_civil, profissao, advogado, oab...}
+    reu: analise.reu || null,              // {nome, cpf_cnpj, endereco, advogado, oab}
+    processo: analise.processo || null,     // {numero, vara, comarca, tribunal, juiz, valor_causa, area_direito...}
+    demanda: analise.demanda || null,       // {tipo, resumo_fatos, pedidos[], defesa_reu[], provas_indicadas[]}
+    evidencias: analise.evidencias || null, // citações literais do PDF que comprovam cada dado
+    confianca_extracao: analise.confianca_extracao || '',
+    observacoes: analise.observacoes || '',
     atualizado_em: new Date().toISOString(),     // v3.0 — timestamp explícito
     criado_em: new Date().toISOString()          // v3.0 — auditoria
   };
